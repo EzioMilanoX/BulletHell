@@ -1,0 +1,41 @@
+{
+  "_comment": "Edit this file while the game runs (DEV MODE on). Changes apply within ~1s. Only affects DEV_MODE sessions.",
+
+  "player": {
+    "fire_rate":          0.10,
+    "fire_rate_needle":   0.20,
+    "overclock_mult":     0.45
+  },
+
+  "weapons": {
+    "default_damage":     1.0,
+    "spread_damage":      0.60,
+    "spread_speed":       380.0,
+    "needle_damage":      1.5,
+    "needle_speed":       900.0,
+    "charged_min_dmg":    2.0,
+    "charged_max_dmg":    8.0,
+    "charged_max_t":      2.5,
+    "charged_cd":         1.5,
+    "burst_damage":       1.0,
+    "burst_shots":        3,
+    "burst_interval":     0.05,
+    "burst_cd":           0.45
+  },
+
+  "boss": {
+    "hp_easy":            200,
+    "hp_normal":          300,
+    "hp_hard":            400,
+    "speed_easy":         0.75,
+    "speed_normal":       1.0,
+    "speed_hard":         1.30
+  },
+
+  "mutators": {
+    "horde_hp_mult":      1.5,
+    "horde_speed_mult":   0.85,
+    "berserker_hp_mult":  0.75,
+    "berserker_speed_mult": 1.35
+  }
+}

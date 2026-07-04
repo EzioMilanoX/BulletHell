@@ -1,0 +1,36 @@
+{
+  "_comment": "Wave Survival definitions. 30 waves total; waves 10, 20 e 30 são boss waves.",
+
+  "waves": [
+    {"enemies":  5, "kamikaze_ratio": 1.0,  "spawn_interval": 1.4},
+    {"enemies":  7, "kamikaze_ratio": 1.0,  "spawn_interval": 1.3},
+    {"enemies":  8, "kamikaze_ratio": 0.8,  "spawn_interval": 1.2},
+    {"enemies":  9, "kamikaze_ratio": 0.7,  "spawn_interval": 1.1},
+    {"enemies": 10, "kamikaze_ratio": 0.6,  "spawn_interval": 1.0},
+    {"enemies": 12, "kamikaze_ratio": 0.6,  "spawn_interval": 0.9},
+    {"enemies": 13, "kamikaze_ratio": 0.5,  "spawn_interval": 0.9},
+    {"enemies": 14, "kamikaze_ratio": 0.5,  "spawn_interval": 0.8},
+    {"enemies": 16, "kamikaze_ratio": 0.4,  "spawn_interval": 0.8},
+    {"boss_wave": true, "boss_type": 0},
+    {"enemies": 18, "kamikaze_ratio": 0.5,  "spawn_interval": 0.8},
+    {"enemies": 20, "kamikaze_ratio": 0.5,  "spawn_interval": 0.7},
+    {"enemies": 22, "kamikaze_ratio": 0.4,  "spawn_interval": 0.7},
+    {"enemies": 24, "kamikaze_ratio": 0.4,  "spawn_interval": 0.65},
+    {"enemies": 26, "kamikaze_ratio": 0.35, "spawn_interval": 0.65},
+    {"enemies": 28, "kamikaze_ratio": 0.35, "spawn_interval": 0.6},
+    {"enemies": 30, "kamikaze_ratio": 0.3,  "spawn_interval": 0.6},
+    {"enemies": 32, "kamikaze_ratio": 0.3,  "spawn_interval": 0.55},
+    {"enemies": 35, "kamikaze_ratio": 0.25, "spawn_interval": 0.55},
+    {"boss_wave": true, "boss_type": 1},
+    {"enemies": 38, "kamikaze_ratio": 0.3,  "spawn_interval": 0.55},
+    {"enemies": 40, "kamikaze_ratio": 0.3,  "spawn_interval": 0.5},
+    {"enemies": 42, "kamikaze_ratio": 0.25, "spawn_interval": 0.5},
+    {"enemies": 44, "kamikaze_ratio": 0.25, "spawn_interval": 0.5},
+    {"enemies": 46, "kamikaze_ratio": 0.2,  "spawn_interval": 0.45},
+    {"enemies": 48, "kamikaze_ratio": 0.2,  "spawn_interval": 0.45},
+    {"enemies": 50, "kamikaze_ratio": 0.2,  "spawn_interval": 0.4},
+    {"enemies": 52, "kamikaze_ratio": 0.15, "spawn_interval": 0.4},
+    {"enemies": 55, "kamikaze_ratio": 0.15, "spawn_interval": 0.4},
+    {"boss_wave": true, "boss_type": 2}
+  ]
+}

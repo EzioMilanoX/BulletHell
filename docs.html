@@ -1,0 +1,1974 @@
+
+<title>BULLET HELL — Documentação Completa</title>
+<meta name="description" content="Documentação técnica completa do jogo Bullet Hell: bosses, mecânicas, armas, habilidades, mutadores e arquitetura SoA.">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:        #080810;
+  --bg2:       #0e0e1c;
+  --card:      #1a1a2e;
+  --card2:     #22223a;
+  --border:    #3a3a58;
+  --text:      #dddaf5;
+  --muted:     #8888aa;
+  --accent:    #7c50ff;
+  --blue:      #25a9ff;
+  --orange:    #ff7a2a;
+  --green:     #2ed57a;
+  --red:       #ff3c5a;
+  --gold:      #f5c518;
+  --mono:      'Courier New', Courier, monospace;
+  --sans:      system-ui, -apple-system, sans-serif;
+  --sidebar-w: 230px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.6;
+  display: flex;
+  min-height: 100vh;
+}
+
+/* ── SIDEBAR ── */
+#sidebar {
+  position: fixed;
+  top: 0; left: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+}
+
+#sidebar-logo {
+  padding: 20px 16px 14px;
+  border-bottom: 1px solid var(--border);
+}
+#sidebar-logo .game-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+#sidebar-logo .game-name {
+  font-family: var(--mono);
+  font-size: 18px;
+  font-weight: bold;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+}
+#sidebar-logo .game-ver {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+#sidebar nav { padding: 10px 0; flex: 1; }
+
+.nav-group { margin-bottom: 4px; }
+
+.nav-group-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 8px 16px 4px;
+  display: block;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 16px;
+  color: #9999bb;
+  text-decoration: none;
+  font-size: 13px;
+  border-left: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.nav-link:hover { color: var(--text); background: rgba(124,80,255,0.08); border-color: var(--accent); }
+.nav-link.active { color: var(--accent); border-color: var(--accent); background: rgba(124,80,255,0.12); }
+
+.nav-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--border);
+}
+.nav-link:hover .nav-dot, .nav-link.active .nav-dot { background: currentColor; }
+
+/* boss color dots */
+.nd-classic { background: #c02020; }
+.nd-swarm   { background: #8c3cdc; }
+.nd-wall    { background: #3c78dc; }
+.nd-omega   { background: #ff3c78; }
+.nd-twins   { background: #5078ff; }
+.nd-summon  { background: #30c090; }
+.nd-pride   { background: #ffd700; }
+.nd-sloth   { background: #7060cc; }
+.nd-envy    { background: #2e9b57; }
+.nd-glutton { background: #992222; }
+.nd-greed   { background: #d4a020; }
+.nd-lust    { background: #ff60a0; }
+.nd-wrath   { background: #ff4020; }
+.nd-sin     { background: linear-gradient(90deg,#ff3c78,#7c50ff,#25a9ff); }
+.nd-arch    { background: #25a9ff; }
+.nd-save    { background: var(--gold); }
+
+/* ── MAIN ── */
+#main {
+  margin-left: var(--sidebar-w);
+  flex: 1;
+  padding: 48px 52px;
+  max-width: 1060px;
+}
+
+/* ── SECTION HEADERS ── */
+.section { margin-bottom: 72px; }
+
+.section-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.section-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 6px;
+  text-wrap: balance;
+}
+.section-desc {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 28px;
+  max-width: 680px;
+}
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--border) 0%, transparent 100%);
+  margin-bottom: 28px;
+}
+
+/* ── CARDS ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 20px 22px;
+  margin-bottom: 16px;
+}
+.card-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: bold;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+/* Boss cards */
+.boss-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  padding: 20px 22px;
+  margin-bottom: 20px;
+}
+.boss-header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.boss-name {
+  font-family: var(--mono);
+  font-size: 16px;
+  font-weight: bold;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+.boss-id {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+.boss-tagline {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+.boss-phases {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.phase-card {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 10px 12px;
+}
+.phase-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.phase-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.phase-desc { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+/* ── TABLES ── */
+.tbl-wrap { overflow-x: auto; margin-bottom: 20px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+th {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  text-align: left;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+td {
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(58,58,88,0.5);
+  vertical-align: top;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+.td-mono { font-family: var(--mono); font-size: 12px; }
+.td-name { font-weight: 600; }
+
+/* ── STAT GRID ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.stat-item {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 12px 14px;
+}
+.stat-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.stat-value {
+  font-family: var(--mono);
+  font-size: 20px;
+  font-weight: bold;
+  color: var(--text);
+  line-height: 1;
+}
+.stat-unit {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 2px;
+}
+
+/* ── PILL / BADGE ── */
+.pill {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+.pill-purple { background: rgba(124,80,255,0.2); color: #a888ff; border: 1px solid rgba(124,80,255,0.3); }
+.pill-blue   { background: rgba(37,169,255,0.2); color: #70c8ff; border: 1px solid rgba(37,169,255,0.3); }
+.pill-orange { background: rgba(255,122,42,0.2); color: #ffaa70; border: 1px solid rgba(255,122,42,0.3); }
+.pill-red    { background: rgba(255,60,90,0.2);  color: #ff8898; border: 1px solid rgba(255,60,90,0.3); }
+.pill-gold   { background: rgba(245,197,24,0.2); color: #f5d060; border: 1px solid rgba(245,197,24,0.3); }
+.pill-green  { background: rgba(46,213,122,0.2); color: #60e898; border: 1px solid rgba(46,213,122,0.3); }
+
+/* ── TWO-COL LAYOUT ── */
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+@media (max-width: 700px) { .two-col { grid-template-columns: 1fr; } }
+
+/* ── HIGHLIGHT BOX ── */
+.highlight-box {
+  background: rgba(124,80,255,0.08);
+  border: 1px solid rgba(124,80,255,0.25);
+  border-radius: 4px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  font-size: 13px;
+}
+.highlight-box.blue  { background: rgba(37,169,255,0.08); border-color: rgba(37,169,255,0.25); }
+.highlight-box.gold  { background: rgba(245,197,24,0.07); border-color: rgba(245,197,24,0.25); }
+.highlight-box.red   { background: rgba(255,60,90,0.07);  border-color: rgba(255,60,90,0.25); }
+
+/* ── PATTERN STRIP ── */
+.pattern-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.pattern-chip {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid;
+}
+
+/* ── CODE BLOCK ── */
+.code-block {
+  background: #0b0b16;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 14px 16px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  color: #c8c8e8;
+  margin-bottom: 16px;
+}
+.code-key   { color: #7c50ff; }
+.code-val   { color: #25a9ff; }
+.code-str   { color: #2ed57a; }
+.code-cmt   { color: #555570; }
+
+/* ── BOSS COLOR HELPERS ── */
+.bc-classic { color: #e04040; border-color: #c02020; }
+.bc-swarm   { color: #b060ff; border-color: #8c3cdc; }
+.bc-wall    { color: #60a0ff; border-color: #3c78dc; }
+.bc-omega   { color: #ff6090; border-color: #ff3c78; }
+.bc-twins   { color: #8098ff; border-color: #5078ff; }
+.bc-summon  { color: #50e0b0; border-color: #30c090; }
+.bc-pride   { color: #ffd700; border-color: #c0a000; }
+.bc-sloth   { color: #a090e8; border-color: #7060cc; }
+.bc-envy    { color: #50d080; border-color: #2e9b57; }
+.bc-glutton { color: #cc5050; border-color: #992222; }
+.bc-greed   { color: #e8c040; border-color: #d4a020; }
+.bc-lust    { color: #ff90c0; border-color: #ff60a0; }
+.bc-wrath   { color: #ff7040; border-color: #ff4020; }
+.bc-sin     { color: #ff50ff; border-color: #cc00cc; }
+
+/* ── ARCHITECTURE DIAGRAM ── */
+.arch-box {
+  background: var(--card2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 16px 18px;
+  margin-bottom: 12px;
+}
+.arch-title {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: bold;
+  color: var(--blue);
+  margin-bottom: 8px;
+}
+.arch-desc { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.arch-fields { display: flex; flex-wrap: wrap; gap: 6px; }
+.arch-field {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  background: rgba(37,169,255,0.1);
+  border: 1px solid rgba(37,169,255,0.2);
+  border-radius: 2px;
+  color: #70c8ff;
+}
+
+/* ── SCROLL MARGIN ── */
+.section { scroll-margin-top: 24px; }
+
+/* sidebar scrollbar */
+#sidebar::-webkit-scrollbar { width: 4px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+</style>
+
+<!-- SIDEBAR -->
+<div id="sidebar">
+  <div id="sidebar-logo">
+    <div class="game-title">Documentação</div>
+    <div class="game-name">BULLET<br>HELL</div>
+    <div class="game-ver">v1.9 · Python/pygame-ce</div>
+  </div>
+  <nav>
+    <div class="nav-group">
+      <span class="nav-group-label">Sistema</span>
+      <a class="nav-link" href="#overview"><span class="nav-dot"></span>Visão Geral</a>
+      <a class="nav-link" href="#difficulty"><span class="nav-dot"></span>Dificuldades</a>
+      <a class="nav-link" href="#weapons"><span class="nav-dot"></span>Armas</a>
+      <a class="nav-link" href="#weapon-plus"><span class="nav-dot" style="background:#7c50ff"></span>Armas+</a>
+      <a class="nav-link" href="#skills"><span class="nav-dot"></span>Habilidades</a>
+      <a class="nav-link" href="#skill-plus"><span class="nav-dot" style="background:#7c50ff"></span>Habilidades+</a>
+      <a class="nav-link" href="#mutators"><span class="nav-dot"></span>Mutadores</a>
+    </div>
+    <div class="nav-group">
+      <span class="nav-group-label">Bosses Clássicos</span>
+      <a class="nav-link" href="#classic"><span class="nav-dot nd-classic"></span>Clássico</a>
+      <a class="nav-link" href="#swarm"><span class="nav-dot nd-swarm"></span>Enxame</a>
+      <a class="nav-link" href="#wall"><span class="nav-dot nd-wall"></span>Paredão</a>
+      <a class="nav-link" href="#twins"><span class="nav-dot nd-twins"></span>Gêmeos</a>
+      <a class="nav-link" href="#summoner"><span class="nav-dot nd-summon"></span>Invocador</a>
+      <a class="nav-link" href="#omega"><span class="nav-dot nd-omega"></span>Ômega ★</a>
+    </div>
+    <div class="nav-group">
+      <span class="nav-group-label">Os Sete Pecados</span>
+      <a class="nav-link" href="#pride"><span class="nav-dot nd-pride"></span>Soberba</a>
+      <a class="nav-link" href="#sloth"><span class="nav-dot nd-sloth"></span>Preguiça</a>
+      <a class="nav-link" href="#envy"><span class="nav-dot nd-envy"></span>Inveja</a>
+      <a class="nav-link" href="#gluttony"><span class="nav-dot nd-glutton"></span>Gula</a>
+      <a class="nav-link" href="#greed"><span class="nav-dot nd-greed"></span>Avareza</a>
+      <a class="nav-link" href="#lust"><span class="nav-dot nd-lust"></span>Luxúria</a>
+      <a class="nav-link" href="#wrath"><span class="nav-dot nd-wrath"></span>Ira</a>
+      <a class="nav-link" href="#sinboss"><span class="nav-dot nd-sin"></span>SIN — Boss Final</a>
+    </div>
+    <div class="nav-group">
+      <span class="nav-group-label">Modos &amp; Sistema</span>
+      <a class="nav-link" href="#bossrush"><span class="nav-dot nd-arch"></span>Boss Rush</a>
+      <a class="nav-link" href="#architecture"><span class="nav-dot nd-arch"></span>Arquitetura</a>
+      <a class="nav-link" href="#save"><span class="nav-dot nd-save"></span>Save &amp; Conquistas</a>
+      <a class="nav-link" href="#devmode"><span class="nav-dot"></span>Dev Mode</a>
+    </div>
+  </nav>
+</div>
+
+<!-- MAIN CONTENT -->
+<div id="main">
+
+<!-- ═══════════════════════ OVERVIEW ═══════════════════════ -->
+<section class="section" id="overview">
+  <div class="section-eyebrow">// sistema</div>
+  <h1 class="section-title">Visão Geral</h1>
+  <p class="section-desc">Bullet Hell construído do zero em Python/pygame-ce com arquitetura DOD (Data-Oriented Design). Zero alocação dinâmica durante gameplay — todos os pools são pré-alocados na inicialização.</p>
+  <div class="section-divider"></div>
+
+  <div class="stat-grid">
+    <div class="stat-item"><div class="stat-label">Resolução</div><div class="stat-value">1280<span class="stat-unit">×720</span></div></div>
+    <div class="stat-item"><div class="stat-label">Target FPS</div><div class="stat-value">60<span class="stat-unit">fps</span></div></div>
+    <div class="stat-item"><div class="stat-label">Pool Balas</div><div class="stat-value">5000<span class="stat-unit">slots</span></div></div>
+    <div class="stat-item"><div class="stat-label">Pool Player</div><div class="stat-value">256<span class="stat-unit">slots</span></div></div>
+    <div class="stat-item"><div class="stat-label">Partículas</div><div class="stat-value">1200<span class="stat-unit">slots</span></div></div>
+    <div class="stat-item"><div class="stat-label">Lasers</div><div class="stat-value">16<span class="stat-unit">slots</span></div></div>
+    <div class="stat-item"><div class="stat-label">Emissores</div><div class="stat-value">20<span class="stat-unit">slots</span></div></div>
+    <div class="stat-item"><div class="stat-label">Inimigos</div><div class="stat-value">64<span class="stat-unit">slots</span></div></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Jogador</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Constante</th><th>Valor</th><th>Descrição</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono td-name">PLAYER_SPEED</td><td class="td-mono">220.0 px/s</td><td>Velocidade base de movimento</td></tr>
+        <tr><td class="td-mono td-name">PLAYER_SIZE</td><td class="td-mono">18 px</td><td>Tamanho visual do sprite</td></tr>
+        <tr><td class="td-mono td-name">PLAYER_RADIUS</td><td class="td-mono">2.5 px</td><td>Raio da hitbox de colisão</td></tr>
+        <tr><td class="td-mono td-name">BULLET_RADIUS</td><td class="td-mono">3.0 px</td><td>Raio das balas inimigas</td></tr>
+        <tr><td class="td-mono td-name">HIT_SQ</td><td class="td-mono">30.25 px²</td><td>Limiar quadrado de colisão (2.5+3.0)²</td></tr>
+        <tr><td class="td-mono td-name">INVULN_FRAMES</td><td class="td-mono">90 f = 1.5s</td><td>Frames de invulnerabilidade pós-hit</td></tr>
+        <tr><td class="td-mono td-name">MAX_LIVES</td><td class="td-mono">3</td><td>Vidas máximas</td></tr>
+        <tr><td class="td-mono td-name">GRAZE_RANGE</td><td class="td-mono">~9 px</td><td>Distância para contar graze (fora do HIT_SQ)</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Boss — Constantes Base</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Constante</th><th>Valor</th><th>Descrição</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono td-name">BOSS_SIZE</td><td class="td-mono">48 px</td><td>Tamanho padrão do boss</td></tr>
+        <tr><td class="td-mono td-name">BOSS_MAX_HP</td><td class="td-mono">300</td><td>HP base (DIFF_NORMAL)</td></tr>
+        <tr><td class="td-mono td-name">PREP_TIME</td><td class="td-mono">0.65s</td><td>Telegrama antes de cada ataque</td></tr>
+        <tr><td class="td-mono td-name">SPREAD_SPEED</td><td class="td-mono">185 px/s</td><td>Velocidade padrão dos spreads</td></tr>
+        <tr><td class="td-mono td-name">SPREAD_RATE</td><td class="td-mono">0.80s</td><td>Intervalo entre disparos Spread</td></tr>
+        <tr><td class="td-mono td-name">RING_RATE</td><td class="td-mono">1.60s</td><td>Intervalo entre disparos Ring</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="highlight-box blue">
+    <strong>Regra zero-GC:</strong> Todo I/O de arquivo ocorre exclusivamente nas telas <span class="pill pill-blue">MAIN_MENU</span> e <span class="pill pill-blue">WIN/GAMEOVER</span>. Durante o gameplay, zero alocação dinâmica — todos os pools SoA são arrays NumPy pré-alocados.
+  </div>
+</section>
+
+<!-- ═══════════════════════ DIFFICULTY ═══════════════════════ -->
+<section class="section" id="difficulty">
+  <div class="section-eyebrow">// progressão</div>
+  <h2 class="section-title">Sistema de Dificuldade</h2>
+  <p class="section-desc">Seis níveis de dificuldade controlam velocidade, HP do boss, padrões disponíveis e mecânicas especiais.</p>
+  <div class="section-divider"></div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>ID</th><th>Nome</th><th>Speed Mult</th><th>Boss HP</th><th>Mecânicas Especiais</th></tr></thead>
+    <tbody>
+      <tr><td class="td-mono">−1</td><td class="td-name">TESTE</td><td class="td-mono">×1.0</td><td class="td-mono">50</td><td>Godmode, apenas para debug</td></tr>
+      <tr><td class="td-mono">0</td><td class="td-name">FÁCIL</td><td class="td-mono">×0.75</td><td class="td-mono">200</td><td>Ciclo reduzido de padrões; sem Shard/Circular/etc.</td></tr>
+      <tr><td class="td-mono">1</td><td class="td-name">NORMAL</td><td class="td-mono">×1.0</td><td class="td-mono">300</td><td>Todos os padrões, rotação fixa</td></tr>
+      <tr><td class="td-mono">2</td><td class="td-name">DIFÍCIL</td><td class="td-mono">×1.30</td><td class="td-mono">400</td><td>+1 projétil por padrão; STOP&amp;GO e BOOMERANG no ciclo</td></tr>
+      <tr><td class="td-mono">3</td><td class="td-name">EXPERT</td><td class="td-mono">×1.50</td><td class="td-mono">480</td><td>PREP ×0.5 · Second Wind (3s com 1 HP) · balas 20% menores</td></tr>
+      <tr><td class="td-mono">4</td><td class="td-name">ABISSAL</td><td class="td-mono">×1.65</td><td class="td-mono">560</td><td>Balas fragmentantes (→ 2 fragmentos em ±30°, velocidade e b_type herdados do pai) · Revenge Bullets · requer vitória no Boss Rush</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Second Wind — Expert+</div>
+      <p style="font-size:13px;color:var(--muted)">Quando o boss atingiria 0 HP pela primeira vez, sobrevive com 1 HP por <strong style="color:var(--text)">3 segundos</strong>. Se não for derrotado nesse tempo, o HP permanece em 1 e o boss continua.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Abissal — Fragmentação</div>
+      <p style="font-size:13px;color:var(--muted)">Balas que saem da tela ou são aparadas por <em>Parry</em> geram <strong style="color:var(--text)">2 fragmentos voadores</strong> disparados em ±30° (±0.524 rad) da direção de retorno, herdando a velocidade escalar e o <code>b_type</code> (cor) da bala original. Fragmentos têm <code>b_bounces=0</code> e <code>b_fragment=True</code>.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Escalonamento de Padrões por Tier (HP)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tier</th><th>HP Threshold</th><th>Balas Spread</th><th>Cone</th><th>Ring</th><th>Spiral</th></tr></thead>
+      <tbody>
+        <tr><td>T1</td><td>&gt; 66%</td><td class="td-mono">5</td><td class="td-mono">±35°</td><td class="td-mono">26 bal · 132 px/s</td><td class="td-mono">6 arms · 0.10 rad/frame</td></tr>
+        <tr><td>T2</td><td>33–66%</td><td class="td-mono">6</td><td class="td-mono">±45°</td><td class="td-mono">28 bal · 150 px/s</td><td class="td-mono">6 arms · 0.15</td></tr>
+        <tr><td>T3</td><td>&lt; 33%</td><td class="td-mono">7</td><td class="td-mono">±56°</td><td class="td-mono">32 bal · 170 px/s</td><td class="td-mono">8 arms · 0.18</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ WEAPONS ═══════════════════════ -->
+<section class="section" id="weapons">
+  <div class="section-eyebrow">// combate</div>
+  <h2 class="section-title">Armas</h2>
+  <p class="section-desc">Dez armas com trade-offs distintos de cadência, dano e comportamento. Cada uma tem uma variante evoluída (Weapon+) desbloqueável via maestria.</p>
+  <div class="section-divider"></div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>ID</th><th>Const.</th><th>Nome</th><th>Cadência</th><th>Dano</th><th>Velocidade</th><th>Mecânica</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="td-mono">0</td><td class="td-mono" style="color:var(--muted)">WEAPON_DEFAULT</td><td class="td-name">PADRÃO</td>
+        <td class="td-mono">0.10s</td><td class="td-mono">×1.0</td><td class="td-mono">500 px/s</td>
+        <td>1 bala direta para cima. Referência base.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">1</td><td class="td-mono" style="color:var(--muted)">WEAPON_SPREAD</td><td class="td-name">SPREAD</td>
+        <td class="td-mono">0.13s</td><td class="td-mono">×0.60 cada</td><td class="td-mono">380 px/s</td>
+        <td>3–7 balas em cone ±14°–35° (aumenta com tier de dificuldade).</td>
+      </tr>
+      <tr>
+        <td class="td-mono">2</td><td class="td-mono" style="color:var(--muted)">WEAPON_NEEDLE</td><td class="td-name">AGULHA</td>
+        <td class="td-mono">0.20s</td><td class="td-mono">×1.5</td><td class="td-mono">900 px/s</td>
+        <td>Projétil único ultra-rápido, recarga longa.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">3</td><td class="td-mono" style="color:var(--muted)">WEAPON_CHARGED</td><td class="td-name">CARREGADO</td>
+        <td class="td-mono">CD 1.5s</td><td class="td-mono">×2.0–8.0</td><td class="td-mono">500 px/s</td>
+        <td>Segure para carregar até 2.5s. Tamanho visual 5–14 px. CD de 1.5s após disparar.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">4</td><td class="td-mono" style="color:var(--muted)">WEAPON_BURST</td><td class="td-name">BURST</td>
+        <td class="td-mono">CD 0.45s</td><td class="td-mono">×1.0 cada</td><td class="td-mono">500 px/s</td>
+        <td>3 disparos em sequência (0.05s entre cada), depois CD de 0.45s.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">5</td><td class="td-mono" style="color:var(--muted)">WEAPON_HOMING</td><td class="td-name">TELEGUIADO</td>
+        <td class="td-mono">0.30s</td><td class="td-mono">×0.2 cada</td><td class="td-mono">290–370 px/s</td>
+        <td>5 mísseis, cone ±38°, rastreamento 2.8s, curl 260 px/s², vel. máx. 370 px/s.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">6</td><td class="td-mono" style="color:var(--muted)">WEAPON_FLAK</td><td class="td-name">FLAK</td>
+        <td class="td-mono">0.50s</td><td class="td-mono">×0.4 × 5</td><td class="td-mono">200 px/s</td>
+        <td>Projétil slow que detona em 0.40s em 5 estilhaços num arco de 40° (400 px/s). Dano em área.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">7</td><td class="td-mono" style="color:var(--muted)">WEAPON_CHAKRAM</td><td class="td-name">CHAKRAM</td>
+        <td class="td-mono">0.70s</td><td class="td-mono">×2.0</td><td class="td-mono">580 px/s</td>
+        <td>Disco que desacelera (drag 1600 px/s²), inverte e retorna. Capturado ao voltar a 22 px do jogador.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">8</td><td class="td-mono" style="color:var(--muted)">WEAPON_PLASMA</td><td class="td-name">PLASMA</td>
+        <td class="td-mono">0.06s</td><td class="td-mono">10 DPS</td><td class="td-mono">100 px/s</td>
+        <td>Stream contínuo de bolts lentos (alcance 120 px). DPS aplicado por overlap — balas não são consumidas pela colisão. Requer aproximação do boss.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">9</td><td class="td-mono" style="color:var(--muted)">WEAPON_ORBIT</td><td class="td-name">SATÉLITE</td>
+        <td class="td-mono">0.35s</td><td class="td-mono">×0.6 por sat.</td><td class="td-mono">orbital</td>
+        <td>Até 4 gemas orbitando o jogador (raio 44 px, 4.0 rad/s). Dano ao tocar a hitbox do boss.</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">PLASMA — Detalhe Técnico</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">O plasma usa <code>check_plasma_boss_collision()</code> separado do check de colisão normal. Bolts <strong>nunca são destruídos</strong> pela colisão — aplicam <code>PLASMA_DPS × cnt × dt</code> por frame enquanto estiverem dentro da AABB do boss.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Constante</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td class="td-mono">PLASMA_SPEED</td><td class="td-mono">100.0 px/s</td></tr>
+          <tr><td class="td-mono">PLASMA_LIFESPAN</td><td class="td-mono">1.2 s</td></tr>
+          <tr><td class="td-mono">PLASMA_DPS</td><td class="td-mono">10.0 / bolt</td></tr>
+          <tr><td class="td-mono">PLASMA_FIRE_RATE</td><td class="td-mono">0.06 s</td></tr>
+          <tr><td class="td-mono">PLASMA_SIZE</td><td class="td-mono">11.0 px</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">FLAK — Detalhe Técnico</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">O projétil principal tem <code>damage=0.0</code>. Ao expirar o timer (ou ser detonado pelo FLAK+), <code>PlayerBulletPool.update()</code> spawna <strong>5 estilhaços</strong> em arco centrado a −90°, cada um com <code>FLAK_SHRAPNEL_DMG = 0.4</code>.</p>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Constante</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td class="td-mono">FLAK_TIMER</td><td class="td-mono">0.40 s</td></tr>
+          <tr><td class="td-mono">FLAK_SHRAPNEL_N</td><td class="td-mono">5</td></tr>
+          <tr><td class="td-mono">FLAK_SHRAPNEL_SPD</td><td class="td-mono">400 px/s</td></tr>
+          <tr><td class="td-mono">FLAK_SHRAPNEL_ARC</td><td class="td-mono">40° (≈0.698 rad)</td></tr>
+          <tr><td class="td-mono">FLAK_SHRAPNEL_DMG</td><td class="td-mono">0.4</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ WEAPON PLUS ═══════════════════════ -->
+<section class="section" id="weapon-plus">
+  <div class="section-eyebrow">// evolução de armas</div>
+  <h2 class="section-title">Sistema Weapon+</h2>
+  <p class="section-desc">Cada arma tem uma variante evoluída desbloqueável por maestria. Selecionada com <kbd style="background:var(--card2);border:1px solid var(--border);padding:1px 5px;border-radius:2px;font-size:12px">Espaço</kbd> no menu SELECT_WEAPON quando disponível.</p>
+  <div class="section-divider"></div>
+
+  <div class="highlight-box blue">
+    <strong>Desbloqueio:</strong> Cada Weapon+ tem um critério de maestria específico (acertos consecutivos, dano acumulado, etc.) rastreado em <code>SaveManager.weapon_mastery</code>. Uma vez desbloqueado, fica em <code>weapon_plus_unlocked</code> permanentemente.
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Arma</th><th>Nome+</th><th>Efeito</th><th>Campos SoA usados</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="td-name">PADRÃO+</td><td style="color:#a888ff">RICOCHETE</td>
+        <td>Balas ricocheteiam em paredes laterais 2 vezes antes de expirar.</td>
+        <td class="td-mono">pb_bounces = 2</td>
+      </tr>
+      <tr>
+        <td class="td-name">SPREAD+</td><td style="color:#a888ff">PONTO-CEGO</td>
+        <td>Dano 2× (1.20 vs 0.60). Alcance limitado a 150 px — balas expiram ao atingir a distância máxima.</td>
+        <td class="td-mono">pb_state=1, pb_timer=range_t</td>
+      </tr>
+      <tr>
+        <td class="td-name">AGULHA+</td><td style="color:#a888ff">PENETRANTE</td>
+        <td>Traversa o boss sem ser destruída. Cooldown de 0.25s por bala após cada acerto (evita multi-hit por frame). Cadência 20% mais lenta.</td>
+        <td class="td-mono">pb_pierce=True, pb_timer=0.25 pós-hit</td>
+      </tr>
+      <tr>
+        <td class="td-name">CARREGADO+</td><td style="color:#a888ff">FRAGMENTADOR</td>
+        <td>Tiro com ≥85% de carga ao acertar gera 6 estilhaços radiais (0.5 dmg cada, 320 px/s). Posição registrada em <code>_hit_buf</code> sem alocação.</td>
+        <td class="td-mono">pb_state=2, _hit_buf[16,2]</td>
+      </tr>
+      <tr>
+        <td class="td-name">BURST+</td><td style="color:#a888ff">ACELERADOR</td>
+        <td>Cada bala sai devagar (80 px/s) e acelera para 800 px/s após 0.60s. Pausa no ar antes do impacto.</td>
+        <td class="td-mono">pb_timer=0.60, pb_state=0→1, pb_orbit_a=aim</td>
+      </tr>
+      <tr>
+        <td class="td-name">TELEGUIADO+</td><td style="color:#a888ff">ENXAME ORBITAL</td>
+        <td>Segurar: acumula mísseis orbitando o jogador (raio 50 px). Soltar: todos lançam juntos em direção ao boss.</td>
+        <td class="td-mono">pb_type=PB_HOMING_HELD=5</td>
+      </tr>
+      <tr>
+        <td class="td-name">FLAK+</td><td style="color:#a888ff">DETONADOR</td>
+        <td>Enquanto fire segurado: congela o timer dos projéteis ativos (não explodem). Ao soltar: detona todos simultaneamente.</td>
+        <td class="td-mono">pb_timer reset/zero via _fire_released</td>
+      </tr>
+      <tr>
+        <td class="td-name">CHAKRAM+</td><td style="color:#a888ff">CONGELADOR</td>
+        <td>Quando chakram está no ápice (velo≈0) e fire segurado: congela em midair aplicando 8.0 DPS ao boss. Soltar retoma retorno.</td>
+        <td class="td-mono">pb_state=2 (frozen), pvy=0</td>
+      </tr>
+      <tr>
+        <td class="td-name">PLASMA+</td><td style="color:#a888ff">RASTRO DE CALOR</td>
+        <td>Cada bolt ao expirar spawna uma poça estacionária com DPS reduzido (3.0 DPS, 1.20s duração). Cria zonas de negação ao longo do caminho.</td>
+        <td class="td-mono">pb_type=PB_PLASMA_PUDDLE=6, pb_state=1</td>
+      </tr>
+      <tr>
+        <td class="td-name">SATÉLITE+</td><td style="color:#a888ff">INTERCEPTOR</td>
+        <td>Quando o boss está a ≤250 px: a gema mais próxima é lançada automaticamente como míssil homing. CD 2.5s entre lançamentos.</td>
+        <td class="td-mono">pb_type PB_ORBIT→PB_NORMAL, pb_homing=True</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="card">
+    <div class="card-title">Tipos de Bala do Jogador (pb_type)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tipo</th><th>ID</th><th>Descrição</th><th>Posição gerenciada por</th></tr></thead>
+      <tbody>
+        <tr><td class="td-name">PB_NORMAL</td><td class="td-mono">0</td><td>Bala padrão. Também usado por AGULHA, PADRÃO, SPREAD, BURST, CARREGADO, estilhaços FLAK/CARREGADO+.</td><td>update() — move normalmente</td></tr>
+        <tr><td class="td-name">PB_FLAK</td><td class="td-mono">1</td><td>Projétil FLAK. damage=0, detona em estilhaços PB_NORMAL ao expirar o timer.</td><td>update() — move normalmente</td></tr>
+        <tr><td class="td-name">PB_CHAKRAM</td><td class="td-mono">2</td><td>Disco CHAKRAM. Estado: 0=indo, 1=retornando, 2=frozen (CHAKRAM+).</td><td>update() — move com drag</td></tr>
+        <tr><td class="td-name">PB_PLASMA</td><td class="td-mono">3</td><td>Bolt de plasma. Não é consumido por colisão — DPS via check_plasma_boss_collision(). pb_state=1 → spawna PB_PLASMA_PUDDLE ao expirar.</td><td>update() — move normalmente</td></tr>
+        <tr><td class="td-name">PB_ORBIT</td><td class="td-mono">4</td><td>Gema de satélite. Posição calculada externamente no game loop.</td><td>main.py — reposicionado por ângulo orbital</td></tr>
+        <tr><td class="td-name">PB_HOMING_HELD</td><td class="td-mono">5</td><td>Míssil TELEGUIADO+ aguardando lançamento. Orbita o jogador. Convertido para PB_NORMAL+homing ao soltar fire.</td><td>main.py — reposicionado por ângulo orbital</td></tr>
+        <tr><td class="td-name">PB_PLASMA_PUDDLE</td><td class="td-mono">6</td><td>Poça estacionária do PLASMA+. vx=vy=0. DPS reduzido (3.0). Nunca expira por OOB.</td><td>Estacionária — não se move</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">pb_state — Usos por tipo</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Tipo / Estado</th><th>Significado</th></tr></thead>
+        <tbody>
+          <tr><td class="td-mono">PB_NORMAL, state=0</td><td>Normal / BURST+ armando</td></tr>
+          <tr><td class="td-mono">PB_NORMAL, state=1</td><td>SPREAD+ range-limited <em>ou</em> BURST+ armado</td></tr>
+          <tr><td class="td-mono">PB_NORMAL, state=2</td><td>CARREGADO+ (spawna estilhaços ao acertar)</td></tr>
+          <tr><td class="td-mono">PB_CHAKRAM, state=0</td><td>Indo (forward)</td></tr>
+          <tr><td class="td-mono">PB_CHAKRAM, state=1</td><td>Retornando</td></tr>
+          <tr><td class="td-mono">PB_CHAKRAM, state=2</td><td>Frozen — CHAKRAM+</td></tr>
+          <tr><td class="td-mono">PB_PLASMA, state=1</td><td>PLASMA+ ativo — spawna PB_PLASMA_PUDDLE ao expirar</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">pb_timer — Usos por arma</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Arma</th><th>pb_timer contém</th></tr></thead>
+        <tbody>
+          <tr><td>FLAK</td><td>Countdown de detonação (0.40s)</td></tr>
+          <tr><td>PLASMA</td><td>Lifespan restante (1.2s)</td></tr>
+          <tr><td>PLASMA_PUDDLE</td><td>Lifespan restante (1.20s)</td></tr>
+          <tr><td>BURST+</td><td>Arm countdown (0.60s → 0 → arma)</td></tr>
+          <tr><td>AGULHA+</td><td>Pierce cooldown pós-hit (0.25s)</td></tr>
+          <tr><td>SPREAD+</td><td>Range countdown (150/380s)</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ SKILLS ═══════════════════════ -->
+<section class="section" id="skills">
+  <div class="section-eyebrow">// habilidades</div>
+  <h2 class="section-title">Habilidades do Jogador</h2>
+  <p class="section-desc">Habilidades ativas com cooldown. Desbloqueadas via conquistas.</p>
+  <div class="section-divider"></div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>ID</th><th>Nome</th><th>CD</th><th>Duração</th><th>Efeito</th><th>Desbloqueio</th></tr></thead>
+    <tbody>
+      <tr><td class="td-mono">0</td><td class="td-name">NENHUMA</td><td>—</td><td>—</td><td>Sem habilidade ativa.</td><td>Sempre disponível</td></tr>
+      <tr>
+        <td class="td-mono">1</td><td class="td-name">DASH</td>
+        <td class="td-mono">1.2s</td><td class="td-mono">0.18s</td>
+        <td>6× velocidade de movimento (~264 px de deslocamento). Sem i-frames.</td>
+        <td>Sempre disponível</td>
+      </tr>
+      <tr>
+        <td class="td-mono">2</td><td class="td-name">PARRY</td>
+        <td class="td-mono">1.2s</td><td class="td-mono">0.13s</td>
+        <td>Reflete balas no raio de 12 px. Balas refletidas causam dano ao boss (×3 com Glass Cannon).</td>
+        <td>FÁCIL concluído</td>
+      </tr>
+      <tr>
+        <td class="td-mono">3</td><td class="td-name">FOCO</td>
+        <td class="td-mono">—</td><td class="td-mono">Hold</td>
+        <td>Reduz velocidade global a 32% enquanto ativo. Drena 1.5/s; regenera 0.45/s quando solto.</td>
+        <td>NORMAL concluído</td>
+      </tr>
+      <tr>
+        <td class="td-mono">4</td><td class="td-name">EMP</td>
+        <td class="td-mono">8.0s</td><td class="td-mono">Instantâneo</td>
+        <td>Destrói todas as balas em raio de 340 px + atordoa boss por 1.0s.</td>
+        <td>100 grazes acumulados</td>
+      </tr>
+      <tr>
+        <td class="td-mono">5</td><td class="td-name">BLINK</td>
+        <td class="td-mono">2.0s</td><td class="td-mono">Instantâneo</td>
+        <td>Teleporta 190 px na direção do input. Sem i-frames.</td>
+        <td>Vitória sem ser atingido</td>
+      </tr>
+      <tr>
+        <td class="td-mono">6</td><td class="td-name">OVERCLOCK</td>
+        <td class="td-mono">12.0s</td><td class="td-mono">3.0s</td>
+        <td>Cadência de tiro ×0.45 (2.2× mais rápido). Sem bônus de dano.</td>
+        <td>DIFÍCIL + 1+ mutador</td>
+      </tr>
+      <tr>
+        <td class="td-mono">7</td><td class="td-name">ESCUDO</td>
+        <td class="td-mono">15.0s</td><td class="td-mono">2.5s</td>
+        <td>Absorve próximo hit (tudo-ou-nada). Ativo até absorver ou duração acabar.</td>
+        <td>50 parries acumulados</td>
+      </tr>
+      <tr>
+        <td class="td-mono">8</td><td class="td-name">DILATAÇÃO</td>
+        <td class="td-mono">12.0s</td><td class="td-mono">2.0s</td>
+        <td>Congela todas as balas inimigas no lugar durante 2s.</td>
+        <td>Twins: matar ambos com &lt;3s de diferença</td>
+      </tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ═══════════════════════ SKILL PLUS ═══════════════════════ -->
+<section class="section" id="skill-plus">
+  <div class="section-eyebrow">// evolução de habilidades</div>
+  <h2 class="section-title">Sistema Habilidade+</h2>
+  <p class="section-desc">Cada habilidade tem uma variante evoluída desbloqueável via maestria. Selecionada com <kbd style="background:var(--card2);border:1px solid var(--border);padding:1px 5px;border-radius:2px;font-size:12px">Espaço</kbd> no menu SELECT_SKILL quando disponível.</p>
+  <div class="section-divider"></div>
+
+  <div class="highlight-box blue">
+    <strong>Desbloqueio:</strong> Cada Skill+ tem um critério de maestria específico rastreado em <code>SaveManager.mastery</code>. Uma vez desbloqueado, fica em <code>skill_plus_unlocked</code> permanentemente. FOCO e NENHUMA não possuem variante+.
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Habilidade</th><th>Nome+</th><th>Efeito Adicionado</th><th>Critério de Maestria</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="td-name">DASH+</td>
+        <td style="color:#a888ff">Arrancada Espectral</td>
+        <td>I-frames de 80ms ao iniciar o dash. Graze durante o dash <em>não</em> causa dano.</td>
+        <td>50 grazes acumulados enquanto estiver em i-frames de dash</td>
+      </tr>
+      <tr>
+        <td class="td-name">PARRY+</td>
+        <td style="color:#a888ff">Royal Guard</td>
+        <td>Cada bala deflectida se converte em míssil homing (<code>PARRY_PLUS_HOMING_DMG=1.5</code>) que rastreia o boss automaticamente.</td>
+        <td>Reflectir 5+ balas em uma única janela de parry</td>
+      </tr>
+      <tr>
+        <td class="td-name">EMP+</td>
+        <td style="color:#a888ff">Sobrecarga Sináptica</td>
+        <td>EMP <strong>não atordoa o boss</strong>. Em compensação, cada bala destruída concede +1% de dano à arma por 5s (<code>EMP_PLUS_BUFF_DUR</code>). Buff acumula: 200 balas = +200% dano.</td>
+        <td>Destruir 200+ balas em ativações de EMP acumuladas</td>
+      </tr>
+      <tr>
+        <td class="td-name">BLINK+</td>
+        <td style="color:#a888ff">Relâmpago Fantasma</td>
+        <td>Na <em>posição de origem</em> do teleporte, um micro-EMP de raio 60px (<code>BLINK_PLUS_EMP_R</code>) detona instantaneamente, destruindo balas próximas.</td>
+        <td>Teleportar ATRAVÉS do corpo do boss (detectado automaticamente pelo overlap)</td>
+      </tr>
+      <tr>
+        <td class="td-name">OVERCLOCK+</td>
+        <td style="color:#a888ff">Modo Berserk</td>
+        <td>Cadência 4× mais rápida (<code>OVERCLOCK_PLUS_FR_MULT=0.25</code> do período base). Contrapartida: velocidade de movimento reduzida a 25% durante o Overclock (<code>OVERCLOCK_PLUS_SPD_F</code>).</td>
+        <td>Causar 500+ de dano ao boss em uma única janela de Overclock</td>
+      </tr>
+      <tr>
+        <td class="td-name">ESCUDO+</td>
+        <td style="color:#a888ff">Muralha Elástica</td>
+        <td><strong>Bloco perfeito</strong> (ativado &lt;0.15s antes do hit): spawna anel de 8 balas radiais (220 px/s) + CD reduzido em 50% (<code>SHIELD_PLUS_CD_FRAC=0.5</code>). Bloco normal funciona normalmente, sem bônus.</td>
+        <td>10 blocos perfeitos acumulados</td>
+      </tr>
+      <tr>
+        <td class="td-name">DILATAÇÃO+</td>
+        <td style="color:#a888ff">Ruptura Temporal</td>
+        <td>Ao <em>expirar</em> o timer de Dilatação, detona todas as balas congeladas em raio de 80px ao redor do jogador (<code>TIMEDIL_PLUS_RADIUS</code>). Balas fora do raio retomam o movimento normalmente.</td>
+        <td>Ativar Dilatação quando uma bala inimiga estiver a ≤5px do jogador (detectado automaticamente)</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Constantes Skill+</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Constante</th><th>Valor</th><th>Habilidade</th></tr></thead>
+        <tbody>
+          <tr><td class="td-mono">DASH_PLUS_IFRAME_DUR</td><td class="td-mono">0.08 s</td><td>DASH+</td></tr>
+          <tr><td class="td-mono">PARRY_PLUS_HOMING_DMG</td><td class="td-mono">1.5</td><td>PARRY+</td></tr>
+          <tr><td class="td-mono">EMP_PLUS_BUFF_DUR</td><td class="td-mono">5.0 s</td><td>EMP+</td></tr>
+          <tr><td class="td-mono">EMP_PLUS_DMG_PER_BULL</td><td class="td-mono">0.01 (1%)</td><td>EMP+</td></tr>
+          <tr><td class="td-mono">BLINK_PLUS_EMP_R</td><td class="td-mono">60.0 px</td><td>BLINK+</td></tr>
+          <tr><td class="td-mono">OVERCLOCK_PLUS_FR_MULT</td><td class="td-mono">0.25×</td><td>OVERCLOCK+</td></tr>
+          <tr><td class="td-mono">OVERCLOCK_PLUS_SPD_F</td><td class="td-mono">0.25×</td><td>OVERCLOCK+</td></tr>
+          <tr><td class="td-mono">SHIELD_PLUS_CD_FRAC</td><td class="td-mono">0.50</td><td>ESCUDO+</td></tr>
+          <tr><td class="td-mono">SHIELD_PLUS_RING_N</td><td class="td-mono">8</td><td>ESCUDO+</td></tr>
+          <tr><td class="td-mono">SHIELD_PLUS_RING_SPD</td><td class="td-mono">220.0 px/s</td><td>ESCUDO+</td></tr>
+          <tr><td class="td-mono">TIMEDIL_PLUS_RADIUS</td><td class="td-mono">80.0 px</td><td>DILATAÇÃO+</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Alvos de Maestria</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Constante</th><th>Alvo</th></tr></thead>
+        <tbody>
+          <tr><td class="td-mono">MASTERY_DASH_GRAZES</td><td class="td-mono">50 grazes</td></tr>
+          <tr><td class="td-mono">MASTERY_PARRY_BURST</td><td class="td-mono">5 balas / janela</td></tr>
+          <tr><td class="td-mono">MASTERY_EMP_BULLETS</td><td class="td-mono">200 balas</td></tr>
+          <tr><td class="td-mono">MASTERY_OC_DMG</td><td class="td-mono">500.0 HP</td></tr>
+          <tr><td class="td-mono">MASTERY_SHIELD_PERFECT</td><td class="td-mono">10 perfeitos</td></tr>
+        </tbody>
+      </table></div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">BLINK+ e DILATAÇÃO+ têm critérios de maestria event-driven (detectados em condição específica). Sem contador numérico — 1 ocorrência = desbloqueado.</p>
+    </div>
+  </div>
+
+  <div class="highlight-box">
+    <strong>Save:</strong> Maestria rastreada em <code>SaveManager.mastery</code> (dict). Desbloqueios em <code>skill_plus_unlocked</code> (set[int]). I/O proibido durante PLAYING — maestria acumula em memória e persiste ao WIN/GAMEOVER.
+  </div>
+</section>
+
+<!-- ═══════════════════════ MUTATORS ═══════════════════════ -->
+<section class="section" id="mutators">
+  <div class="section-eyebrow">// modificadores</div>
+  <h2 class="section-title">Mutadores</h2>
+  <p class="section-desc">Modificadores opcionais de run. Cada mutador ativo adiciona +25% ao multiplicador de score.</p>
+  <div class="section-divider"></div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>ID</th><th>Nome</th><th>Efeito</th><th>Desbloqueio</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="td-mono">0</td><td class="td-name">PREDADOR</td>
+        <td>Boss prevê posição do jogador 0.5s à frente ao mirar.</td>
+        <td>Sempre disponível</td>
+      </tr>
+      <tr>
+        <td class="td-mono">1</td><td class="td-name">FANTASMA</td>
+        <td>Balas ficam invisíveis entre 200–400 px do boss (exceto parried).</td>
+        <td>Sempre disponível</td>
+      </tr>
+      <tr>
+        <td class="td-mono">2</td><td class="td-name">CANHÃO DE VIDRO</td>
+        <td>1 vida · dano ×3 · parry ×3 mais forte.</td>
+        <td>Sempre disponível</td>
+      </tr>
+      <tr>
+        <td class="td-mono">3</td><td class="td-name">HORDA</td>
+        <td>Boss +50% HP, −15% velocidade. (Aplicado no GameConfig.)</td>
+        <td>Sempre disponível</td>
+      </tr>
+      <tr>
+        <td class="td-mono">4</td><td class="td-name">BERSERKER</td>
+        <td>Boss −25% HP, +35% velocidade. (Aplicado no GameConfig.)</td>
+        <td>Sempre disponível</td>
+      </tr>
+      <tr>
+        <td class="td-mono">5</td><td class="td-name">CLAUSTROFOBIA</td>
+        <td>Arena encolhe 14% por borda. Restringe espaço progressivamente.</td>
+        <td>Invocador: modo Pacifist Elite (&lt;10 minions mortos)</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="highlight-box gold">
+    <strong>Multiplicador de Score:</strong> <code>multiplier = 1.0 + 0.25 × quantidade_de_mutadores</code>. 6 mutadores ativos = ×2.5 de score.
+  </div>
+</section>
+
+<!-- ═══════════════════════ CLASSIC BOSS ═══════════════════════ -->
+<section class="section" id="classic">
+  <div class="section-eyebrow">// boss clássico · ID 0</div>
+  <h2 class="section-title">Boss Clássico</h2>
+  <p class="section-desc">10 padrões rotativos com mecânicas distintas. O boss de referência do jogo — dominar seus padrões é base para todos os outros.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#c02020">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#e04040">CLÁSSICO</span>
+      <span class="boss-id">BOSS_CLASSIC = 0 · Waypoints: 8 posições</span>
+    </div>
+    <p class="boss-tagline">Boss padrão com ciclo de padrões progressivo. Waypoints: (50%,50%), (20%,20%), (80%,20%), (14%,50%), (86%,50%), (35%,28%), (65%,28%), (50%,18%).</p>
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>ID</th><th>Padrão</th><th>Duração</th><th>Intervalo</th><th>Mecânica</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="td-mono">0</td><td class="td-name">SPREAD</td>
+        <td class="td-mono">3.5s</td><td class="td-mono">0.80s</td>
+        <td>Cone em direção ao jogador. T1: 5 bal ±35° · T2: 6 bal ±45° · T3: 7 bal ±56°. DIFÍCIL: +1 bônus.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">1</td><td class="td-name">RING</td>
+        <td class="td-mono">4.2s</td><td class="td-mono">1.60s</td>
+        <td>Círculo completo com gap em direção ao jogador. T1: 26 bal 132 px/s · T2: 28 bal 150 · T3: 32 bal 170. Gap de arco 30°.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">2</td><td class="td-name">SPIRAL</td>
+        <td class="td-mono">5.5s</td><td class="td-mono">0.040s/braço</td>
+        <td>T1: 6 braços 0.10 rad/f · T2: 6 braços 0.15 · T3: 8 braços 0.18. Expande para fora a 72 px/s.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">3</td><td class="td-name">SHARD</td>
+        <td class="td-mono">5.0s</td><td class="td-mono">2 estágios</td>
+        <td>13+ fissuras formam padrão estacionário, depois disparam para cima a 185+ px/s simultaneamente.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">4</td><td class="td-name">CIRCULAR</td>
+        <td class="td-mono">8.0s</td><td class="td-mono">—</td>
+        <td>3 braços crescem radialmente, depois disparam inversamente a 195 px/s. Preenche o espaço.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">5</td><td class="td-name">FRACTURE</td>
+        <td class="td-mono">5.5s</td><td class="td-mono">2 estágios</td>
+        <td>Árvore binária de fissuras, 3s estacionária, depois dispara a 165 px/s.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">6</td><td class="td-name">BLASTER</td>
+        <td class="td-mono">7.0s</td><td class="td-mono">2.2s</td>
+        <td>4 projéteis de bordas aleatórias. Telegrama emitter de 1.4s antes. BLAST: 9 bal 420 px/s por emitter.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">7</td><td class="td-name">LASER</td>
+        <td class="td-mono">9.0s</td><td class="td-mono">3.0s</td>
+        <td>3 linhas horizontais/verticais alternadas. Telegrama 1.8s + disparo 0.65s. Separação mín: H 130 px / V 190 px. Hitbox ±6 px.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">8</td><td class="td-name">STOP&amp;GO</td>
+        <td class="td-mono">5.5s</td><td class="td-mono">1.8s</td>
+        <td>Cone de balas que pausam após 0.60s (BSTOP_PENDING), ficam paradas por 1.80s (BSTOPPED), depois relançam a 260 px/s em direção ao jogador na posição original do pause.</td>
+      </tr>
+      <tr>
+        <td class="td-mono">9</td><td class="td-name">BOOMERANG</td>
+        <td class="td-mono">5.5s</td><td class="td-mono">2.2s</td>
+        <td>Anel de 8 balas disparadas para longe. Após 0.85s (BBOOM_PENDING), invertem velocidade com mult ×1.8 e retornam.</td>
+      </tr>
+    </tbody>
+  </table></div>
+
+  <div class="card">
+    <div class="card-title">Ciclos por Dificuldade</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Dificuldade</th><th>Ciclo</th></tr></thead>
+      <tbody>
+        <tr><td>FÁCIL</td><td class="td-mono">SPREAD → RING → SPREAD → RING → SPIRAL → SHARD → RING → SPREAD</td></tr>
+        <tr><td>NORMAL</td><td class="td-mono">SPREAD → RING → SPIRAL → SPREAD → RING → SHARD → CIRCULAR → FRACTURE → BLASTER → LASER → STOP&amp;GO → BOOMERANG</td></tr>
+        <tr><td>DIFÍCIL</td><td class="td-mono">SPREAD → RING → SPIRAL → SPREAD + shuffle(RING, SHARD, CIRCULAR, FRACTURE, BLASTER, LASER, STOP&amp;GO, BOOMERANG)</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ SWARM BOSS ═══════════════════════ -->
+<section class="section" id="swarm">
+  <div class="section-eyebrow">// boss enxame · ID 1</div>
+  <h2 class="section-title">Boss Enxame</h2>
+  <p class="section-desc">Três unidades em formação triangular orbitante. Pool de HP único e compartilhado.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#8c3cdc">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#b060ff">ENXAME</span>
+      <span class="boss-id">BOSS_SWARM = 1 · 3 unidades</span>
+    </div>
+    <p class="boss-tagline">Formação triangular orbitando com centro próprio. Qualquer unidade atingida desconta HP do pool único — não há morte individual.</p>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-item"><div class="stat-label">Unidades</div><div class="stat-value">3</div></div>
+    <div class="stat-item"><div class="stat-label">Raio Órbita</div><div class="stat-value">130<span class="stat-unit">px</span></div></div>
+    <div class="stat-item"><div class="stat-label">Vel. Órbita</div><div class="stat-value">0.75<span class="stat-unit">rad/s</span></div></div>
+    <div class="stat-item"><div class="stat-label">Tamanho Unit.</div><div class="stat-value">34<span class="stat-unit">px</span></div></div>
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Padrão</th><th>Duração</th><th>Mecânica</th></tr></thead>
+    <tbody>
+      <tr><td class="td-name">CROSSFIRE</td><td class="td-mono">4.5s</td><td>Cada unidade dispara cone em direção ao jogador. Taxa: 1.6s.</td></tr>
+      <tr><td class="td-name">RING VOLLEY</td><td class="td-mono">5.5s</td><td>Unidades disparam rings rotativos com gap rotacionante.</td></tr>
+      <tr><td class="td-name">LASER GRID</td><td class="td-mono">7.5s</td><td>Unidades disparam lasers horizontais/verticais de suas posições.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="highlight-box">
+    <strong>Pool Único:</strong> Todas as 3 unidades compartilham o mesmo HP. Acertar qualquer unidade conta como dano no boss. O boss é derrotado quando o pool chega a zero — não há morte individual de unidades.
+  </div>
+</section>
+
+<!-- ═══════════════════════ WALL BOSS ═══════════════════════ -->
+<section class="section" id="wall">
+  <div class="section-eyebrow">// boss paredão · ID 2</div>
+  <h2 class="section-title">Boss Paredão</h2>
+  <p class="section-desc">Barra horizontal que desce do topo da tela, com 11 canhões destruíveis individualmente.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#3c78dc">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#60a0ff">PAREDÃO</span>
+      <span class="boss-id">BOSS_WALL = 2 · 1280×60 px</span>
+    </div>
+    <p class="boss-tagline">Desce a 150 px/s, para a 30% da tela (216 px do topo). Destrua canhões para reduzir firepower — mas cada canhão destruído aumenta a cadência dos restantes.</p>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-item"><div class="stat-label">Largura</div><div class="stat-value">1280<span class="stat-unit">px</span></div></div>
+    <div class="stat-item"><div class="stat-label">Altura</div><div class="stat-value">60<span class="stat-unit">px</span></div></div>
+    <div class="stat-item"><div class="stat-label">Velocidade</div><div class="stat-value">150<span class="stat-unit">px/s</span></div></div>
+    <div class="stat-item"><div class="stat-label">Canhões</div><div class="stat-value">11</div></div>
+    <div class="stat-item"><div class="stat-label">Separação</div><div class="stat-value">110<span class="stat-unit">px</span></div></div>
+    <div class="stat-item"><div class="stat-label">Rage/canhão</div><div class="stat-value">+30%<span class="stat-unit">bullet speed</span></div></div>
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Padrão</th><th>Taxa Base</th><th>Mecânica</th></tr></thead>
+    <tbody>
+      <tr><td class="td-name">RAIN</td><td class="td-mono">0.22s</td><td>1/3 aleatório dos canhões tem gap. Balas descem a 220 px/s com dispersão.</td></tr>
+      <tr><td class="td-name">PILLAR</td><td class="td-mono">0.09s</td><td>Pilão único que rastreia X do jogador. Desce a 300 px/s em coluna estreita.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="card">
+    <div class="card-title">Posições dos Canhões (X)</div>
+    <div class="code-block"><span class="code-cmt"># Canhões em espaçamento de 110 px, iniciando em 55</span>
+<span class="code-key">cannon_x</span> = [<span class="code-val">55, 165, 275, 385, 495, 605, 715, 825, 935, 1045, 1155</span>]</div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ TWINS BOSS ═══════════════════════ -->
+<section class="section" id="twins">
+  <div class="section-eyebrow">// boss gêmeos · ID 6</div>
+  <h2 class="section-title">Boss Gêmeos</h2>
+  <p class="section-desc">Yin e Yang: dois bosses opostos em um. Fase 1 individual, Fase 2 o sobrevivente absorve o outro e escala.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#5078ff">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#8098ff">GÊMEOS</span>
+      <span class="boss-id">BOSS_TWINS = 6</span>
+    </div>
+    <p class="boss-tagline">Fase 1: Yin (azul, lento) e Yang (laranja, veloz) com HP separados. Conquista <em>Perfect Balance</em>: matar ambos com &lt;3s de diferença desbloqueia DILATAÇÃO.</p>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title" style="color:#25a9ff">YIN — Azul</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Atributo</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td>Velocidade</td><td class="td-mono">75 px/s</td></tr>
+          <tr><td>Comportamento</td><td>Move para cantos</td></tr>
+          <tr><td>Taxa de fogo</td><td class="td-mono">1.6s</td></tr>
+          <tr><td>Tipo bala</td><td><span class="pill pill-blue">BTYPE_BLUE</span></td></tr>
+          <tr><td>Detalhe</td><td>Balas azuis só machucam se jogador estiver <em>em movimento</em>.</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="color:#ff7a2a">YANG — Laranja</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Atributo</th><th>Valor</th></tr></thead>
+        <tbody>
+          <tr><td>Velocidade</td><td class="td-mono">250 px/s</td></tr>
+          <tr><td>Comportamento</td><td>Orbita jogador (270 px)</td></tr>
+          <tr><td>Taxa de fogo</td><td class="td-mono">1.1s</td></tr>
+          <tr><td>Tipo bala</td><td><span class="pill pill-orange">BTYPE_ORANGE</span></td></tr>
+          <tr><td>Detalhe</td><td>Balas laranjas só machucam se jogador estiver <em>parado</em>. Whip final: 22 balas em leque (<code>YANG_WHIP_N = 22</code>).</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Ataques Conjuntos (Fase 1 · CD 9s)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Nome</th><th>Mecânica</th></tr></thead>
+      <tbody>
+        <tr><td class="td-name">HELIX DNA</td><td>Ambos orbitam o centro (140 px) a 1.2 rad/s, disparam pares a 0.065s de intervalo, 148 px/s.</td></tr>
+        <tr><td class="td-name">PENDULUM</td><td>Paredes comprimem dos lados (30 px/s), disparam bolas a 0.48s de intervalo, 205 px/s.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Fase 2 — Yang Absorvido (4 ciclos)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Ataque</th><th>Duração</th><th>Mecânica</th></tr></thead>
+      <tbody>
+        <tr><td class="td-name">WASP</td><td class="td-mono">9s</td><td>5 clusters de dash (210 px cada), spawn 15 balas roxas dormentes <span class="pill pill-purple">BSLEEPING</span> por cluster. Acordam em direção ao jogador a 145 px/s.</td></tr>
+        <tr><td class="td-name">WHIP</td><td class="td-mono">5.5s</td><td>~22 balas em espiral com homing por tempo variável.</td></tr>
+        <tr><td class="td-name">METEOR</td><td class="td-mono">3.5s</td><td>X aleatório do topo, 355–495 px/s vertical. Alterna laranja/roxo.</td></tr>
+        <tr><td class="td-name">PHANTOM DASH</td><td class="td-mono">6.5s</td><td>Dash horizontal a 1350 px/s + rastros de 160 px/s perpendiculares.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Fase 2 — Yin Absorvido (4 ciclos)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Ataque</th><th>Duração</th><th>Mecânica</th></tr></thead>
+      <tbody>
+        <tr><td class="td-name">CHESS</td><td class="td-mono">8s</td><td>Grade 9×7, 3 colunas seguras, 575 px/s para baixo + spray lateral laranja.</td></tr>
+        <tr><td class="td-name">LABYRINTH</td><td class="td-mono">10s</td><td>6 linhas × gaps, balas invisíveis a 80 px/s (labirintos diagonais).</td></tr>
+        <tr><td class="td-name">MINEFIELD</td><td class="td-mono">9s</td><td>30 minas estacionárias espalhadas. Acordam a 215 px/s no <em>Inversion Pulse</em>.</td></tr>
+        <tr><td class="td-name">CHESS CAGE</td><td class="td-mono">7s</td><td>Caixa 210×210 centrada no jogador, pisca 10 balas internas a 52 px/s.</td></tr>
+      </tbody>
+    </table></div>
+    <div class="highlight-box" style="margin-top:12px">
+      <strong>Inversion Pulse (CD 15s):</strong> Carga de 1.3s → inverte cores de todas as balas + acorda minas do Minefield.
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ SUMMONER BOSS ═══════════════════════ -->
+<section class="section" id="summoner">
+  <div class="section-eyebrow">// boss invocador · ID 7</div>
+  <h2 class="section-title">Boss Invocador</h2>
+  <p class="section-desc">Teleporta entre cantos e invoca ondas de minions alternadas.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#30c090">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#50e0b0">INVOCADOR</span>
+      <span class="boss-id">BOSS_SUMMONER = 7</span>
+    </div>
+    <p class="boss-tagline">Teleporta entre 4 cantos a cada 4.2s, disparando 8 balas por teleporte. Conquista <em>Pacifist Elite</em>: completar com &lt;10 minions mortos desbloqueia CLAUSTROFOBIA.</p>
+  </div>
+
+  <div class="two-col">
+    <div class="card">
+      <div class="card-title">Posições (Cantos)</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Canto</th><th>X</th><th>Y</th></tr></thead>
+        <tbody>
+          <tr><td>Topo-Esq</td><td class="td-mono">18%</td><td class="td-mono">18%</td></tr>
+          <tr><td>Topo-Dir</td><td class="td-mono">82%</td><td class="td-mono">18%</td></tr>
+          <tr><td>Base-Esq</td><td class="td-mono">18%</td><td class="td-mono">65%</td></tr>
+          <tr><td>Base-Dir</td><td class="td-mono">82%</td><td class="td-mono">65%</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Tipos de Minion</div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Tipo</th><th>HP</th><th>Vel.</th><th>Spawn</th></tr></thead>
+        <tbody>
+          <tr><td class="td-name">Kamikaze</td><td class="td-mono">8</td><td class="td-mono">195 px/s</td><td>3 por onda, área topo aleatória. CD 2.6s (ondas pares).</td></tr>
+          <tr><td class="td-name">Sentinela</td><td class="td-mono">20</td><td class="td-mono">Estático</td><td>1 por onda, área central. Dispara cruz (4 bal) a 2.2s. CD 2.6s (ondas ímpares).</td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ OMEGA BOSS ═══════════════════════ -->
+<section class="section" id="omega">
+  <div class="section-eyebrow">// boss secreto · ID 4</div>
+  <h2 class="section-title">Boss Ômega ★</h2>
+  <p class="section-desc">Boss secreto que combina todos os outros. 4 fases com teleporte periódico. Desbloqueio via Hard + 3 mutadores.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#ff3c78">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#ff6090">ÔMEGA ★</span>
+      <span class="boss-id">BOSS_OMEGA = 4 · HP ×2 · 4 Fases</span>
+    </div>
+    <p class="boss-tagline">Instancia sub-bosses reais em sequência. Teleporte a cada 3.2s em todas as fases exceto Paredão.</p>
+  </div>
+
+  <div class="tbl-wrap"><table>
+    <thead><tr><th>Fase</th><th>Nome</th><th>Sub-Boss</th><th>Mecânica</th></tr></thead>
+    <tbody>
+      <tr><td class="td-mono">0</td><td class="td-name">MURALHA</td><td>WallBoss</td><td>Boss Paredão completo. Sem teleporte nesta fase.</td></tr>
+      <tr><td class="td-mono">1</td><td class="td-name">ENXAME</td><td>SwarmBoss</td><td>Boss Enxame + teleporte do centro (cx/cy) a cada 3.2s.</td></tr>
+      <tr><td class="td-mono">2</td><td class="td-name">CLÁSSICO</td><td>Boss</td><td>Boss Clássico completo + teleporte a cada 3.2s.</td></tr>
+      <tr><td class="td-mono">3</td><td class="td-name">CAOS</td><td>Boss</td><td>Boss Clássico em modo caos + teleporte a cada 3.2s.</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="highlight-box red">
+    <strong>Desbloqueio:</strong> Vencer no modo DIFÍCIL com 3 ou mais mutadores ativos simultaneamente.
+  </div>
+</section>
+
+<!-- ═══════════════════════ PRIDE ═══════════════════════ -->
+<section class="section" id="pride">
+  <div class="section-eyebrow">// soberba · ID 8</div>
+  <h2 class="section-title">PrideBoss — Soberba</h2>
+  <p class="section-desc">Holofote que varre a tela: invulnerável fora do feixe. 3 fases com mecânicas radicalmente diferentes.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#c0a000">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#ffd700">SOBERBA</span>
+      <span class="boss-id">BOSS_PRIDE = 8 · Transições: 66% / 33% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">O Holofote</div>
+      <div class="phase-desc">Holofote varre topo (95 px/s). Jogador <strong>vulnerável apenas dentro do feixe</strong> (88 px de largura). O <strong>corpo do boss renderiza na posição do holofote</strong> (<code>spot_x</code>), não na posição de tracking — hitbox e visual estão sincronizados. Dispara 3 balas para baixo por 0.18s. Tamanho boss: 34 px.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Ego Ferido</div>
+      <div class="phase-desc">Não-invulnerável. Formas geométricas rotativas (quadrado/triângulo alternando a 55°/s) disparam spreadshots. Força o jogador para cima (−60 px/s²).</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">Julgamento Final</div>
+      <div class="phase-desc">Espiral de 5 braços a 0.28s de intervalo, 195 px/s. Força upward constante (−60 px/s²).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ SLOTH ═══════════════════════ -->
+<section class="section" id="sloth">
+  <div class="section-eyebrow">// preguiça · ID 9</div>
+  <h2 class="section-title">SlothBoss — Preguiça</h2>
+  <p class="section-desc">Deriva aleatória, spawna bolhas-Sentinela. Fase 1 invulnerável até matar fantasmas.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#7060cc">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#a090e8">PREGUIÇA</span>
+      <span class="boss-id">BOSS_SLOTH = 9 · Transições: 66% / 33% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Sonambulismo</div>
+      <div class="phase-desc">Deriva aleatória lenta. Spawna minions BOLHA (8 HP, explodem anel de 12 balas após 8s ou ao morrerem).</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Terror Noturno</div>
+      <div class="phase-desc">Invulnerável + overlay escuro. Spawna 3 fantasmas-sentinela. Boss volta a ser vulnerável apenas quando todos os 3 são mortos.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">O Despertar Brutal</div>
+      <div class="phase-desc">Fire 8-way rápido (45° entre cada), 185 px/s, taxa 0.35s. Alta densidade de balas.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ ENVY ═══════════════════════ -->
+<section class="section" id="envy">
+  <div class="section-eyebrow">// inveja · ID 10</div>
+  <h2 class="section-title">EnvyBoss — Inveja</h2>
+  <p class="section-desc">Espelha a arma do jogador na Fase 0. Rouba o cooldown da habilidade na Fase 1.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#2e9b57">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#50d080">INVEJA</span>
+      <span class="boss-id">BOSS_ENVY = 10 · Transições: 66% / 33% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Espelho</div>
+      <div class="phase-desc">Copia exatamente a arma ativa do jogador, disparando para baixo com os mesmos parâmetros. Muda ao trocar de arma.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Roubo de CD</div>
+      <div class="phase-desc">Penaliza cooldown da habilidade do jogador (skill_cd ×0.50 extra). Dispara ring de 6 balas.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">Caos</div>
+      <div class="phase-desc">Cicla aleatoriamente entre SPREAD, NEEDLE, BURST e HOMING a cada 2s.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ GLUTTONY ═══════════════════════ -->
+<section class="section" id="gluttony">
+  <div class="section-eyebrow">// gula · ID 11</div>
+  <h2 class="section-title">GluttonyBoss — Gula</h2>
+  <p class="section-desc">Aplica força gravitacional variável ao jogador em cada fase. Ricochetes na Fase 2.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#992222">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#cc5050">GULA</span>
+      <span class="boss-id">BOSS_GLUTTONY = 11 · Transições: 66% / 33% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Orbital</div>
+      <div class="phase-desc">Rings orbitais (8 balas, 125 px/s tangencial + 55 px/s downward, 0.65s taxa). Força: −48 px/s² (para cima).</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Dentes</div>
+      <div class="phase-desc">Faixas horizontais com gaps aleatórios, 110 px/s. Força: −85 px/s² (para cima, dificulta dodge).</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">Ricochet Ring</div>
+      <div class="phase-desc">Ring de balas laranjas com 3 ricochetes, 170 px/s. Força: +70 px/s² (para baixo).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ GREED ═══════════════════════ -->
+<section class="section" id="greed">
+  <div class="section-eyebrow">// avareza · ID 12</div>
+  <h2 class="section-title">GreedBoss — Avareza</h2>
+  <p class="section-desc">Divide a arena em zonas na Fase 0. Moedas explosivas na Fase 1. Ricochetes de borda na Fase 2.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#d4a020">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#e8c040">AVAREZA</span>
+      <span class="boss-id">BOSS_GREED = 12 · Transições: 66% / 33% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Divisão</div>
+      <div class="phase-desc">2 paredes verticais em 33% e 67% da tela, dividindo a arena em 3 zonas. Balas disparam em zonas específicas.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">32 Moedas</div>
+      <div class="phase-desc">32 moedas espalhadas pela tela. Destruir cada uma gera explosão de 8 balas (200 px/s, laranja). O jogador precisa gerenciar quais destruir.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">Cerca</div>
+      <div class="phase-desc">Borda encolhe para dentro. Balas com 3 ricochetes nas bordas internas (ricochet box).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ LUST ═══════════════════════ -->
+<section class="section" id="lust">
+  <div class="section-eyebrow">// luxúria · ID 13</div>
+  <h2 class="section-title">LustBoss — Luxúria</h2>
+  <p class="section-desc">Inverte os controles na Fase 1. Spawna zonas de perigo (SLOW/BURN) na Fase 0.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#ff60a0">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#ff90c0">LUXÚRIA</span>
+      <span class="boss-id">BOSS_LUST = 13 · Transições: 66% / 33% HP · Força: −65 px/s²</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Armadilha</div>
+      <div class="phase-desc">Spawna 4 zonas de perigo (SLOW: velocidade ×0.5 / BURN: dano a cada 0.5s enquanto dentro). Dispara daggers a 0.40s, 340 px/s com jitter ±0.3 rad.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Ilusão</div>
+      <div class="phase-desc"><strong>Controles invertidos.</strong> Ring de 6 corações rotativos (165 px/s laranja, 0.55s taxa). Jogador tem que se adaptar ao movimento espelhado.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">Véu</div>
+      <div class="phase-desc">Flores decorativas lentas (55 px/s, visíveis) + agulhas invisíveis ultra-rápidas (420 px/s, invisíveis até perto, 0.18s taxa).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ WRATH ═══════════════════════ -->
+<section class="section" id="wrath">
+  <div class="section-eyebrow">// ira · ID 14</div>
+  <h2 class="section-title">WrathBoss — Ira</h2>
+  <p class="section-desc">Rastreia o jogador e mergulha no chão para explodir. Fase 2 auto-destruição em ricochete.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#ff4020">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#ff7040">IRA</span>
+      <span class="boss-id">BOSS_WRATH = 14 · Transições: 66% / 33% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Perseguição</div>
+      <div class="phase-desc">Rastreia X do jogador (2.5 px/s). Spread de 3 balas a 0.12s, 200–280 px/s (random). Constantemente em direção ao jogador.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">SLAM</div>
+      <div class="phase-desc">Ciclo: <strong>HOLD</strong> (2.5s no topo) → <strong>DIVE</strong> (0.4s cai a 80% da tela) → <strong>FLOOR</strong> (0.6s: onda choque radial 300 px/s + burst 12 bal 160 px/s) → <strong>RISE</strong> (0.5s retorna).</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">Berserker</div>
+      <div class="phase-desc">Corpo rect anterior <strong>some completamente</strong>; apenas o círculo ricocheteante permanece visível. Raio: 26 px, 320–600 px/s aceleração. Ricocheia pelas paredes por 20s → auto-morte ao fim do timer.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ SIN BOSS ═══════════════════════ -->
+<section class="section" id="sinboss">
+  <div class="section-eyebrow">// boss final · ID 15</div>
+  <h2 class="section-title">SIN — O Boss Final</h2>
+  <p class="section-desc">4 fases que escalam em intensidade. A Fase 3 é invulnerável — o objetivo é sobreviver 30 segundos.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#cc00cc; background: linear-gradient(135deg, #1a1a2e 0%, #1a101a 100%)">
+    <div class="boss-header">
+      <span class="boss-name" style="background: linear-gradient(90deg,#ff3c78,#7c50ff,#25a9ff); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent; font-size:20px">SIN</span>
+      <span class="boss-id">BOSS_SIN = 15 · Transições: 75% / 50% / 25% HP · Cores: ciclo 7 pecados</span>
+    </div>
+    <p class="boss-tagline">O boss final do SINS Rush. Cicla através das 7 cores dos pecados a cada ~0.33s como feedback visual de fase.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0 — 100→75% HP</div>
+      <div class="phase-name">CHIMERA</div>
+      <div class="phase-desc">64 minas (CD 2.2s), detonam na proximidade do jogador (45 px). Dispara balas laranja em 6 direções, 190 px/s com 2 ricochetes, 0.45s taxa.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1 — 75→50% HP</div>
+      <div class="phase-name">CORRUPTION</div>
+      <div class="phase-desc">Screen wrapping ativo — balas que saem da tela voltam pelo lado oposto. Cascade de 3 spreads (0.12s, 200 px/s, ±0.5 rad).</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2 — 50→25% HP</div>
+      <div class="phase-name">MATHEMATICAL PURITY</div>
+      <div class="phase-desc">7 espirais simultâneas com velocidades variadas (160–240 px/s), ciclo de ângulos, taxa 0.045s. Density máxima de padrão.</div>
+    </div>
+    <div class="phase-card" style="border-color:rgba(255,60,90,0.5); background:rgba(255,60,90,0.08)">
+      <div class="phase-label">FASE 3 — 25→0% HP</div>
+      <div class="phase-name" style="color:#ff6080">SEVENTH SEAL ⚠</div>
+      <div class="phase-desc"><strong>INVULNERÁVEL por 30 segundos.</strong> Spawna 3 balas roxas de homing a cada 0.08–0.25s (taxa acelera). Sobreviver ao timer → boss auto-derrota.</div>
+    </div>
+  </div>
+
+  <div class="highlight-box red">
+    <strong>Seventh Seal:</strong> O boss se torna INVULNERÁVEL na fase final. Nenhuma bala do jogador causa dano. O único objetivo é sobreviver os 30 segundos de bombardeio de balas roxas de homing acelerado. Após o timer, o boss cai automaticamente.
+  </div>
+</section>
+
+<!-- ═══════════════════════ BOSS RUSH ═══════════════════════ -->
+<section class="section" id="bossrush">
+  <div class="section-eyebrow">// modo especial</div>
+  <h2 class="section-title">Boss Rush</h2>
+  <p class="section-desc">Modo em que bosses são enfrentados em sequência. HP escala a cada estágio.</p>
+  <div class="section-divider"></div>
+
+  <div class="two-col">
+    <div class="boss-card" style="border-color:#c02020">
+      <div class="boss-header">
+        <span class="boss-name" style="color:#e04040">BOSS RUSH CLÁSSICO</span>
+      </div>
+      <p class="boss-tagline">Ordem fixa · Escala HP ×1.0 por estágio</p>
+      <div class="pattern-strip">
+        <span class="pattern-chip bc-classic">CLÁSSICO</span>
+        <span class="pattern-chip bc-swarm">ENXAME</span>
+        <span class="pattern-chip bc-wall">PAREDÃO</span>
+        <span class="pattern-chip bc-twins">GÊMEOS</span>
+        <span class="pattern-chip bc-summon">INVOCADOR</span>
+        <span class="pattern-chip bc-omega">ÔMEGA</span>
+      </div>
+    </div>
+    <div class="boss-card" style="border-color:#cc00cc">
+      <div class="boss-header">
+        <span class="boss-name" style="color:#ff50ff">BOSS RUSH SINS</span>
+      </div>
+      <p class="boss-tagline">Ordem aleatória · Escala HP ×1.15 · Boss final forçado: SIN</p>
+      <div class="pattern-strip">
+        <span class="pattern-chip bc-pride">SOBERBA</span>
+        <span class="pattern-chip bc-sloth">PREGUIÇA</span>
+        <span class="pattern-chip bc-envy">INVEJA</span>
+        <span class="pattern-chip bc-glutton">GULA</span>
+        <span class="pattern-chip bc-greed">AVAREZA</span>
+        <span class="pattern-chip bc-lust">LUXÚRIA</span>
+        <span class="pattern-chip bc-wrath">IRA</span>
+        <span class="pattern-chip bc-sin">+ SIN</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Fórmula de HP por Estágio</div>
+    <div class="code-block"><span class="code-key">hp_stage</span> = <span class="code-val">base_hp</span> × (<span class="code-val">hp_scale</span> ^ <span class="code-val">stage_index</span>)
+
+<span class="code-cmt"># Exemplo SINS: base 300, scale 1.15, estágio 5 (6º boss)</span>
+<span class="code-val">300</span> × <span class="code-val">1.15</span>^<span class="code-val">5</span> = <span class="code-val">~603 HP</span></div>
+  </div>
+
+  <div class="highlight-box gold">
+    <strong>Desbloqueio Abissal:</strong> Completar BOSS RUSH SINS desbloqueia a dificuldade ABISSAL (ID 4).
+  </div>
+</section>
+
+<!-- ═══════════════════════ ARCHITECTURE ═══════════════════════ -->
+<section class="section" id="architecture">
+  <div class="section-eyebrow">// técnico</div>
+  <h2 class="section-title">Arquitetura</h2>
+  <p class="section-desc">Design orientado a dados (DOD) com arrays SoA (Structure of Arrays) em NumPy. Zero alocação dinâmica durante gameplay.</p>
+  <div class="section-divider"></div>
+
+  <div class="arch-box">
+    <div class="arch-title">BulletPool — MAX_BULLETS = 5000</div>
+    <div class="arch-desc">Pool SoA de balas inimigas. Cada "slot" é um índice paralelo em todos os arrays.</div>
+    <div class="arch-fields">
+      <span class="arch-field">bx / by</span>
+      <span class="arch-field">bvx / bvy</span>
+      <span class="arch-field">active</span>
+      <span class="arch-field">b_type</span>
+      <span class="arch-field">b_invisible</span>
+      <span class="arch-field">b_bounces</span>
+      <span class="arch-field" title="Bala gerada por _spawn_fragment_pair; herda b_type do pai">b_fragment</span>
+      <span class="arch-field" title="Visual-only: renderiza como amarelo (255,220,0) ignorando b_type — NÃO usado em fragmentos">b_ricochet</span>
+      <span class="arch-field">parried</span>
+      <span class="arch-field">grazed</span>
+      <span class="arch-field">bstate</span>
+      <span class="arch-field">btimer</span>
+      <span class="arch-field">btgt_x / btgt_y</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Tipos de Bala (b_type)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tipo</th><th>ID</th><th>Comportamento de Dano</th></tr></thead>
+      <tbody>
+        <tr><td class="td-name">BTYPE_NORMAL</td><td class="td-mono">0</td><td>Sempre causa dano ao jogador.</td></tr>
+        <tr><td class="td-name">BTYPE_BLUE</td><td class="td-mono">1</td><td>Só causa dano se o jogador estiver <em>em movimento</em>. (Yin dos Gêmeos)</td></tr>
+        <tr><td class="td-name">BTYPE_ORANGE</td><td class="td-mono">2</td><td>Só causa dano se o jogador estiver <em>parado</em>. (Yang dos Gêmeos)</td></tr>
+        <tr><td class="td-name">BTYPE_PURPLE</td><td class="td-mono">3</td><td>Homing — rastreia o jogador. (Wasp, Meteor alt, Phantom)</td></tr>
+        <tr><td class="td-name">BTYPE_TETHER</td><td class="td-mono">4</td><td>Par de balas ligadas por arame invisível. <code>btgt_x</code> = índice do par. Dano se o jogador cruzar o segmento (hit via <code>tether_check()</code>).</td></tr>
+        <tr><td class="td-name">BTYPE_GRAVITY</td><td class="td-mono">5</td><td>Puxa o jogador a cada frame (<code>BULLET_GRAVITY_PULL=90.0</code> px/s²). Excluída de <code>query_player()</code> — não causa dano por contato.</td></tr>
+        <tr><td class="td-name">BTYPE_PHASE</td><td class="td-mono">6</td><td>Alterna sólido/fantasma: sólido por 0.5s, intangível por 0.5s (<code>BULLET_PHASE_PERIOD=1.0s</code>). <code>btgt_x</code> = timer acumulado de fase.</td></tr>
+        <tr><td class="td-name">BTYPE_SPIN</td><td class="td-mono">7</td><td>Velocidade rotacionada por <code>btgt_x</code> rad/s a cada frame. Trajetória espiralante.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Estados de Comportamento (bstate)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Estado</th><th>ID</th><th>Descrição</th></tr></thead>
+      <tbody>
+        <tr><td class="td-name">BNORMAL</td><td class="td-mono">0</td><td>Voo padrão: posição += velocidade × dt.</td></tr>
+        <tr><td class="td-name">BSTOP_PENDING</td><td class="td-mono">1</td><td>Para após 0.60s (STOPGO_TRAVEL_TIME). Transita para BSTOPPED.</td></tr>
+        <tr><td class="td-name">BSTOPPED</td><td class="td-mono">2</td><td>Parada por 1.80s (STOPGO_PAUSE). Depois relança em direção a btgt_x/btgt_y.</td></tr>
+        <tr><td class="td-name">BBOOM_PENDING</td><td class="td-mono">3</td><td>Inverte velocidade (×−1.8) após 0.85s (TM_BOOM_REVERSE_TIME). Boomerang.</td></tr>
+        <tr><td class="td-name">BSLEEPING</td><td class="td-mono">4</td><td>Dormente até timer expirar, depois acorda em direção ao jogador a 145 px/s.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="two-col">
+    <div class="arch-box">
+      <div class="arch-title">PlayerBulletPool — MAX_PB = 256</div>
+      <div class="arch-desc">Pool SoA de balas do jogador. Campos marcados com <em>*</em> foram adicionados para o sistema Weapon+.</div>
+      <div class="arch-fields">
+        <span class="arch-field">px / py</span>
+        <span class="arch-field">pvx / pvy</span>
+        <span class="arch-field">active</span>
+        <span class="arch-field">damage</span>
+        <span class="arch-field">pb_size</span>
+        <span class="arch-field">pb_homing</span>
+        <span class="arch-field">pb_home_t</span>
+        <span class="arch-field" title="PB_NORMAL=0 PB_FLAK=1 PB_CHAKRAM=2 PB_PLASMA=3 PB_ORBIT=4 PB_HOMING_HELD=5 PB_PLASMA_PUDDLE=6">pb_type *</span>
+        <span class="arch-field" title="FLAK countdown | PLASMA lifespan | BURST+ arm CD | AGULHA+ pierce CD | SPREAD+ range CD">pb_timer *</span>
+        <span class="arch-field" title="PB_NORMAL: 0=norm, 1=spread+/burst_arm, 2=carregado+; PB_CHAKRAM: 0=fwd, 1=return, 2=frozen; PB_PLASMA: 1=puddle_on_expire">pb_state *</span>
+        <span class="arch-field" title="Ângulo orbital — SATÉLITE e TELEGUIADO+ em órbita">pb_orbit_a *</span>
+        <span class="arch-field" title="Ricochetes restantes em paredes laterais (PADRÃO+)">pb_bounces *</span>
+        <span class="arch-field" title="True = bala traversa boss sem ser destruída (AGULHA+)">pb_pierce *</span>
+        <span class="arch-field" title="Buffer [16,2] pré-alocado para posições de hit do CARREGADO+. Zero-GC.">_hit_buf *</span>
+        <span class="arch-field" title="Contador de posições válidas em _hit_buf">_hit_buf_n *</span>
+      </div>
+    </div>
+    <div class="arch-box">
+      <div class="arch-title">LaserPool — MAX_LASERS = 16</div>
+      <div class="arch-desc">Vigas axis-aligned (horizontal ou vertical). Telegrama via <code>timer &gt; 0</code>, dano quando <code>timer ≤ 0</code>.</div>
+      <div class="arch-fields">
+        <span class="arch-field" title="Posição do laser: Y se horizontal, X se vertical">lpos</span>
+        <span class="arch-field" title="True = horizontal, False = vertical">horiz</span>
+        <span class="arch-field" title="Positivo: telegrama. Negativo: disparando. Release quando ≤ -(LASER_FIRE_DUR + 0.15)">timer</span>
+        <span class="arch-field">active</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="arch-box">
+      <div class="arch-title">HazardPool — MAX_HAZARDS = 20</div>
+      <div class="arch-desc">Zonas de perigo residuais (denial of area). Dois tipos: SLOW reduz velocidade do jogador à metade enquanto dentro; BURN causa dano periódico a cada 0.5s.</div>
+      <div class="arch-fields">
+        <span class="arch-field">hx / hy</span>
+        <span class="arch-field" title="Raio da zona em pixels">hr</span>
+        <span class="arch-field" title="Tempo de vida restante">htimer</span>
+        <span class="arch-field" title="0 = HAZARD_SLOW, 1 = HAZARD_BURN">htype</span>
+        <span class="arch-field" title="Cooldown entre ticks de dano (BURN)">hburn_cd</span>
+        <span class="arch-field">active</span>
+      </div>
+    </div>
+    <div class="arch-box">
+      <div class="arch-title">EnemyPool — MAX_ENEMIES = 64</div>
+      <div class="arch-desc">Minions do Invocador e inimigos de Wave Survival. Kamikazes que perseguem o jogador.</div>
+      <div class="arch-fields">
+        <span class="arch-field">ex / ey</span>
+        <span class="arch-field">evx / evy</span>
+        <span class="arch-field">ehp</span>
+        <span class="arch-field">etype</span>
+        <span class="arch-field">etmr</span>
+        <span class="arch-field" title="Flash visual ao tomar dano">e_hit_flash</span>
+        <span class="arch-field">active</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Estados de Jogo (Game States)</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>ID</th><th>Estado</th><th>Descrição</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">0</td><td class="td-name">PLAYING</td><td>Gameplay ativo</td></tr>
+        <tr><td class="td-mono">1</td><td class="td-name">WIN</td><td>Boss derrotado — permite I/O</td></tr>
+        <tr><td class="td-mono">2</td><td class="td-name">GAMEOVER</td><td>Jogador morreu — permite I/O</td></tr>
+        <tr><td class="td-mono">3–8</td><td class="td-name">SELECT_*</td><td>Menus de seleção (diff, boss, skill, weapon, mutator, replay)</td></tr>
+        <tr><td class="td-mono">9</td><td class="td-name">MAIN_MENU</td><td>Menu principal — permite I/O</td></tr>
+        <tr><td class="td-mono">10–13</td><td class="td-name">RECORDS / SETTINGS / ACHIEVEMENTS / SELECT_GAME_MODE</td><td>Menus de suporte</td></tr>
+        <tr><td class="td-mono">14</td><td class="td-name">BOSS_RUSH_PAUSE</td><td>Pausa do Boss Rush</td></tr>
+        <tr><td class="td-mono">16</td><td class="td-name">SELECT_RUSH_PLAYLIST</td><td>Seleção de playlist do Boss Rush</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="highlight-box blue">
+    <strong>Zero-GC Rule:</strong> I/O de arquivo ocorre <em>exclusivamente</em> nos estados MAIN_MENU (9), WIN (1) e GAMEOVER (2). Nos demais estados, nenhum arquivo é lido ou gravado.
+  </div>
+</section>
+
+<!-- ═══════════════════════ SAVE & ACHIEVEMENTS ═══════════════════════ -->
+<section class="section" id="save">
+  <div class="section-eyebrow">// progressão</div>
+  <h2 class="section-title">Save &amp; Conquistas</h2>
+  <p class="section-desc">SaveManager persiste progresso entre sessões. Conquistas desbloqueiam habilidades, mutadores e dificuldades.</p>
+  <div class="section-divider"></div>
+
+  <div class="card">
+    <div class="card-title">Campos Persistentes</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Campo</th><th>Tipo</th><th>Descrição</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono td-name">highest_cleared_diff</td><td class="td-mono">int</td><td>Dificuldade máxima vencida (0–4, desbloqueio progressivo)</td></tr>
+        <tr><td class="td-mono td-name">unlocked_skills</td><td class="td-mono">list[int]</td><td>Habilidades disponíveis (sempre inclui NONE e DASH)</td></tr>
+        <tr><td class="td-mono td-name">unlocked_mutators</td><td class="td-mono">list[int]</td><td>Mutadores desbloqueados por conquistas</td></tr>
+        <tr><td class="td-mono td-name">omega_boss_unlocked</td><td class="td-mono">bool</td><td>BOSS_OMEGA disponível (Hard + 3 mutadores)</td></tr>
+        <tr><td class="td-mono td-name">sins_rush_cleared</td><td class="td-mono">bool</td><td>SINS Rush completo → ABISSAL desbloqueado</td></tr>
+        <tr><td class="td-mono td-name">stats</td><td class="td-mono">dict</td><td>total_deaths, best_survival_hard, total_parries</td></tr>
+        <tr><td class="td-mono td-name">achievements</td><td class="td-mono">dict</td><td>total_grazes, no_hit_wins, mutator_hard_wins</td></tr>
+        <tr><td class="td-mono td-name">achieved</td><td class="td-mono">set[str]</td><td>IDs de conquistas completadas</td></tr>
+        <tr><td class="td-mono td-name">settings</td><td class="td-mono">dict</td><td>fullscreen, screen_shake, show_hitbox</td></tr>
+        <tr><td class="td-mono td-name">weapon_mastery</td><td class="td-mono">dict[int, any]</td><td>Progresso de maestria por arma (10 chaves: 0–9). Estrutura interna varia por arma (contadores de acerto, DPS acumulado, etc.). Rastreado em PLAYING; I/O em WIN/GAMEOVER.</td></tr>
+        <tr><td class="td-mono td-name">weapon_plus_unlocked</td><td class="td-mono">set[int]</td><td>IDs de armas com Weapon+ desbloqueado. Uma vez desbloqueado, permanece mesmo que mastery seja resetado.</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Conquistas &amp; Desbloqueios — Progressão Base</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>ID</th><th>Nome</th><th>Condição</th><th>Recompensa</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">easy_win</td><td>Iniciante</td><td>Vencer no modo FÁCIL</td><td><span class="pill pill-purple">PARRY</span> desbloqueado</td></tr>
+        <tr><td class="td-mono">normal_win</td><td>Veterano</td><td>Vencer no modo NORMAL</td><td><span class="pill pill-purple">FOCO</span> desbloqueado</td></tr>
+        <tr><td class="td-mono">hard_win</td><td>Mestre</td><td>Vencer no modo DIFÍCIL</td><td>—</td></tr>
+        <tr><td class="td-mono">grazes_100</td><td>Esquivador</td><td>100 grazes acumulados</td><td><span class="pill pill-blue">EMP</span> desbloqueado</td></tr>
+        <tr><td class="td-mono">parries_50</td><td>Espadachim</td><td>50 parries acumulados</td><td><span class="pill pill-blue">ESCUDO</span> desbloqueado</td></tr>
+        <tr><td class="td-mono">no_hit_win</td><td>Perfecionista</td><td>Vitória sem tomar dano</td><td><span class="pill pill-blue">BLINK</span> desbloqueado</td></tr>
+        <tr><td class="td-mono">mutator_hard</td><td>Risco Máximo</td><td>DIFÍCIL + 1+ mutador</td><td><span class="pill pill-orange">OVERCLOCK</span> desbloqueado</td></tr>
+        <tr><td class="td-mono">omega_unlock</td><td>Imparável</td><td>DIFÍCIL + 3 mutadores simultâneos</td><td><span class="pill pill-red">ÔMEGA ★</span> boss desbloqueado</td></tr>
+        <tr><td class="td-mono">equilibrio_perfeito</td><td>Equilíbrio Perfeito</td><td>Gêmeos: matar ambos com &lt;3s de diferença</td><td><span class="pill pill-purple">DILATAÇÃO</span> desbloqueada</td></tr>
+        <tr><td class="td-mono">pacifista_elite</td><td>Pacifista de Elite</td><td>Invocador: &lt;10 minions mortos</td><td><span class="pill pill-green">CLAUSTROFOBIA</span> desbloqueado</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Conquistas de Maestria — Habilidade+ (Skill+)</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Desbloqueadas ao atingir o critério de maestria. Marcam <code>achieved</code> e adicionam à <code>skill_plus_unlocked</code>.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>ID</th><th>Nome</th><th>Critério</th><th>Recompensa</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">sp_dash</td><td>Arrancada Espectral</td><td>50 grazes durante i-frames do DASH</td><td><span class="pill pill-purple">DASH+</span></td></tr>
+        <tr><td class="td-mono">sp_parry</td><td>Royal Guard</td><td>5+ balas deflectidas em uma única janela de PARRY</td><td><span class="pill pill-purple">PARRY+</span></td></tr>
+        <tr><td class="td-mono">sp_emp</td><td>Sobrecarga Sináptica</td><td>200+ balas destruídas em uma única ativação de EMP</td><td><span class="pill pill-blue">EMP+</span></td></tr>
+        <tr><td class="td-mono">sp_blink</td><td>Relâmpago Fantasma</td><td>Teleportar através do corpo do boss com BLINK</td><td><span class="pill pill-blue">BLINK+</span></td></tr>
+        <tr><td class="td-mono">sp_overclock</td><td>Modo Berserk</td><td>500+ de dano em uma única janela de OVERCLOCK</td><td><span class="pill pill-orange">OVERCLOCK+</span></td></tr>
+        <tr><td class="td-mono">sp_shield</td><td>Muralha Elástica</td><td>10 blocos perfeitos acumulados com ESCUDO</td><td><span class="pill pill-blue">ESCUDO+</span></td></tr>
+        <tr><td class="td-mono">sp_timedil</td><td>Ruptura Temporal</td><td>Ativar DILATAÇÃO com bala a ≤5px do jogador</td><td><span class="pill pill-purple">DILATAÇÃO+</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Conquistas de Maestria — Arma+ (Weapon+)</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Desbloqueadas ao atingir o critério de maestria. Marcam <code>achieved</code> e adicionam à <code>weapon_plus_unlocked</code>.</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>ID</th><th>Nome</th><th>Critério</th><th>Recompensa</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">wp_default</td><td>Ricocheteiro</td><td>150 acertos consecutivos com PADRÃO sem errar</td><td><span class="pill pill-purple">PADRÃO+</span></td></tr>
+        <tr><td class="td-mono">wp_spread</td><td>Ponto-Cego</td><td>50 acertos a &lt;40px do boss com SPREAD</td><td><span class="pill pill-orange">SPREAD+</span></td></tr>
+        <tr><td class="td-mono">wp_needle</td><td>Penetrante</td><td>Completar uma fase com AGULHA cometendo ≤5 erros</td><td><span class="pill pill-blue">AGULHA+</span></td></tr>
+        <tr><td class="td-mono">wp_charged</td><td>Fragmentação</td><td>Destruir ≥3 lacaios com 1 tiro CARREGADO, 10 vezes</td><td><span class="pill pill-gold">CARREGADO+</span></td></tr>
+        <tr><td class="td-mono">wp_burst</td><td>Minas de Atraso</td><td>Acertar os 3 tiros BURST nos Gêmeos, 5 vezes</td><td><span class="pill pill-red">BURST+</span></td></tr>
+        <tr><td class="td-mono">wp_homing</td><td>Enxame Orbital</td><td>Vencer 3 vezes sem dano usando TELEGUIADO</td><td><span class="pill pill-green">TELEGUIADO+</span></td></tr>
+        <tr><td class="td-mono">wp_flak</td><td>Detonador</td><td>Destruir 15 balas inimigas com estilhaços FLAK em uma run</td><td><span class="pill pill-orange">FLAK+</span></td></tr>
+        <tr><td class="td-mono">wp_chakram</td><td>Congelador</td><td>30 viagens de ida e volta completas com CHAKRAM</td><td><span class="pill pill-blue">CHAKRAM+</span></td></tr>
+        <tr><td class="td-mono">wp_plasma</td><td>Rastro de Calor</td><td>4s de contato acumulado de PLASMA com o boss</td><td><span class="pill pill-purple">PLASMA+</span></td></tr>
+        <tr><td class="td-mono">wp_orbit</td><td>Interceptor</td><td>400 de dano acumulado com gemas SATÉLITE</td><td><span class="pill pill-gold">SATÉLITE+</span></td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Conquistas Secretas — sempre exibidas por último</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>ID</th><th>Condição (revelada ao desbloquear)</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">parries_200</td><td>200 parries acumulados</td></tr>
+        <tr><td class="td-mono">speed_hard</td><td>Vencer DIFÍCIL em menos de 3 minutos</td></tr>
+        <tr><td class="td-mono">all_mutators</td><td>Vencer com os 3 mutadores ativos</td></tr>
+        <tr><td class="td-mono">no_skill</td><td>Vencer com habilidade NENHUMA</td></tr>
+        <tr><td class="td-mono">omega_hard</td><td>Derrotar o ÔMEGA na dificuldade DIFÍCIL</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="highlight-box">
+    <strong>Caminho de Progressão:</strong> FÁCIL → NORMAL → DIFÍCIL (+ mutadores) → <span style="color:#ff3c78">ÔMEGA</span> → <span style="color:#7c50ff">EXPERT</span> → Boss Rush SINS → <span style="color:#ff7040">ABISSAL</span>.
+  </div>
+</section>
+
+<!-- ═══════════════════════ DEV MODE ═══════════════════════ -->
+<section class="section" id="devmode">
+  <div class="section-eyebrow">// ferramentas de desenvolvimento</div>
+  <h2 class="section-title">Dev Mode</h2>
+  <p class="section-desc">Ativado pela sequência de teclas secreta. Expõe cheats de teste sem afetar o save.</p>
+  <div class="section-divider"></div>
+
+  <div class="highlight-box">
+    <strong>Ativação:</strong> Na tela de jogo, pressione <strong>W W S S A D A D</strong> em sequência. O canto superior esquerdo mostrará <em>"DEV"</em> quando ativo. Cheats de gameplay (F3–F7) só funcionam quando dev mode está ativo.
+  </div>
+
+  <div class="card">
+    <div class="card-title">Introdução de Boss</div>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px">Ao iniciar uma partida, um overlay de 4 segundos exibe o nome e uma frase de flavour de cada boss antes do combate começar (<code>render_intro</code> com <code>boss_type</code>).</p>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Cheats de Gameplay — requerem Dev Mode + estado PLAYING</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tecla</th><th>Efeito</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">F3</td><td>Boss HP → <strong>50%</strong></td></tr>
+        <tr><td class="td-mono">F4</td><td>Boss HP → <strong>10%</strong></td></tr>
+        <tr><td class="td-mono">F5</td><td>Mata boss instantaneamente (<code>boss.hp = 0</code>)</td></tr>
+        <tr><td class="td-mono">F6</td><td>Toggle <strong>Godmode</strong> — jogador invulnerável</td></tr>
+        <tr><td class="td-mono">F7</td><td>Avança para a próxima fase do boss (usa thresholds de <code>_PHASE_HP</code>; OmegaBoss: HP × 0.25)</td></tr>
+        <tr><td class="td-mono">F8</td><td>Abre sala do <strong>Dummy Boss</strong> (DIFF_TEST) para testar mecânicas sem risco</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Cheats de Save — disponíveis em qualquer tela</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tecla</th><th>Efeito</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">F9</td><td>Desbloqueia tudo (<code>save.cheat_unlock_all()</code>) — habilidades, mutadores, dificuldades</td></tr>
+        <tr><td class="td-mono">F10</td><td>Apaga o save completamente (<code>save.wipe_save()</code>) — reseta para estado inicial</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Debug Visual</div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Tecla</th><th>Efeito</th></tr></thead>
+      <tbody>
+        <tr><td class="td-mono">H</td><td>Mostra AABBs vermelhos (<code>get_aabb_list()</code>) e hash grid de colisão</td></tr>
+      </tbody>
+    </table></div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Notas de Implementação</div>
+    <ul style="color:var(--text-muted);font-size:13px;padding-left:1.2em;line-height:1.8">
+      <li>Sequência detectada via buffer circular de 8 teclas (<code>_dev_seq</code> / <code>_DEV_SEQ</code>).</li>
+      <li>F7 aplica HP logo abaixo do threshold da fase atual usando <code>_PHASE_HP[_phase]</code> — não bypassa a FSM, o boss processa a transição normalmente.</li>
+      <li>F9/F10 disparam mesmo fora do estado PLAYING; os outros cheats de gameplay verificam <code>state == PLAYING</code>.</li>
+    </ul>
+  </div>
+</section>
+
+</div><!-- /main -->
+
+<script>
+// Simple scroll-spy for sidebar
+const links = document.querySelectorAll('.nav-link');
+const sections = document.querySelectorAll('.section');
+
+function onScroll() {
+  let current = '';
+  sections.forEach(sec => {
+    const top = sec.getBoundingClientRect().top;
+    if (top <= 80) current = sec.id;
+  });
+  links.forEach(l => {
+    l.classList.remove('active');
+    if (l.getAttribute('href') === '#' + current) l.classList.add('active');
+  });
+}
+
+window.addEventListener('scroll', onScroll, {passive: true});
+onScroll();
+</script>

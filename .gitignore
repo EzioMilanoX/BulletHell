@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Dados locais do jogador (progresso pessoal, não versionar)
+save.json
+
+# Logs de debug
+err.txt
+out.txt

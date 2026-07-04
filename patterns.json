@@ -1,0 +1,15 @@
+{
+  "_comment": "BoidsBoss live-tuning. Edit while game runs in DEV_MODE — changes apply within ~1s.",
+
+  "boids_boss": {
+    "max_speed":    190.0,
+    "sep_force":    260.0,
+    "sep_radius":    55.0,
+    "ali_force":      5.0,
+    "coh_force":      0.7,
+    "att_force":      2.5,
+    "percept_r":    190.0,
+    "shoot_rate":     2.8,
+    "bullet_speed": 165.0
+  }
+}
