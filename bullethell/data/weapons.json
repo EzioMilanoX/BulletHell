@@ -1,0 +1,49 @@
+{
+  "_doc": "Armas do jogador. 'pools' = ComponentPools extras anexadas a cada bala (o arquétipo da bala da arma) com valores iniciais. O bloco 'plus' sobrescreve números e ACRESCENTA pools. 'special' marca mecânicas que exigem sistema dedicado (fase 2 do port). Números do engine legado.",
+  "weapons": [
+    { "name": "padrao",
+      "fire_rate": 0.10, "damage": 1.0, "speed": 500.0, "size": 4.0,
+      "plus": { "pools": { "pb_bounce": { "left": 2 } } } },
+
+    { "name": "spread",
+      "fire_rate": 0.13, "damage": 0.60, "speed": 380.0, "size": 4.0,
+      "shots": 3, "arc": 0.489,
+      "plus": { "damage": 1.20,
+                "pools": { "pb_range": { "t": 0.395 } } } },
+
+    { "name": "agulha",
+      "fire_rate": 0.20, "damage": 1.5, "speed": 900.0, "size": 3.0,
+      "plus": { "fire_rate": 0.24,
+                "pools": { "pb_pierce": { "cd": 0.25, "t": 0.0 } } } },
+
+    { "name": "teleguiado",
+      "fire_rate": 0.30, "damage": 0.2, "speed": 290.0, "size": 3.5,
+      "shots": 5, "arc": 1.326,
+      "pools": { "pb_homing": { "turn": 260.0, "vmax": 370.0, "t": 2.8 } } },
+
+    { "name": "plasma",
+      "_doc": "Stream de bolts lentos; 10 DPS por sobreposição; nunca consumida pela colisão; alcance 100×1.2 = 120px.",
+      "fire_rate": 0.06, "damage": 0.0, "speed": 100.0, "size": 11.0,
+      "pools": { "pb_dot": { "dps": 10.0 }, "pb_life": { "t": 1.2 } } },
+
+    { "name": "carregado",
+      "fire_rate": 1.5, "damage": 2.0, "speed": 500.0, "size": 5.0,
+      "special": "charged" },
+
+    { "name": "burst",
+      "fire_rate": 0.45, "damage": 1.0, "speed": 500.0, "size": 4.0,
+      "shots": 3, "special": "burst" },
+
+    { "name": "flak",
+      "fire_rate": 0.50, "damage": 0.0, "speed": 200.0, "size": 6.0,
+      "special": "fuse" },
+
+    { "name": "chakram",
+      "fire_rate": 0.70, "damage": 2.0, "speed": 580.0, "size": 7.0,
+      "special": "chakram" },
+
+    { "name": "satelite",
+      "fire_rate": 0.35, "damage": 0.6, "speed": 0.0, "size": 5.0,
+      "special": "orbit" }
+  ]
+}

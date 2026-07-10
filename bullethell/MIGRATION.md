@@ -1,0 +1,103 @@
+# Migração BulletHell → OuroborosEngine (ECS)
+
+## 1. A pesquisa e o que a engine real mudou nela
+
+Benchmark nesta máquina (Python 3.14, 5000 balas, movimento apenas):
+
+| Estratégia | ms/frame | vs. NumPy SoA |
+|---|---:|---:|
+| ECS de dataclasses (1 objeto/entidade) | 0.480 | 135× mais lento |
+| ECS sparse-set com dicts | 0.708 | 199× mais lento |
+| NumPy SoA vetorizado | 0.004 | 1× |
+
+A conclusão original era "migração híbrida: balas ficam fora do ECS".
+**A OuroborosEngine real invalida a ressalva**: `ComponentPool.dense_data`
+é um `np.ndarray` estruturado (SoA compactado por sparse-set), `ISystem`
+proíbe laço Python por entidade, e entidades trafegam como
+`PackedEntityId` (int64 primitivo). Ou seja — a engine JÁ É o híbrido,
+generalizado: balas podem ser entidades de verdade porque as pools são
+colunas NumPy, não objetos. O port usa ECS pleno, sem carve-out.
+
+## 2. Estrutura do port
+
+```
+main_ecs.py                  # entrada: python main_ecs.py [--boss ...] [--weapon ...]
+smoke_ecs.py                 # teste headless (null backends): 6 cenários
+bullethell/
+  __init__.py                # coloca ../OuroborosEngine no sys.path
+  ids.py                     # sid() = zlib.crc32(nome)
+  schemas.py                 # dtypes das pools do jogo + capacidades fixas
+  loaders.py                 # data/*.json → registries por crc32
+  game_systems.py            # os ISystem do jogo (vetorizados)
+  composition.py             # build_world/build_game/build_headless
+  data/
+    bullet_archetypes.json   # 13 espécies de bala inimiga
+    patterns.json            # 16 padrões de emissão
+    weapons.json             # 10 armas (5 portadas + 5 "special")
+    bosses.json              # bosses: hp, rota, partes, fases→emitters
+    input_bindings.json      # WASD + SPACE + 1..5 + P
+  design/                    # rascunhos da fase de design (API hipotética)
+```
+
+## 3. Pools e arquétipos
+
+Pools genéricas da engine: `transform`, `velocity`, `hitbox`, `sprite`.
+Pools do produto (schemas.py): `player`, `boss`, `waypoint`, `emitter`,
+`enemy_bullet` (cap 5000), e as pools de bala do jogador por composição —
+`pb_core` + `pb_pierce`/`pb_range`/`pb_bounce`/`pb_dot`/`pb_life`/`pb_homing`.
+
+Arquétipos: `player`, `boss`, `emitter`, `enemy_bullet`, e UM por arma
+(`pb_padrao`, `pb_agulha+`, ...) montado de weapons.json — a variante +
+de uma arma é literalmente o mesmo arquétipo + pools extras (ex.:
+`agulha+` = agulha + `pb_pierce`). Cada pool de projétil guarda o próprio
+`PackedEntityId` na coluna `self` para `world.destroy_entity` direto.
+
+## 4. Agenda de sistemas (ordem de registro)
+
+```
+PlayerControlSystem        input → velocity do jogador; timers
+WeaponFireSystem           cadência + spawn de balas-entidade (weapons.json)
+BossPhaseSystem            thresholds de HP → troca emitters (bosses.json)
+WaypointSystem             rota do boss com smoothstep
+EmitterSystem              patterns.json → spawn de balas inimigas
+PhysicsSystem (engine)     Transform += Velocity × delta_time
+EnemyBulletBehaviorSystem  homing/spin/phase/gravity/stop&go/boomerang/sleeper
+PlayerBulletHomingSystem   TELEGUIADO curva ao boss
+MaintenanceSystem          ricochetes, timers (range/life/pierce), cull, clamp
+PlayerHitSystem            contato (Yin/Yang/phaser) + graze + vidas
+PlayerBulletVsBossSystem   dano; pierce com CD; PLASMA = DPS sem consumo
+```
+
+`destroy_entity` é diferido (flush no fim do `World.step`) — os sistemas
+de colisão podem destruir à vontade sem invalidar linhas densas do frame.
+
+## 5. Verificação
+
+- `python smoke_ecs.py` — 6 cenários headless (900 frames cada): padrão,
+  spread, agulha+, plasma (com approach — alcance 120px), teleguiado,
+  timemage. Verifica spawn de padrões, dano no boss, graze, cull. 6/6 OK.
+- `python main_ecs.py` — janela real; render placeholder da engine
+  (retângulos coloridos; pipeline de texturas é roadmap da engine).
+
+## 6. Paridade com o legado — checklist
+
+Portado nesta fase:
+- [x] 5 armas: padrão(+ricochete), spread(+alcance), agulha(+pierce),
+      teleguiado (homing), plasma (DoT sem consumo — o fix do bug do legado)
+- [x] Padrões: arc, ring (vão rotativo), spiral, rain (gaps), stream (pillar)
+- [x] Arquétipos de bala: normal, yin/yang, homing, phaser, spinner,
+      gravity well, ricochete, stop&go, boomerang, sleeper
+- [x] Bosses classic/timemage/wall/swarm/twins nos dados; classic e
+      timemage jogáveis (fases trocando emitters)
+- [x] Graze, vidas/invuln, reset de run
+
+Fase 2 (mecânica exige sistema dedicado — marcadas `special` em weapons.json):
+- [ ] Armas: carregado, burst, flak (fuse), chakram, satélite (orbit)
+- [ ] Emissões `laser` (entidades LaserBeam) e `pair` (tether)
+- [ ] Bosses multi-parte (Swarm 3 unidades, Wall canhões) — `BossPart.root`
+- [ ] Habilidades (dash/parry/focus/emp/...) e Skill+/Weapon+ restantes
+- [ ] Mutadores, fragmentação ABISSAL, hazards, partículas, HUD/menus
+- [ ] Save/conquistas (SaveManager fora do World, I/O só em menu)
+
+O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
+paralelo até a paridade.

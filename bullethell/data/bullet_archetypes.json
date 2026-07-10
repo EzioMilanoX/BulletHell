@@ -1,0 +1,58 @@
+{
+  "_doc": "Arquétipos de bala inimiga. Cada entrada mapeia 1:1 para colunas do EnemyBulletStorage. IDs em runtime = zlib.crc32(name). Valores extraídos do engine legado (entities.py).",
+  "archetypes": [
+    { "name": "std/normal",
+      "contact": "always", "color": 0, "radius": 4.0 },
+
+    { "name": "std/yin_blue",
+      "_doc": "Gêmeos: só machuca jogador EM MOVIMENTO",
+      "contact": "if_moving", "color": 1, "radius": 4.0 },
+
+    { "name": "std/yang_orange",
+      "_doc": "Gêmeos: só machuca jogador PARADO",
+      "contact": "if_still", "color": 2, "radius": 4.0 },
+
+    { "name": "std/homing_purple",
+      "_doc": "Wasp/Phantom: rastreia o jogador por 2.8s",
+      "contact": "always", "color": 3, "radius": 4.0, "homing_t": 2.8 },
+
+    { "name": "mod/tether",
+      "_doc": "Par ligado por arame — dano se o jogador cruza o segmento",
+      "contact": "always", "color": 4, "radius": 4.0, "tether": true },
+
+    { "name": "mod/gravity_well",
+      "_doc": "Não colide; puxa o jogador a 90 px/s² (BULLET_GRAVITY_PULL)",
+      "contact": "never", "color": 5, "radius": 6.0, "gravity": 90.0 },
+
+    { "name": "mod/phaser",
+      "_doc": "Alterna sólido/fantasma: período 1.0s, sólida 50% do ciclo",
+      "contact": "always", "color": 6, "radius": 4.0, "phase_period": 1.0 },
+
+    { "name": "mod/spinner",
+      "_doc": "Vetor velocidade rotaciona (rad/s) — trajetória espiral",
+      "contact": "always", "color": 7, "radius": 4.0, "spin": 1.0 },
+
+    { "name": "mod/ricochet",
+      "_doc": "Ricocheteia nas bordas; render amarelo",
+      "contact": "always", "color": 8, "radius": 4.0, "bounces": 2 },
+
+    { "name": "mod/fragmenting",
+      "_doc": "ABISSAL: ao sair da tela/ser aparada → 2 fragmentos ±30°",
+      "contact": "always", "color": 0, "radius": 4.0, "fragment": true },
+
+    { "name": "tm/stopgo",
+      "_doc": "Mago do Tempo: voa 0.60s, para 1.80s, relança a 260 px/s no snapshot do jogador (STOPGO_*)",
+      "contact": "always", "color": 3, "radius": 4.0,
+      "behavior": "stopgo", "behavior_params": [0.60, 1.80, 260.0] },
+
+    { "name": "tm/boomerang",
+      "_doc": "Mago do Tempo: após 0.85s inverte velocidade ×1.8 (TM_BOOM_*)",
+      "contact": "always", "color": 2, "radius": 4.0,
+      "behavior": "boomerang", "behavior_params": [0.85, 1.8] },
+
+    { "name": "mod/sleeper",
+      "_doc": "Dormente até o timer; acorda mirando o jogador a 145 px/s",
+      "contact": "always", "color": 6, "radius": 4.0,
+      "behavior": "sleeper", "behavior_params": [1.0, 145.0] }
+  ]
+}

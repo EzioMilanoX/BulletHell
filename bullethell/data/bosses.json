@@ -1,0 +1,74 @@
+{
+  "_doc": "Bosses = HP + rota de waypoints + partes (AABBs filhas) + fases. Cada fase lista os emitters ativos (pattern overlapping = 2+ na mesma fase). hp_above: a fase vale enquanto hp/max > valor. Exemplos representativos; demais bosses seguem o mesmo schema.",
+  "bosses": [
+    { "name": "classic",
+      "hp": 300,
+      "route": [[160, 90, 2.2], [480, 70, 2.2], [320, 140, 1.8]],
+      "parts": [[0, 0, 34, 34]],
+      "phases": [
+        { "hp_above": 0.66,
+          "emitters": [ { "pattern": "classic/spread" } ] },
+        { "hp_above": 0.33,
+          "emitters": [ { "pattern": "classic/ring" },
+                        { "pattern": "classic/spiral" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "classic/circular_saw" },
+                        { "pattern": "classic/laser_wave" } ] }
+      ] },
+
+    { "name": "timemage",
+      "hp": 300,
+      "route": [[320, 90, 2.5], [160, 120, 2.5], [480, 120, 2.5]],
+      "parts": [[0, 0, 30, 30]],
+      "phases": [
+        { "hp_above": 0.60,
+          "emitters": [ { "pattern": "classic/spread" },
+                        { "pattern": "classic/ring" } ] },
+        { "hp_above": 0.30,
+          "emitters": [ { "pattern": "timemage/stopgo_volley" },
+                        { "pattern": "timemage/boomerang_burst" } ] },
+        { "hp_above": 0.0,
+          "_doc": "Fase 3 adiciona espiral e Teleporter (cd 3.2s) na entidade",
+          "emitters": [ { "pattern": "timemage/stopgo_volley" },
+                        { "pattern": "timemage/boomerang_burst" },
+                        { "pattern": "classic/spiral" } ] }
+      ] },
+
+    { "name": "wall",
+      "_doc": "Barra horizontal que desce até 216px; canhões a cada 110px = emitters filhos com offset.",
+      "hp": 350,
+      "route": [],
+      "parts": [[0, 0, 320, 30]],
+      "phases": [
+        { "hp_above": 0.5,
+          "emitters": [ { "pattern": "wall/rain" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "wall/rain" },
+                        { "pattern": "wall/pillar" } ] }
+      ] },
+
+    { "name": "swarm",
+      "_doc": "3 unidades em triângulo orbitante (r=130, 0.75 rad/s); HP compartilhado via BossPart.root. Cada unidade carrega os emitters.",
+      "hp": 330,
+      "route": [[320, 130, 3.0]],
+      "parts": [[-113, 65, 22, 22], [113, 65, 22, 22], [0, -130, 22, 22]],
+      "phases": [
+        { "hp_above": 0.5,
+          "emitters": [ { "pattern": "swarm/crossfire" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "swarm/crossfire" },
+                        { "pattern": "swarm/ring_volley" } ] }
+      ] },
+
+    { "name": "twins",
+      "_doc": "Yin e Yang = 2 entidades-boss independentes com Health próprio; cada uma spawna com seu bloco de fases.",
+      "hp": 180,
+      "route": [[200, 100, 2.0], [440, 100, 2.0]],
+      "parts": [[0, 0, 26, 26]],
+      "phases": [
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "twins/yin_arcs" },
+                        { "pattern": "twins/yang_rings" } ] }
+      ] }
+  ]
+}

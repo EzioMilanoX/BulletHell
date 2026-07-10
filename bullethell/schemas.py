@@ -1,0 +1,129 @@
+"""
+Schemas (numpy structured dtypes) das ComponentPools ESPECÍFICAS do jogo.
+Seguem o modelo de `ouroboros.core.components.schemas`: descritores de
+layout de memória, nunca classes instanciadas por entidade.
+
+Pools genéricas da engine (transform/velocity/hitbox/sprite) vêm de
+COMPONENT_SCHEMAS; estas complementam com o vocabulário do bullet hell.
+"""
+from __future__ import annotations
+
+from typing import Dict
+
+import numpy as np
+
+# ---------------------------------------------------------------------------
+# Constantes de domínio (semântica das colunas)
+# ---------------------------------------------------------------------------
+SCREEN_W, SCREEN_H = 1280, 720
+
+# enemy_bullet["contact"]
+CONTACT_ALWAYS, CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER = 0, 1, 2, 3
+# enemy_bullet["beh"]
+BEH_NONE, BEH_STOPGO, BEH_BOOMERANG, BEH_SLEEPER = 0, 1, 2, 3
+
+PLAYER_DTYPE = np.dtype([
+    ("lives",     np.int8),
+    ("invuln_t",  np.float32),
+    ("fire_cd",   np.float32),
+    ("weapon_id", np.uint32),    # sid do nome em weapons.json (já com "+")
+    ("graze",     np.uint32),
+])
+
+BOSS_DTYPE = np.dtype([
+    ("boss_id",   np.uint32),    # sid em bosses.json
+    ("hp",        np.float32),
+    ("max_hp",    np.float32),
+    ("phase_idx", np.int8),
+    ("stun_t",    np.float32),
+])
+
+WAYPOINT_DTYPE = np.dtype([
+    ("seg",    np.int32),
+    ("seg_t",  np.float32),
+])
+
+EMITTER_DTYPE = np.dtype([
+    ("self",        np.uint64),  # PackedEntityId desta própria entidade
+    ("pattern_id",  np.uint32),
+    ("t",           np.float32),
+    ("phase_angle", np.float32),
+    ("shot_count",  np.uint32),
+    ("warmup",      np.float32),
+    ("parent",      np.uint64),  # PackedEntityId do dono (boss)
+    ("off_x",       np.float32),
+    ("off_y",       np.float32),
+])
+
+ENEMY_BULLET_DTYPE = np.dtype([
+    ("self",     np.uint64),
+    ("contact",  np.uint8),
+    ("radius",   np.float32),
+    ("grazed",   np.uint8),
+    ("homing_t", np.float32),    # >0 = curva ao jogador
+    ("spin",     np.float32),    # rad/s no vetor velocidade
+    ("phase_p",  np.float32),    # período sólido/fantasma; 0 = off
+    ("phase_t",  np.float32),
+    ("gravity",  np.float32),    # px/s² de atração no jogador; 0 = off
+    ("bounces",  np.int8),
+    ("beh",      np.uint8),      # BEH_*
+    ("beh_t",    np.float32),
+    ("p1",       np.float32),    # parâmetros do comportamento (arquétipo)
+    ("p2",       np.float32),
+    ("p3",       np.float32),
+    ("tgt_x",    np.float32),    # snapshot do jogador (stop&go)
+    ("tgt_y",    np.float32),
+    ("stage",    np.uint8),
+])
+
+# Balas do jogador: composição por pools — cada arma anexa um conjunto
+# diferente (arquétipos registrados na composição a partir de weapons.json).
+PB_CORE_DTYPE = np.dtype([
+    ("self",   np.uint64),
+    ("damage", np.float32),
+    ("radius", np.float32),
+])
+PB_PIERCE_DTYPE = np.dtype([("cd", np.float32), ("t", np.float32)])
+PB_RANGE_DTYPE  = np.dtype([("t", np.float32)])
+PB_BOUNCE_DTYPE = np.dtype([("left", np.int8)])
+PB_DOT_DTYPE    = np.dtype([("dps", np.float32)])
+PB_LIFE_DTYPE   = np.dtype([("t", np.float32)])
+PB_HOMING_DTYPE = np.dtype([
+    ("turn", np.float32), ("vmax", np.float32), ("t", np.float32),
+])
+
+GAME_SCHEMAS: Dict[str, np.dtype] = {
+    "player":       PLAYER_DTYPE,
+    "boss":         BOSS_DTYPE,
+    "waypoint":     WAYPOINT_DTYPE,
+    "emitter":      EMITTER_DTYPE,
+    "enemy_bullet": ENEMY_BULLET_DTYPE,
+    "pb_core":      PB_CORE_DTYPE,
+    "pb_pierce":    PB_PIERCE_DTYPE,
+    "pb_range":     PB_RANGE_DTYPE,
+    "pb_bounce":    PB_BOUNCE_DTYPE,
+    "pb_dot":       PB_DOT_DTYPE,
+    "pb_life":      PB_LIFE_DTYPE,
+    "pb_homing":    PB_HOMING_DTYPE,
+}
+
+# Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
+GAME_POOL_CAPACITY: Dict[str, int] = {
+    "player": 2, "boss": 4, "waypoint": 4, "emitter": 32,
+    "enemy_bullet": 5000,
+    "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
+    "pb_dot": 256, "pb_life": 256, "pb_homing": 256,
+}
+
+# Paleta placeholder (color_id do arquétipo → tint RGB do sprite)
+PALETTE = {
+    0: (255, 64, 90),    # normal (vermelho)
+    1: (80, 160, 255),   # yin azul
+    2: (255, 150, 50),   # yang laranja
+    3: (200, 80, 255),   # homing roxa
+    4: (0, 220, 220),    # tether ciano
+    5: (120, 90, 160),   # gravity well
+    6: (90, 220, 180),   # phaser
+    7: (255, 120, 200),  # spinner
+    8: (255, 220, 0),    # ricochete amarela
+}

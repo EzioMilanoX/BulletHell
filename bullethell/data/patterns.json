@@ -1,0 +1,90 @@
+{
+  "_doc": "Padrões de emissão. Um Emitter referencia 1 padrão por sid(name). Pattern overlapping = boss com 2+ emitters ativos na fase. 'warmup' = fake prep (telegrafa sem disparar). Números extraídos do legado (entities.py).",
+  "patterns": [
+
+    { "name": "classic/spread",
+      "_doc": "Leque mirado no jogador. n/cone crescem com a dificuldade (base: 5 balas, 48°). SPREAD_RATE=0.80, SPREAD_SPEED=185.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.80, "count": 5, "arc": 0.838, "aim": "player",
+      "speed": 185.0 },
+
+    { "name": "classic/ring",
+      "_doc": "Anel com vão de fuga rotativo (gira π/3 por disparo, centrado a 90° do jogador). RING_RATE=1.60.",
+      "emit": "ring", "bullet": "std/normal",
+      "period": 1.60, "count": 24, "speed": 150.0,
+      "gap": 0.9, "gap_step": 1.0472 },
+
+    { "name": "classic/spiral",
+      "_doc": "Espiral contínua de 3 braços. SPIRAL_RATE=0.040 (25 tiros/s), SPIRAL_SPEED=72, braços girando 2.2 rad/s.",
+      "emit": "spiral", "bullet": "std/normal",
+      "period": 0.040, "arms": 3, "spin_speed": 2.2, "speed": 72.0 },
+
+    { "name": "classic/circular_saw",
+      "_doc": "CIRCULAR: 3 braços que se formam em 2.5s (CIRC_FORM_TIME) girando 2.2 rad/s e voam a 195 px/s.",
+      "emit": "spiral", "bullet": "std/normal",
+      "period": 0.033, "arms": 3, "spin_speed": 2.2, "speed": 195.0,
+      "warmup": 2.5 },
+
+    { "name": "classic/laser_wave",
+      "_doc": "3 vigas axis-aligned; telegrama 1.8s, fogo 0.65s, onda a cada 3.0s (LASER_*). O EmitterSystem spawna entidades LaserBeam, não balas.",
+      "emit": "laser", "bullet": "std/normal",
+      "period": 3.0, "count": 3, "speed": 0 },
+
+    { "name": "timemage/stopgo_volley",
+      "_doc": "Leque de balas stop-and-go (comportamento no arquétipo).",
+      "emit": "arc", "bullet": "tm/stopgo",
+      "period": 1.1, "count": 7, "arc": 1.2, "aim": "player",
+      "speed": 220.0 },
+
+    { "name": "timemage/boomerang_burst",
+      "_doc": "Anel de 8 boomerangs a 190 px/s, burst a cada 2.2s (TM_BOOM_*).",
+      "emit": "ring", "bullet": "tm/boomerang",
+      "period": 2.2, "count": 8, "speed": 190.0 },
+
+    { "name": "wall/rain",
+      "_doc": "Colunas do topo, ~1/3 de gaps aleatórios por onda ('gap' = fração de colunas vazias).",
+      "emit": "rain", "bullet": "std/normal",
+      "period": 0.55, "count": 12, "gap": 0.33, "aim": "down",
+      "speed": 170.0 },
+
+    { "name": "wall/pillar",
+      "_doc": "Stream denso rastreando o X do jogador com suavização.",
+      "emit": "stream", "bullet": "std/normal",
+      "period": 0.06, "count": 1, "track": "player_x", "aim": "down",
+      "speed": 240.0 },
+
+    { "name": "swarm/crossfire",
+      "_doc": "As 3 unidades miram o jogador ao mesmo tempo (1 emitter por unidade, parent = entidade da unidade).",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.9, "count": 3, "arc": 0.35, "aim": "player",
+      "speed": 200.0 },
+
+    { "name": "swarm/ring_volley",
+      "emit": "ring", "bullet": "std/normal",
+      "period": 1.8, "count": 16, "speed": 140.0,
+      "gap": 0.6, "gap_step": 0.7854 },
+
+    { "name": "twins/yin_arcs",
+      "_doc": "Yin dispara leques azuis (só machucam em movimento).",
+      "emit": "arc", "bullet": "std/yin_blue",
+      "period": 0.7, "count": 5, "arc": 0.9, "aim": "player",
+      "speed": 175.0 },
+
+    { "name": "twins/yang_rings",
+      "_doc": "Yang dispara anéis laranja (só machucam parado).",
+      "emit": "ring", "bullet": "std/yang_orange",
+      "period": 1.4, "count": 18, "speed": 130.0 },
+
+    { "name": "mod/tether_pairs",
+      "_doc": "Pares amarrados: o emitter spawna 2 balas por disparo e liga uma à outra (storage.tether).",
+      "emit": "pair", "bullet": "mod/tether",
+      "period": 1.6, "count": 2, "arc": 0.5, "aim": "player",
+      "speed": 160.0 },
+
+    { "name": "player/flak_shrapnel",
+      "_doc": "Padrão DO JOGADOR: 5 estilhaços em leque de 40° centrado a -90°, 400 px/s, dano 0.4 cada (FLAK_*). Referenciado pelo componente Fuse.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0, "count": 5, "arc": 0.698, "aim": "fixed",
+      "speed": 400.0 }
+  ]
+}

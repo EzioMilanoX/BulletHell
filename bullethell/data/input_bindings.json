@@ -1,0 +1,13 @@
+{
+  "move_up": "KEY_W",
+  "move_down": "KEY_S",
+  "move_left": "KEY_A",
+  "move_right": "KEY_D",
+  "fire": "KEY_SPACE",
+  "weapon_1": "KEY_1",
+  "weapon_2": "KEY_2",
+  "weapon_3": "KEY_3",
+  "weapon_4": "KEY_4",
+  "weapon_5": "KEY_5",
+  "toggle_plus": "KEY_P"
+}
