@@ -32,6 +32,22 @@ PLAYER_DTYPE = np.dtype([
     ("burst_left", np.int8),     # BURST: tiros restantes da rajada
     ("burst_t",    np.float32),  # BURST: intervalo até o próximo tiro
     ("aux_cd",     np.float32),  # SATÉLITE+: CD do interceptor
+    # habilidades
+    ("skill_id",   np.uint32),   # sid em skills.json (já com "+")
+    ("skill_cd",   np.float32),
+    ("skill_t",    np.float32),  # tempo ativo restante (dash/parry/oc/shield/timedil)
+    ("skill_age",  np.float32),  # desde a ativação (bloco perfeito do SHIELD+)
+    ("focus_en",   np.float32),  # energia do FOCUS (0..1)
+    ("shield_up",  np.uint8),
+    ("speed_mult", np.float32),  # DASH / OVERCLOCK+
+    ("fr_mult",    np.float32),  # OVERCLOCK
+    ("dmg_mult",   np.float32),  # EMP+
+    ("dmg_t",      np.float32),
+])
+
+CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
+    ("world",   np.float32),     # FOCUS desacelera boss+padrões+balas
+    ("bullets", np.float32),     # DILATAÇÃO congela só as balas inimigas
 ])
 
 BOSS_DTYPE = np.dtype([
@@ -143,6 +159,7 @@ PB_SHRAP_DTYPE = np.dtype([         # CARREGADO+: estilhaços no impacto
 
 GAME_SCHEMAS: Dict[str, np.dtype] = {
     "player":       PLAYER_DTYPE,
+    "clock":        CLOCK_DTYPE,
     "boss":         BOSS_DTYPE,
     "part":         PART_DTYPE,
     "laser":        LASER_DTYPE,
@@ -165,8 +182,8 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
-    "player": 2, "boss": 4, "part": 8, "laser": 16, "waypoint": 4,
-    "emitter": 32,
+    "player": 2, "clock": 1, "boss": 4, "part": 8, "laser": 16,
+    "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

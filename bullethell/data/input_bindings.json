@@ -14,5 +14,7 @@
   "weapon_8": "KEY_8",
   "weapon_9": "KEY_9",
   "weapon_10": "KEY_0",
-  "toggle_plus": "KEY_P"
+  "toggle_plus": "KEY_P",
+  "skill": "KEY_LEFT SHIFT",
+  "toggle_skill_plus": "KEY_O"
 }

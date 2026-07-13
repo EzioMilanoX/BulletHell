@@ -13,8 +13,10 @@ from bullethell.composition import build_headless
 DT = 1 / 60
 
 
-def run(boss: str, weapon: str, frames: int = 900, approach: bool = False) -> dict:
-    world, inp = build_headless(boss_name=boss, weapon_name=weapon)
+def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
+        skill: str = "none") -> dict:
+    world, inp = build_headless(boss_name=boss, weapon_name=weapon,
+                                skill_name=skill)
     eb = world.get_pool("enemy_bullet")
     pb = world.get_pool("pb_core")
     bp = world.get_pool("boss")
@@ -29,6 +31,11 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False) -> di
         # fire com pulsos de release (charged/flak+/swarm dependem do edge);
         # período 300 = CD 1.5s + carga cheia 2.5s do CARREGADO (frac 1.0)
         inp.set_action_held("fire", (f % 300) < 288)
+        # habilidade: FOCUS segura sempre; demais pulsam (edge a cada 4s)
+        if skill != "none":
+            inp.set_action_held("skill",
+                                True if skill.startswith("focus")
+                                else (f % 240) < 20)
         # mira: rastreia o x do boss como um jogador faria
         tv = tp.active_view()
         brow = tp.dense_row_of(int(bp.active_entity_indices()[0]))
@@ -76,6 +83,20 @@ if __name__ == "__main__":
         # spread+ derrete o classic → estende p/ alcançar a fase 3 (lasers)
         frames = 1600 if (boss, weapon) == ("classic", "spread+") else 900
         r = run(boss, weapon, frames=frames, approach=approach)
+        spawned = r["enemy_bullets_peak"] > 0
+        damaged = r["boss_damage"] > 0
+        status = "OK " if (spawned and damaged) else "FAIL"
+        if not (spawned and damaged):
+            ok = False
+        print(f"[{status}] {r}")
+
+    # habilidades: cada uma exercitada com pulsos de SHIFT
+    for skill in ["dash", "dash+", "parry", "parry+", "focus", "emp", "emp+",
+                  "blink", "blink+", "overclock", "overclock+", "shield",
+                  "shield+", "timedil", "timedil+"]:
+        boss = "timemage" if skill.startswith("timedil") else "classic"
+        r = run(boss, "padrao", skill=skill)
+        r["skill"] = skill
         spawned = r["enemy_bullets_peak"] > 0
         damaged = r["boss_damage"] > 0
         status = "OK " if (spawned and damaged) else "FAIL"

@@ -12,7 +12,6 @@ import numpy as np
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.core.components.schemas import COMPONENT_SCHEMAS
 from ouroboros.core.memory.memory_manager import MemoryManager
-from ouroboros.core.systems.physics_system import PhysicsSystem
 from ouroboros.core.world import World
 
 from bullethell.ids import sid
@@ -24,7 +23,7 @@ ENTITY_CAPACITY = 8192
 
 
 def build_world(data: GameData, input_provider, boss_name: str = "classic",
-                weapon_name: str = "padrao") -> World:
+                weapon_name: str = "padrao", skill_name: str = "none") -> World:
     """Monta o World completo do jogo (sem backends — quem escolhe
     renderer/input é o chamador: janela real ou null/headless)."""
     mm = MemoryManager(entity_capacity=ENTITY_CAPACITY)
@@ -55,6 +54,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
             ("transform", "velocity", "sprite", "pb_core") + wdef.pools)
 
     # sistemas — ordem do frame (MIGRATION.md §3)
+    world.register_system(gs.SkillSystem(mm, input_provider, data))  # escreve clock/mults
     world.register_system(gs.PlayerControlSystem(mm, input_provider))
     world.register_system(gs.WeaponFireSystem(mm, input_provider, data))
     world.register_system(gs.BossPhaseSystem(mm, data))
@@ -62,7 +62,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.BossMotionSystem(mm, data))   # partes/orbit/descend
     world.register_system(gs.EmitterSystem(mm, data))
     world.register_system(gs.LaserSystem(mm))
-    world.register_system(PhysicsSystem(mm))               # engine: Transform += Velocity*dt
+    world.register_system(gs.ScaledMovementSystem(mm))     # física com escalas de tempo
     world.register_system(gs.OrbitSystem(mm))              # pós-física: sobrescreve Transform
     world.register_system(gs.EnemyBulletBehaviorSystem(mm))
     world.register_system(gs.PlayerBulletHomingSystem(mm))
@@ -71,15 +71,26 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.ChakramSystem(mm, input_provider, data))   # CHAKRAM
     world.register_system(gs.AutoLaunchSystem(mm, data))   # SATÉLITE+
     world.register_system(gs.MaintenanceSystem(mm))
-    world.register_system(gs.PlayerHitSystem(mm))
+    world.register_system(gs.PlayerHitSystem(mm, data))
     world.register_system(gs.PlayerBulletVsBossSystem(mm))
 
-    _spawn_player(world, mm, data, weapon_name)
+    _spawn_clock(world, mm)
+    _spawn_player(world, mm, data, weapon_name, skill_name)
     _spawn_boss(world, mm, data, boss_name)
     return world
 
 
-def _spawn_player(world: World, mm: MemoryManager, data: GameData, weapon_name: str) -> None:
+def _spawn_clock(world: World, mm: MemoryManager) -> None:
+    world.register_archetype("clock_entity", ("clock",))
+    packed = world.create_entity("clock_entity")
+    row = mm.get_pool("clock").dense_row_of(packed & 0xFFFFFFFF)
+    cv = mm.get_pool("clock").active_view()
+    cv["world"][row] = 1.0
+    cv["bullets"][row] = 1.0
+
+
+def _spawn_player(world: World, mm: MemoryManager, data: GameData,
+                  weapon_name: str, skill_name: str = "none") -> None:
     packed = world.create_entity("player")
     idx = packed & 0xFFFFFFFF
     t = mm.get_pool("transform"); row = t.dense_row_of(idx); tv = t.active_view()
@@ -93,6 +104,9 @@ def _spawn_player(world: World, mm: MemoryManager, data: GameData, weapon_name: 
     p = mm.get_pool("player"); row = p.dense_row_of(idx); pv = p.active_view()
     pv["lives"][row] = 3
     pv["weapon_id"][row] = sid(weapon_name)
+    pv["skill_id"][row] = sid(skill_name)
+    pv["focus_en"][row] = gs.FOCUS_MAX
+    pv["speed_mult"][row] = pv["fr_mult"][row] = pv["dmg_mult"][row] = 1.0
 
 
 def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str) -> None:
@@ -156,7 +170,8 @@ def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str)
                       tuple(part_indices))
 
 
-def build_game(boss_name: str = "classic", weapon_name: str = "padrao") -> GameLoop:
+def build_game(boss_name: str = "classic", weapon_name: str = "padrao",
+               skill_name: str = "none") -> GameLoop:
     """Composição com janela pygame real."""
     from ouroboros.adapters.pygame_backend.pygame_audio_engine import PygameAudioEngine
     from ouroboros.adapters.pygame_backend.pygame_input_provider import PygameInputProvider
@@ -168,16 +183,17 @@ def build_game(boss_name: str = "classic", weapon_name: str = "padrao") -> GameL
     renderer.initialize(SCREEN_W, SCREEN_H, "BULLET HELL — OuroborosEngine")
     input_provider = PygameInputProvider()
     input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
-    world = build_world(data, input_provider, boss_name, weapon_name)
+    world = build_world(data, input_provider, boss_name, weapon_name, skill_name)
     return GameLoop(world, renderer, input_provider, PygameAudioEngine())
 
 
-def build_headless(boss_name: str = "classic", weapon_name: str = "padrao"):
+def build_headless(boss_name: str = "classic", weapon_name: str = "padrao",
+                   skill_name: str = "none"):
     """Composição para testes: null backends, controle manual do step.
     Retorna (world, input_provider, memory acessível via world.get_pool)."""
     from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 
     data = load_all()
     input_provider = NullInputProvider()
-    world = build_world(data, input_provider, boss_name, weapon_name)
+    world = build_world(data, input_provider, boss_name, weapon_name, skill_name)
     return world, input_provider

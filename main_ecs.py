@@ -7,7 +7,7 @@ Uso:
      chakram satelite — sufixo + para a variante evoluída, ex.: agulha+)
 
 Controles: WASD move · ESPAÇO atira (segurar/soltar tem mecânica por arma)
-           1-0 troca arma · P alterna variante +
+           SHIFT habilidade · 1-0 troca arma · P variante+ arma · O variante+ skill
 """
 import argparse
 
@@ -20,8 +20,12 @@ def main() -> None:
     ap.add_argument("--boss", default="classic",
                     choices=["classic", "timemage", "wall", "swarm", "twins"])
     ap.add_argument("--weapon", default="padrao")
+    ap.add_argument("--skill", default="none",
+                    choices=["none", "dash", "parry", "focus", "emp", "blink",
+                             "overclock", "shield", "timedil"])
     args = ap.parse_args()
-    build_game(boss_name=args.boss, weapon_name=args.weapon).run()
+    build_game(boss_name=args.boss, weapon_name=args.weapon,
+               skill_name=args.skill).run()
 
 
 if __name__ == "__main__":

@@ -78,6 +78,54 @@ class WeaponDef:
 
 
 @dataclass(frozen=True, slots=True)
+class SkillDef:
+    """Campos numéricos genéricos — cada habilidade usa os seus; 0 = n/a."""
+    name: str
+    cd: float
+    duration: float
+    radius: float
+    power: float
+    drain: float
+    regen: float
+    scale: float
+    stun: float
+    fr: float
+    speed: float
+    aux: float
+    buff_dur: float
+    buff_per: float
+    refund: float
+    ring_n: int
+    ring_spd: float
+    perfect: float
+
+
+def _skill_from(name: str, e: dict) -> SkillDef:
+    return SkillDef(
+        name=name,
+        cd=float(e.get("cd", 0.0)), duration=float(e.get("duration", 0.0)),
+        radius=float(e.get("radius", 0.0)), power=float(e.get("power", 0.0)),
+        drain=float(e.get("drain", 0.0)), regen=float(e.get("regen", 0.0)),
+        scale=float(e.get("scale", 1.0)), stun=float(e.get("stun", 0.0)),
+        fr=float(e.get("fr", 1.0)), speed=float(e.get("speed", 1.0)),
+        aux=float(e.get("aux", 0.0)),
+        buff_dur=float(e.get("buff_dur", 0.0)), buff_per=float(e.get("buff_per", 0.0)),
+        refund=float(e.get("refund", 0.0)), ring_n=int(e.get("ring_n", 0)),
+        ring_spd=float(e.get("ring_spd", 0.0)), perfect=float(e.get("perfect", 0.0)),
+    )
+
+
+def load_skills(path=DATA_DIR / "skills.json") -> Dict[int, SkillDef]:
+    out: Dict[int, SkillDef] = {}
+    for e in json.loads(path.read_text(encoding="utf-8"))["skills"]:
+        out[sid(e["name"])] = _skill_from(e["name"], e)
+        if "plus" in e:
+            merged = {**e, **e["plus"]}
+            out[sid(e["name"] + "+")] = _skill_from(e["name"] + "+", merged)
+    return out
+
+
+@dataclass(frozen=True, slots=True)
 class BossPhaseDef:
     hp_above: float
     # (pattern_sid, off_x, off_y, part_idx) — part_idx -1 = origem na raiz
@@ -192,6 +240,7 @@ class GameData:
     patterns: Dict[int, PatternDef]
     weapons: Dict[int, WeaponDef]
     bosses: Dict[int, BossDef]
+    skills: Dict[int, SkillDef]
 
 
 def load_all() -> GameData:
@@ -200,4 +249,5 @@ def load_all() -> GameData:
         patterns=load_patterns(),
         weapons=load_weapons(),
         bosses=load_bosses(),
+        skills=load_skills(),
     )

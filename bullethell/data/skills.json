@@ -1,0 +1,45 @@
+{
+  "_doc": "Habilidades do jogador (SHIFT). O bloco 'plus' é um overlay que gera a variante '<nome>+'. Números do legado (entities.py).",
+  "skills": [
+    { "name": "none" },
+
+    { "name": "dash",
+      "_doc": "6× velocidade por 0.18s. DASH+: i-frames de 80ms no início.",
+      "cd": 1.2, "duration": 0.18, "power": 6.0,
+      "plus": { "aux": 0.08 } },
+
+    { "name": "parry",
+      "_doc": "Janela 0.13s: balas num raio de 25px são refletidas contra o boss (dano 1.0). PARRY+: viram mísseis homing de 1.5.",
+      "cd": 1.2, "duration": 0.13, "radius": 25.0, "power": 1.0,
+      "plus": { "power": 1.5 } },
+
+    { "name": "focus",
+      "_doc": "Segurar: mundo a 32% da velocidade. Energia drena 1.5/s, regenera 0.45/s.",
+      "drain": 1.5, "regen": 0.45, "scale": 0.32 },
+
+    { "name": "emp",
+      "_doc": "Destrói balas em raio 340px + stun 1s no boss. EMP+: sem stun; +1% de dano por bala destruída durante 5s.",
+      "cd": 8.0, "radius": 340.0, "stun": 1.0,
+      "plus": { "stun": 0.0, "buff_dur": 5.0, "buff_per": 0.01 } },
+
+    { "name": "blink",
+      "_doc": "Teleporte de 190px na direção do input (sem i-frames). BLINK+: micro-EMP de 60px na origem.",
+      "cd": 2.0, "power": 190.0,
+      "plus": { "radius": 60.0 } },
+
+    { "name": "overclock",
+      "_doc": "3s de cadência ×0.45. OVERCLOCK+: ×0.25 (4×) mas movimento a 25%.",
+      "cd": 12.0, "duration": 3.0, "fr": 0.45,
+      "plus": { "fr": 0.25, "speed": 0.25 } },
+
+    { "name": "shield",
+      "_doc": "Absorve o próximo hit (2.5s). SHIELD+: bloco perfeito (<0.15s) → anel de 8 balas (220px/s) + 50% do CD de volta.",
+      "cd": 15.0, "duration": 2.5,
+      "plus": { "refund": 0.5, "ring_n": 8, "ring_spd": 220.0, "perfect": 0.15 } },
+
+    { "name": "timedil",
+      "_doc": "Congela as balas inimigas por 2s. TIMEDIL+: ao expirar, estilhaça balas num raio de 80px.",
+      "cd": 12.0, "duration": 2.0,
+      "plus": { "radius": 80.0 } }
+  ]
+}

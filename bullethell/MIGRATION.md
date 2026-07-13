@@ -104,13 +104,22 @@ Portado (fases 1–2):
 - [x] Bosses multi-parte: pool `part` (dano roteado à raiz), BossMotionSystem
       (swarm_orbit/descend + posicionamento das partes)
 - [x] Graze, vidas/invuln, reset de run
-- [x] Smoke headless 24/24 (armas, variantes, todos os bosses, lasers)
+- [x] **8 habilidades + 7 variantes Skill+** (skills.json): dash(+iframes),
+      parry(+homing 1.5), focus (câmera lenta 0.32 via pool `clock`),
+      emp(+buff de dano em vez de stun), blink(+EMP na origem),
+      overclock(+berserk 4×/25% movimento), shield(+bloco perfeito: anel
+      de 8 balas e 50% do CD), timedil(+estilhaço 80px ao expirar)
+- [x] Escalas de tempo: `ScaledMovementSystem` substitui o PhysicsSystem
+      da engine — jogador 1.0, balas inimigas `clock.bullets` (DILATAÇÃO
+      congela), resto `clock.world` (FOCUS); cadência/timers de boss,
+      emitters, lasers e comportamentos escalam junto; stun do EMP para
+      movimento e disparo dos bosses
+- [x] Smoke headless 39/39 (armas, variantes, bosses, lasers, skills)
 
-Fase 4:
-- [ ] Habilidades (dash/parry/focus/emp/blink/overclock/shield/timedil) e Skill+
+Fase 5:
 - [ ] Mutadores, fragmentação ABISSAL, hazards, partículas, HUD/menus
 - [ ] Bosses restantes do legado (Omega, Summoner+minions, SINS)
-- [ ] Save/conquistas (SaveManager fora do World, I/O só em menu)
+- [ ] Save/conquistas/maestria (SaveManager fora do World, I/O só em menu)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.
