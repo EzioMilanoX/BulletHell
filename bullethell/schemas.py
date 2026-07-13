@@ -40,6 +40,25 @@ BOSS_DTYPE = np.dtype([
     ("max_hp",    np.float32),
     ("phase_idx", np.int8),
     ("stun_t",    np.float32),
+    ("aux_angle", np.float32),   # swarm: ângulo orbital; wall: (reserva)
+])
+
+PART_DTYPE = np.dtype([          # hitbox-filha de boss composto
+    ("self",  np.uint64),
+    ("root",  np.int64),         # entity index do boss raiz (recebe o dano)
+    ("off_x", np.float32),       # offset base em relação à raiz
+    ("off_y", np.float32),
+])
+
+# laser.axis
+LASER_H, LASER_V = 0, 1
+LASER_DTYPE = np.dtype([
+    ("self",        np.uint64),
+    ("axis",        np.uint8),
+    ("pos",         np.float32), # y se horizontal, x se vertical
+    ("half",        np.float32), # meia-espessura da viga
+    ("telegraph_t", np.float32), # >0 = telegrafando (sem dano)
+    ("fire_t",      np.float32), # duração do disparo
 ])
 
 WAYPOINT_DTYPE = np.dtype([
@@ -54,13 +73,18 @@ EMITTER_DTYPE = np.dtype([
     ("phase_angle", np.float32),
     ("shot_count",  np.uint32),
     ("warmup",      np.float32),
-    ("parent",      np.uint64),  # PackedEntityId do dono (boss)
+    ("parent",      np.uint64),  # entity index da ORIGEM (boss raiz ou parte)
+    ("root",        np.uint64),  # entity index do boss raiz (p/ swap de fase)
     ("off_x",       np.float32),
     ("off_y",       np.float32),
 ])
 
+# tether: sentinela "sem par" (packed id 0 seria uma entidade válida!)
+TETHER_NONE = np.uint64(0xFFFFFFFFFFFFFFFF)
+
 ENEMY_BULLET_DTYPE = np.dtype([
     ("self",     np.uint64),
+    ("tether",   np.uint64),     # PackedEntityId do par (TETHER_NONE = sem)
     ("contact",  np.uint8),
     ("radius",   np.float32),
     ("grazed",   np.uint8),
@@ -120,6 +144,8 @@ PB_SHRAP_DTYPE = np.dtype([         # CARREGADO+: estilhaços no impacto
 GAME_SCHEMAS: Dict[str, np.dtype] = {
     "player":       PLAYER_DTYPE,
     "boss":         BOSS_DTYPE,
+    "part":         PART_DTYPE,
+    "laser":        LASER_DTYPE,
     "waypoint":     WAYPOINT_DTYPE,
     "emitter":      EMITTER_DTYPE,
     "enemy_bullet": ENEMY_BULLET_DTYPE,
@@ -139,7 +165,8 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
-    "player": 2, "boss": 4, "waypoint": 4, "emitter": 32,
+    "player": 2, "boss": 4, "part": 8, "laser": 16, "waypoint": 4,
+    "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

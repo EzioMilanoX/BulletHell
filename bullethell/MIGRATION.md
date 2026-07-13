@@ -91,19 +91,25 @@ Portado (fases 1–2):
 - [x] Sistemas dedicados: FuseSystem, ChakramSystem, OrbitSystem,
       PlayerBulletDelaySystem, AutoLaunchSystem (dispatch `special` no
       WeaponFireSystem: charged/burst/orbit/swarm)
-- [x] Padrões: arc, ring (vão rotativo), spiral, rain (gaps), stream (pillar)
+- [x] Padrões: arc, ring (vão rotativo), spiral, rain (gaps), stream
+      (pillar), **pair (tether)** e **laser** (telegrafa 1.8s → dispara
+      0.65s, LaserSystem)
 - [x] Arquétipos de bala: normal, yin/yang, homing, phaser, spinner,
-      gravity well, ricochete, stop&go, boomerang, sleeper
-- [x] Bosses classic/timemage/wall/swarm/twins nos dados; classic e
-      timemage jogáveis (fases trocando emitters)
+      gravity well, ricochete, stop&go, boomerang, sleeper, **tether**
+      (dano ponto-segmento no arame entre o par)
+- [x] **TODOS os 5 bosses jogáveis**: classic, timemage (tether na fase 3),
+      wall (barra descendente = parte única, rain+pillar), swarm (3
+      unidades orbitando 0.75 rad/s, HP compartilhado via part.root,
+      crossfire por unidade), twins (2 raízes independentes yin+yang)
+- [x] Bosses multi-parte: pool `part` (dano roteado à raiz), BossMotionSystem
+      (swarm_orbit/descend + posicionamento das partes)
 - [x] Graze, vidas/invuln, reset de run
-- [x] Smoke headless 20/20: cada arma e variante causando dano
+- [x] Smoke headless 24/24 (armas, variantes, todos os bosses, lasers)
 
-Fase 3:
-- [ ] Emissões `laser` (entidades LaserBeam) e `pair` (tether)
-- [ ] Bosses multi-parte (Swarm 3 unidades, Wall canhões) — `BossPart.root`
-- [ ] Habilidades (dash/parry/focus/emp/...) e Skill+
+Fase 4:
+- [ ] Habilidades (dash/parry/focus/emp/blink/overclock/shield/timedil) e Skill+
 - [ ] Mutadores, fragmentação ABISSAL, hazards, partículas, HUD/menus
+- [ ] Bosses restantes do legado (Omega, Summoner+minions, SINS)
 - [ ] Save/conquistas (SaveManager fora do World, I/O só em menu)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em

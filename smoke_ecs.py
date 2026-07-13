@@ -5,6 +5,8 @@ toma dano, cull funciona, contagens de pool coerentes.
 
 Uso: python smoke_ecs.py
 """
+import numpy as np
+
 import bullethell  # noqa: F401 — engine no sys.path
 from bullethell.composition import build_headless
 
@@ -18,9 +20,11 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False) -> di
     bp = world.get_pool("boss")
     pl = world.get_pool("player")
     tp = world.get_pool("transform")
+    lz = world.get_pool("laser")
 
     max_eb = 0
-    hp0 = float(bp.active_view()["hp"][0])
+    max_lz = 0
+    hp0 = float(np.sum(bp.active_view()["hp"]))
     for f in range(frames):
         # fire com pulsos de release (charged/flak+/swarm dependem do edge);
         # período 300 = CD 1.5s + carga cheia 2.5s do CARREGADO (frac 1.0)
@@ -41,11 +45,12 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False) -> di
         inp.poll()
         world.step(DT)
         max_eb = max(max_eb, eb.count)
-    hp1 = float(bp.active_view()["hp"][0])
+        max_lz = max(max_lz, lz.count)
+    hp1 = float(np.sum(bp.active_view()["hp"]))
     return {
         "boss": boss, "weapon": weapon,
         "enemy_bullets_now": eb.count, "enemy_bullets_peak": max_eb,
-        "player_bullets_now": pb.count,
+        "player_bullets_now": pb.count, "lasers_peak": max_lz,
         "boss_hp": f"{hp1:.1f}/{hp0:.0f}", "boss_damage": hp0 - hp1,
         "graze": int(world.get_pool("player").active_view()["graze"][0]),
         "lives": int(world.get_pool("player").active_view()["lives"][0]),
@@ -65,8 +70,12 @@ if __name__ == "__main__":
             ("classic", "flak", False), ("classic", "flak+", False),
             ("classic", "chakram", True), ("classic", "chakram+", True),
             ("classic", "satelite", True), ("classic", "satelite+", True),
-            ("timemage", "padrao", False)]:
-        r = run(boss, weapon, approach=approach)
+            ("timemage", "padrao", False), ("timemage", "spread+", True),
+            ("wall", "padrao", False), ("swarm", "spread", False),
+            ("twins", "teleguiado", False)]:
+        # spread+ derrete o classic → estende p/ alcançar a fase 3 (lasers)
+        frames = 1600 if (boss, weapon) == ("classic", "spread+") else 900
+        r = run(boss, weapon, frames=frames, approach=approach)
         spawned = r["enemy_bullets_peak"] > 0
         damaged = r["boss_damage"] > 0
         status = "OK " if (spawned and damaged) else "FAIL"

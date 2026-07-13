@@ -26,7 +26,8 @@ from bullethell.schemas import (
     BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
     CHAKRAM_FROZEN, CHAKRAM_OUT, CHAKRAM_RETURN,
     CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
-    ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
+    LASER_H, LASER_V, ORBIT_GEM, ORBIT_HELD, PALETTE,
+    SCREEN_H, SCREEN_W, TETHER_NONE,
 )
 
 if TYPE_CHECKING:
@@ -50,6 +51,12 @@ FLAK_SHRAP_ARC = 0.698                       # 40°
 CHAKRAM_DRAG, CHAKRAM_CATCH_R = 1600.0, 22.0
 ORBIT_MAX_GEMS, SWARM_MAX_HELD = 4, 8
 INTERCEPT_RANGE, INTERCEPT_CD = 250.0, 2.5
+# bosses compostos / lasers (legado)
+SWARM_ORBIT_SPEED = 0.75          # rad/s do triângulo
+WALL_DESCENT_SPEED = 150.0        # px/s
+WALL_MAX_Y = 216.0
+LASER_TELEGRAPH, LASER_FIRE_DUR = 1.8, 0.65
+LASER_HALF = 6.0
 
 # Armas selecionáveis pelas teclas 1..0
 WEAPON_KEYS = ("padrao", "spread", "agulha", "teleguiado", "plasma",
@@ -343,6 +350,7 @@ class BossPhaseSystem(ISystem):
         self._data = data
         self._boss = memory_manager.get_pool("boss")
         self._emitter = memory_manager.get_pool("emitter")
+        self._part = memory_manager.get_pool("part")
 
     def update(self, world: "World", delta_time: float) -> None:
         for raw in self._boss.active_entity_indices():
@@ -364,18 +372,30 @@ class BossPhaseSystem(ISystem):
 
     def _swap_emitters(self, world: "World", boss_index: int, phase_def) -> None:
         ev = self._emitter.active_view()
-        parents = ev["parent"][: self._emitter.count]
         for k in range(self._emitter.count):       # ≤32 emitters
-            if int(parents[k]) & 0xFFFFFFFF == boss_index:
+            if int(ev["root"][k]) == boss_index:
                 world.destroy_entity(int(ev["self"][k]))
-        spawn_emitters(world, self._emitter, boss_index, phase_def)
+        spawn_emitters(world, self._emitter, boss_index, phase_def,
+                       parts_of(self._part, boss_index))
 
 
-def spawn_emitters(world: "World", emitter_pool, boss_index: int, phase_def) -> None:
-    """Cria as entidades-emitter de uma fase (usado na composição e na troca).
-    `parent` guarda apenas o index do boss (generation irrelevante aqui:
-    o boss nunca é destruído durante a luta)."""
-    for pattern_sid, off_x, off_y in phase_def.emitters:
+def parts_of(part_pool, boss_index: int) -> tuple:
+    """Entity indices das partes cuja raiz é `boss_index` (ordem de spawn)."""
+    pv = part_pool.active_view()
+    idxs = part_pool.active_entity_indices()
+    return tuple(int(idxs[k]) for k in range(part_pool.count)
+                 if int(pv["root"][k]) == boss_index)
+
+
+def spawn_emitters(world: "World", emitter_pool, boss_index: int, phase_def,
+                   part_indices: tuple = ()) -> None:
+    """Cria as entidades-emitter de uma fase (usado na composição e na
+    troca). `parent` = origem (parte, se o emitter declara `part`; senão a
+    raiz); `root` = boss raiz, usado no swap de fase. Guardam apenas o
+    entity index (o boss nunca é destruído durante a luta)."""
+    for pattern_sid, off_x, off_y, part_idx in phase_def.emitters:
+        parent = (part_indices[part_idx]
+                  if 0 <= part_idx < len(part_indices) else boss_index)
         packed = world.create_entity("emitter")
         idx = packed & 0xFFFFFFFF
         row = emitter_pool.dense_row_of(idx)
@@ -385,9 +405,113 @@ def spawn_emitters(world: "World", emitter_pool, boss_index: int, phase_def) -> 
         view["t"][row] = 0.0
         view["phase_angle"][row] = 0.0
         view["shot_count"][row] = 0
-        view["parent"][row] = np.uint64(boss_index)
+        view["parent"][row] = np.uint64(parent)
+        view["root"][row] = np.uint64(boss_index)
         view["off_x"][row] = off_x
         view["off_y"][row] = off_y
+
+
+# ===========================================================================
+class BossMotionSystem(ISystem):
+    """Movimentos de boss composto e posicionamento das partes:
+    `swarm_orbit` gira o triângulo de unidades (0.75 rad/s) ao redor da
+    raiz; `descend` desce a raiz do topo (150px/s) até y=216. Partes são
+    sempre reposicionadas em raiz + offset (rotacionado no orbit).
+    Roda após o WaypointSystem e antes do EmitterSystem."""
+
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+        self._data = data
+        self._boss = memory_manager.get_pool("boss")
+        self._part = memory_manager.get_pool("part")
+        self._transform = memory_manager.get_pool("transform")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        tv = self._transform.active_view()
+        bv = self._boss.active_view()
+        for raw in self._boss.active_entity_indices():
+            bi = int(raw)
+            brow = self._boss.dense_row_of(bi)
+            bdef = self._data.bosses[int(bv["boss_id"][brow])]
+            if bdef.motion == "descend":
+                trow = self._transform.dense_row_of(bi)
+                y = float(tv["position_y"][trow])
+                if y < WALL_MAX_Y:
+                    tv["position_y"][trow] = min(WALL_MAX_Y,
+                                                 y + WALL_DESCENT_SPEED * delta_time)
+            elif bdef.motion == "swarm_orbit":
+                bv["aux_angle"][brow] += SWARM_ORBIT_SPEED * delta_time
+
+        n = self._part.count
+        if n == 0:
+            return
+        pv = self._part.active_view()
+        idxs = self._part.active_entity_indices()
+        for k in range(n):                          # ≤8 partes
+            root_idx = int(pv["root"][k])
+            rrow = self._transform.dense_row_of(root_idx)
+            brow = self._boss.dense_row_of(root_idx)
+            if rrow < 0 or brow < 0:
+                continue
+            rx = float(tv["position_x"][rrow]); ry = float(tv["position_y"][rrow])
+            ox = float(pv["off_x"][k]); oy = float(pv["off_y"][k])
+            bdef = self._data.bosses[int(bv["boss_id"][brow])]
+            if bdef.motion == "swarm_orbit":
+                a = float(bv["aux_angle"][brow])
+                c, s = math.cos(a), math.sin(a)
+                ox, oy = ox * c - oy * s, ox * s + oy * c
+            trow = self._transform.dense_row_of(int(idxs[k]))
+            tv["position_x"][trow] = rx + ox
+            tv["position_y"][trow] = ry + oy
+
+
+# ===========================================================================
+class LaserSystem(ISystem):
+    """Vigas axis-aligned: telegrafam (sem dano, tint apagado), disparam
+    (dano por sobreposição, tint aceso) e expiram."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._laser = memory_manager.get_pool("laser")
+        self._sprite = memory_manager.get_pool("sprite")
+        self._transform = memory_manager.get_pool("transform")
+        self._player = memory_manager.get_pool("player")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._laser.count
+        if n == 0:
+            return
+        lv = self._laser.active_view()
+        tele = lv["telegraph_t"] > 0.0
+        lv["telegraph_t"][tele] -= delta_time
+        firing = ~tele
+        lv["fire_t"][firing] -= delta_time
+
+        idxs = self._laser.active_entity_indices()
+        srows = self._sprite.dense_rows_of(idxs)
+        sv = self._sprite.active_view()
+        sv["tint_r"][srows[firing]] = 255
+        sv["tint_g"][srows[firing]] = 70
+        sv["tint_b"][srows[firing]] = 70
+
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow >= 0 and firing.any():
+            tv = self._transform.active_view()
+            px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+            prow = self._player.dense_row_of(i)
+            pv = self._player.active_view()
+            if pv["invuln_t"][prow] <= 0.0:
+                h_hit = firing & (lv["axis"] == LASER_H) & \
+                        (np.abs(py - lv["pos"]) <= lv["half"] + 9.0)
+                v_hit = firing & (lv["axis"] == LASER_V) & \
+                        (np.abs(px - lv["pos"]) <= lv["half"] + 9.0)
+                if h_hit.any() or v_hit.any():
+                    pv["invuln_t"][prow] = PLAYER_INVULN
+                    pv["lives"][prow] -= 1
+                    if pv["lives"][prow] < 0:
+                        pv["lives"][prow] = 3
+
+        dead = firing & (lv["fire_t"] <= 0.0)
+        for h in lv["self"][dead]:
+            world.destroy_entity(int(h))
 
 
 # ===========================================================================
@@ -403,6 +527,7 @@ class EmitterSystem(ISystem):
         self._velocity = memory_manager.get_pool("velocity")
         self._sprite = memory_manager.get_pool("sprite")
         self._eb = memory_manager.get_pool("enemy_bullet")
+        self._laser = memory_manager.get_pool("laser")
         self._player = memory_manager.get_pool("player")
 
     def update(self, world: "World", delta_time: float) -> None:
@@ -470,11 +595,47 @@ class EmitterSystem(ISystem):
                 ev["phase_angle"][k] += (px - float(ev["phase_angle"][k])) * 0.12
                 ox = float(ev["phase_angle"][k])
             self._spawn(world, pat, ox, oy, math.pi / 2, px, py)
-        # "laser"/"pair": fase 2 do port
+        elif pat.emit == "pair":
+            aim = math.atan2(py - oy, px - ox)
+            p1 = self._spawn(world, pat, ox, oy, aim - pat.arc / 2, px, py)
+            p2 = self._spawn(world, pat, ox, oy, aim + pat.arc / 2, px, py)
+            if p1 is not None and p2 is not None:   # amarra o arame
+                eb = self._eb.active_view()
+                eb["tether"][self._eb.dense_row_of(p1 & 0xFFFFFFFF)] = np.uint64(p2)
+                eb["tether"][self._eb.dense_row_of(p2 & 0xFFFFFFFF)] = np.uint64(p1)
+        elif pat.emit == "laser":
+            seed = int(ev["shot_count"][k])
+            ev["shot_count"][k] += 1
+            for j in range(pat.count):
+                if self._laser.count >= self._laser.capacity:
+                    return
+                pos = 120.0 + ((seed * 2654435761 + j * 97561) % 997) / 997.0 \
+                    * (SCREEN_H - 320.0)
+                packed = world.create_entity("laser")
+                idx = packed & 0xFFFFFFFF
+                lrow = self._laser.dense_row_of(idx)
+                lv = self._laser.active_view()
+                lv["self"][lrow] = np.uint64(packed)
+                lv["axis"][lrow] = LASER_H
+                lv["pos"][lrow] = pos
+                lv["half"][lrow] = LASER_HALF
+                lv["telegraph_t"][lrow] = LASER_TELEGRAPH
+                lv["fire_t"][lrow] = LASER_FIRE_DUR
+                trow = self._transform.dense_row_of(idx)
+                tv2 = self._transform.active_view()
+                tv2["position_x"][trow] = SCREEN_W / 2
+                tv2["position_y"][trow] = pos
+                tv2["scale_x"][trow] = SCREEN_W / 8.0
+                tv2["scale_y"][trow] = (LASER_HALF * 2 + 2) / 8.0
+                srow = self._sprite.dense_row_of(idx)
+                sv = self._sprite.active_view()
+                sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 130, 30, 45
+                sv["tint_a"][srow] = 255
+                sv["layer_z"][srow] = 8
 
-    def _spawn(self, world, pat: PatternDef, x, y, theta, px, py) -> None:
+    def _spawn(self, world, pat: PatternDef, x, y, theta, px, py):
         if self._eb.count >= self._eb.capacity - 1:
-            return                                  # pool cheio: descarta
+            return None                             # pool cheio: descarta
         arch = self._data.archetypes[pat.bullet]
         packed = world.create_entity("enemy_bullet")
         idx = packed & 0xFFFFFFFF
@@ -496,6 +657,7 @@ class EmitterSystem(ISystem):
         erow = self._eb.dense_row_of(idx)
         eb = self._eb.active_view()
         eb["self"][erow] = np.uint64(packed)
+        eb["tether"][erow] = TETHER_NONE
         eb["contact"][erow] = arch.contact
         eb["radius"][erow] = arch.radius
         eb["grazed"][erow] = 0
@@ -510,6 +672,7 @@ class EmitterSystem(ISystem):
         eb["p1"][erow], eb["p2"][erow], eb["p3"][erow] = arch.p1, arch.p2, arch.p3
         eb["tgt_x"][erow], eb["tgt_y"][erow] = px, py   # snapshot p/ stop&go
         eb["stage"][erow] = 0
+        return packed
 
 
 # ===========================================================================
@@ -780,6 +943,33 @@ class PlayerHitSystem(ISystem):
             eb["grazed"][graze] = 1
             pv["graze"][prow] += cnt
 
+        # TETHER: o arame entre o par fere se o jogador cruza o segmento
+        te = eb["tether"] != TETHER_NONE
+        if te.any() and pv["invuln_t"][prow] <= 0.0:
+            tv = self._transform.active_view()
+            for k in np.where(te)[0]:
+                partner = int(eb["tether"][k])
+                if not world.is_alive(partner):
+                    eb["tether"][k] = TETHER_NONE
+                    continue
+                if int(eb["self"][k]) > partner:    # processa cada par 1×
+                    continue
+                ptr = self._transform.dense_row_of(partner & 0xFFFFFFFF)
+                ax = float(tv["position_x"][trows[k]])
+                ay = float(tv["position_y"][trows[k]])
+                bx_ = float(tv["position_x"][ptr])
+                by_ = float(tv["position_y"][ptr])
+                sx, sy = bx_ - ax, by_ - ay
+                l2 = sx * sx + sy * sy
+                t = 0.0 if l2 == 0.0 else max(0.0, min(1.0, ((px - ax) * sx + (py - ay) * sy) / l2))
+                qx, qy = ax + t * sx, ay + t * sy
+                if (px - qx) ** 2 + (py - qy) ** 2 <= PLAYER_HIT_R ** 2:
+                    pv["invuln_t"][prow] = PLAYER_INVULN
+                    pv["lives"][prow] -= 1
+                    if pv["lives"][prow] < 0:
+                        pv["lives"][prow] = 3
+                    break
+
 
 # ===========================================================================
 class PlayerBulletVsBossSystem(ISystem):
@@ -796,6 +986,7 @@ class PlayerBulletVsBossSystem(ISystem):
         self._transform = memory_manager.get_pool("transform")
         self._hitbox = memory_manager.get_pool("hitbox")
         self._boss = memory_manager.get_pool("boss")
+        self._part = memory_manager.get_pool("part")
 
     def update(self, world: "World", delta_time: float) -> None:
         if self._pb_core.count == 0 or self._boss.count == 0:
@@ -807,65 +998,76 @@ class PlayerBulletVsBossSystem(ISystem):
         bys = tv["position_y"][pb_trows]
         cv = self._pb_core.active_view()
 
+        # bosses com hitbox própria (classic/timemage/twins)
         for raw in self._boss.active_entity_indices():
             bi = int(raw)
-            btrow = self._transform.dense_row_of(bi)
-            hrow = self._hitbox.dense_row_of(bi)
-            if btrow < 0 or hrow < 0:
-                continue
-            hv = self._hitbox.active_view()
-            cx = float(tv["position_x"][btrow]); cy = float(tv["position_y"][btrow])
-            hw = float(hv["half_width"][hrow]); hh = float(hv["half_height"][hrow])
-            inside = ((bxs >= cx - hw) & (bxs <= cx + hw) &
-                      (bys >= cy - hh) & (bys <= cy + hh))
-            if not inside.any():
-                continue
+            self._collide_aabb(world, bi, bi, tv, pb_idx, bxs, bys, cv, delta_time)
+        # partes de boss composto (wall/swarm) — dano roteado à raiz
+        pvw = self._part.active_view()
+        p_idxs = self._part.active_entity_indices()
+        for k in range(self._part.count):
+            self._collide_aabb(world, int(p_idxs[k]), int(pvw["root"][k]),
+                               tv, pb_idx, bxs, bys, cv, delta_time)
 
-            brow = self._boss.dense_row_of(bi)
-            bv = self._boss.active_view()
+    def _collide_aabb(self, world, hit_entity: int, boss_entity: int, tv,
+                      pb_idx, bxs, bys, cv, delta_time: float) -> None:
+        btrow = self._transform.dense_row_of(hit_entity)
+        hrow = self._hitbox.dense_row_of(hit_entity)
+        brow = self._boss.dense_row_of(boss_entity)
+        if btrow < 0 or hrow < 0 or brow < 0:
+            return
+        hv = self._hitbox.active_view()
+        cx = float(tv["position_x"][btrow]); cy = float(tv["position_y"][btrow])
+        hw = float(hv["half_width"][hrow]); hh = float(hv["half_height"][hrow])
+        inside = ((bxs >= cx - hw) & (bxs <= cx + hw) &
+                  (bys >= cy - hh) & (bys <= cy + hh))
+        if not inside.any():
+            return
 
-            # PLASMA (DoT): dano contínuo, bala nunca consumida
-            drows = self._pb_dot.dense_rows_of(pb_idx)
-            is_dot = drows != -1
-            dot_in = inside & is_dot
-            if dot_in.any():
-                dv = self._pb_dot.active_view()
-                total_dps = float(np.sum(dv["dps"][drows[dot_in]]))
-                bv["hp"][brow] -= total_dps * delta_time
+        bv = self._boss.active_view()
 
-            # Dano de impacto (consome, exceto pierce em cooldown)
-            prows = self._pb_pierce.dense_rows_of(pb_idx)
-            is_pierce = prows != -1
-            impact = inside & ~is_dot
-            if impact.any():
-                pv = self._pb_pierce.active_view()
-                # pierce pronto: causa dano e entra em CD (não consome)
-                pierce_ready = impact & is_pierce
-                if pierce_ready.any():
-                    ready = pv["t"][prows[pierce_ready]] <= 0.0
-                    rows_sel = np.where(pierce_ready)[0][ready]
-                    bv["hp"][brow] -= float(np.sum(cv["damage"][rows_sel]))
-                    pv["t"][prows[rows_sel]] = pv["cd"][prows[rows_sel]]
-                # bala normal: dano + destruição (+ CARREGADO+ estilhaça)
-                normal = impact & ~is_pierce
-                if normal.any():
-                    bv["hp"][brow] -= float(np.sum(cv["damage"][normal]))
-                    srows = self._pb_shrap.dense_rows_of(pb_idx)
-                    sv = self._pb_shrap.active_view() if self._pb_shrap.count else None
-                    for k in np.where(normal)[0]:
-                        srow = int(srows[k])
-                        if sv is not None and srow != -1 and int(sv["n"][srow]) > 0:
-                            sn = int(sv["n"][srow])
-                            for j in range(sn):
-                                th = j * (TWO_PI / sn)
-                                spawn_player_bullet(
-                                    world, self._mm, "pb_padrao",
-                                    float(bxs[k]), float(bys[k]),
-                                    math.cos(th) * float(sv["speed"][srow]),
-                                    math.sin(th) * float(sv["speed"][srow]),
-                                    float(sv["dmg"][srow]), 3.0,
-                                    color=(255, 200, 60))
-                        world.destroy_entity(int(cv["self"][k]))
+        # PLASMA (DoT): dano contínuo, bala nunca consumida
+        drows = self._pb_dot.dense_rows_of(pb_idx)
+        is_dot = drows != -1
+        dot_in = inside & is_dot
+        if dot_in.any():
+            dv = self._pb_dot.active_view()
+            total_dps = float(np.sum(dv["dps"][drows[dot_in]]))
+            bv["hp"][brow] -= total_dps * delta_time
+
+        # Dano de impacto (consome, exceto pierce em cooldown)
+        prows = self._pb_pierce.dense_rows_of(pb_idx)
+        is_pierce = prows != -1
+        impact = inside & ~is_dot
+        if impact.any():
+            pv = self._pb_pierce.active_view()
+            # pierce pronto: causa dano e entra em CD (não consome)
+            pierce_ready = impact & is_pierce
+            if pierce_ready.any():
+                ready = pv["t"][prows[pierce_ready]] <= 0.0
+                rows_sel = np.where(pierce_ready)[0][ready]
+                bv["hp"][brow] -= float(np.sum(cv["damage"][rows_sel]))
+                pv["t"][prows[rows_sel]] = pv["cd"][prows[rows_sel]]
+            # bala normal: dano + destruição (+ CARREGADO+ estilhaça)
+            normal = impact & ~is_pierce
+            if normal.any():
+                bv["hp"][brow] -= float(np.sum(cv["damage"][normal]))
+                srows = self._pb_shrap.dense_rows_of(pb_idx)
+                sv = self._pb_shrap.active_view() if self._pb_shrap.count else None
+                for k in np.where(normal)[0]:
+                    srow = int(srows[k])
+                    if sv is not None and srow != -1 and int(sv["n"][srow]) > 0:
+                        sn = int(sv["n"][srow])
+                        for j in range(sn):
+                            th = j * (TWO_PI / sn)
+                            spawn_player_bullet(
+                                world, self._mm, "pb_padrao",
+                                float(bxs[k]), float(bys[k]),
+                                math.cos(th) * float(sv["speed"][srow]),
+                                math.sin(th) * float(sv["speed"][srow]),
+                                float(sv["dmg"][srow]), 3.0,
+                                color=(255, 200, 60))
+                    world.destroy_entity(int(cv["self"][k]))
 
 
 # ===========================================================================

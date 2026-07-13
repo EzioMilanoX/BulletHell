@@ -41,6 +41,10 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_archetype("player", ("transform", "velocity", "sprite", "player"))
     world.register_archetype("boss", ("transform", "velocity", "sprite", "hitbox",
                                       "boss", "waypoint"))
+    world.register_archetype("boss_hidden", ("transform", "velocity", "boss",
+                                             "waypoint"))   # raiz de composto
+    world.register_archetype("part", ("transform", "sprite", "hitbox", "part"))
+    world.register_archetype("laser", ("transform", "sprite", "laser"))
     world.register_archetype("emitter", ("emitter",))
     world.register_archetype("enemy_bullet", ("transform", "velocity", "sprite",
                                               "enemy_bullet"))
@@ -55,7 +59,9 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.WeaponFireSystem(mm, input_provider, data))
     world.register_system(gs.BossPhaseSystem(mm, data))
     world.register_system(gs.WaypointSystem(mm, data))
+    world.register_system(gs.BossMotionSystem(mm, data))   # partes/orbit/descend
     world.register_system(gs.EmitterSystem(mm, data))
+    world.register_system(gs.LaserSystem(mm))
     world.register_system(PhysicsSystem(mm))               # engine: Transform += Velocity*dt
     world.register_system(gs.OrbitSystem(mm))              # pós-física: sobrescreve Transform
     world.register_system(gs.EnemyBulletBehaviorSystem(mm))
@@ -90,29 +96,64 @@ def _spawn_player(world: World, mm: MemoryManager, data: GameData, weapon_name: 
 
 
 def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str) -> None:
+    if boss_name == "twins":                     # boss composto por 2 raízes
+        _spawn_boss(world, mm, data, "twin_yin")
+        _spawn_boss(world, mm, data, "twin_yang")
+        return
+
     bdef = data.bosses[sid(boss_name)]
-    packed = world.create_entity("boss")
+    composite = len(bdef.parts) > 0
+    packed = world.create_entity("boss_hidden" if composite else "boss")
     idx = packed & 0xFFFFFFFF
     t = mm.get_pool("transform"); row = t.dense_row_of(idx); tv = t.active_view()
     x0, y0 = (bdef.route[0][0], bdef.route[0][1]) if bdef.route else (SCREEN_W / 2, 100.0)
+    if bdef.motion == "descend":
+        y0 = 30.0                                # entra pelo topo
     tv["position_x"][row] = x0
     tv["position_y"][row] = y0
-    half_w = bdef.parts[0][2] if bdef.parts else 24.0
-    half_h = bdef.parts[0][3] if bdef.parts else 24.0
-    tv["scale_x"][row] = half_w / 4.0
-    tv["scale_y"][row] = half_h / 4.0
-    s = mm.get_pool("sprite"); row = s.dense_row_of(idx); sv = s.active_view()
-    sv["tint_r"][row], sv["tint_g"][row], sv["tint_b"][row] = 230, 60, 120
-    sv["tint_a"][row] = 255
-    sv["layer_z"][row] = 15
-    h = mm.get_pool("hitbox"); row = h.dense_row_of(idx); hv = h.active_view()
-    hv["half_width"][row] = half_w
-    hv["half_height"][row] = half_h
+    if not composite:                            # raiz visível com hitbox
+        half_w, half_h = bdef.hitbox
+        tv["scale_x"][row] = half_w / 4.0
+        tv["scale_y"][row] = half_h / 4.0
+        s = mm.get_pool("sprite"); row = s.dense_row_of(idx); sv = s.active_view()
+        sv["tint_r"][row], sv["tint_g"][row], sv["tint_b"][row] = 230, 60, 120
+        sv["tint_a"][row] = 255
+        sv["layer_z"][row] = 15
+        h = mm.get_pool("hitbox"); row = h.dense_row_of(idx); hv = h.active_view()
+        hv["half_width"][row] = half_w
+        hv["half_height"][row] = half_h
     b = mm.get_pool("boss"); row = b.dense_row_of(idx); bv = b.active_view()
     bv["boss_id"][row] = sid(boss_name)
     bv["hp"][row] = bv["max_hp"][row] = bdef.hp
     bv["phase_idx"][row] = 0
-    gs.spawn_emitters(world, mm.get_pool("emitter"), idx, bdef.phases[0])
+    bv["aux_angle"][row] = 0.0
+
+    part_indices = []
+    for (dx, dy, hw, hh) in bdef.parts:          # hitboxes-filhas visíveis
+        p_packed = world.create_entity("part")
+        pidx = p_packed & 0xFFFFFFFF
+        row = t.dense_row_of(pidx)
+        tvp = t.active_view()                    # re-busca: attach cresceu o denso
+        tvp["position_x"][row] = x0 + dx
+        tvp["position_y"][row] = y0 + dy
+        tvp["scale_x"][row] = hw / 4.0
+        tvp["scale_y"][row] = hh / 4.0
+        s = mm.get_pool("sprite"); srow = s.dense_row_of(pidx); sv = s.active_view()
+        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 230, 60, 120
+        sv["tint_a"][srow] = 255
+        sv["layer_z"][srow] = 15
+        h = mm.get_pool("hitbox"); hrow = h.dense_row_of(pidx); hv = h.active_view()
+        hv["half_width"][hrow] = hw
+        hv["half_height"][hrow] = hh
+        pp = mm.get_pool("part"); prow = pp.dense_row_of(pidx); pv = pp.active_view()
+        pv["self"][prow] = np.uint64(p_packed)
+        pv["root"][prow] = idx
+        pv["off_x"][prow] = dx
+        pv["off_y"][prow] = dy
+        part_indices.append(pidx)
+
+    gs.spawn_emitters(world, mm.get_pool("emitter"), idx, bdef.phases[0],
+                      tuple(part_indices))
 
 
 def build_game(boss_name: str = "classic", weapon_name: str = "padrao") -> GameLoop:

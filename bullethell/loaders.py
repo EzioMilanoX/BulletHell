@@ -80,13 +80,16 @@ class WeaponDef:
 @dataclass(frozen=True, slots=True)
 class BossPhaseDef:
     hp_above: float
-    emitters: Tuple[Tuple[int, float, float], ...]   # (pattern_sid, off_x, off_y)
+    # (pattern_sid, off_x, off_y, part_idx) — part_idx -1 = origem na raiz
+    emitters: Tuple[Tuple[int, float, float, int], ...]
 
 
 @dataclass(frozen=True, slots=True)
 class BossDef:
     name: str
     hp: float
+    motion: str          # "" | "swarm_orbit" | "descend"
+    hitbox: Tuple[float, float]   # semi-extensões da raiz (boss simples)
     route: Tuple[Tuple[float, float, float], ...]
     parts: Tuple[Tuple[float, float, float, float], ...]
     phases: Tuple[BossPhaseDef, ...]
@@ -163,6 +166,8 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
     for e in json.loads(path.read_text(encoding="utf-8"))["bosses"]:
         d = BossDef(
             name=e["name"], hp=float(e["hp"]),
+            motion=e.get("motion", ""),
+            hitbox=tuple(map(float, e.get("hitbox", [24.0, 24.0]))),
             route=tuple(tuple(map(float, p)) for p in e.get("route", ())),
             parts=tuple(tuple(map(float, p)) for p in e.get("parts", ())),
             phases=tuple(
@@ -171,7 +176,8 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
                     emitters=tuple(
                         (sid(em["pattern"]),
                          float(em.get("offset", [0, 0])[0]),
-                         float(em.get("offset", [0, 0])[1]))
+                         float(em.get("offset", [0, 0])[1]),
+                         int(em.get("part", -1)))
                         for em in ph["emitters"]),
                 )
                 for ph in e["phases"]),

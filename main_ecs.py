@@ -17,7 +17,8 @@ from bullethell.composition import build_game
 
 def main() -> None:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--boss", default="classic", choices=["classic", "timemage", "wall"])
+    ap.add_argument("--boss", default="classic",
+                    choices=["classic", "timemage", "wall", "swarm", "twins"])
     ap.add_argument("--weapon", default="padrao")
     args = ap.parse_args()
     build_game(boss_name=args.boss, weapon_name=args.weapon).run()

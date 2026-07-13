@@ -1,10 +1,11 @@
 {
-  "_doc": "Bosses = HP + rota de waypoints + partes (AABBs filhas) + fases. Cada fase lista os emitters ativos (pattern overlapping = 2+ na mesma fase). hp_above: a fase vale enquanto hp/max > valor. Exemplos representativos; demais bosses seguem o mesmo schema.",
+  "_doc": "Bosses = HP + motion + rota de waypoints + partes (hitboxes-filhas; dano roteado à raiz) + fases. Cada fase lista os emitters ativos ('part': índice da parte de origem; ausente = raiz). Pattern overlapping = 2+ emitters na fase. hp_above: a fase vale enquanto hp/max > valor. 'twins' é composto: a composição spawna twin_yin + twin_yang.",
   "bosses": [
     { "name": "classic",
       "hp": 300,
+      "hitbox": [34, 34],
       "route": [[160, 90, 2.2], [480, 70, 2.2], [320, 140, 1.8]],
-      "parts": [[0, 0, 34, 34]],
+      "parts": [],
       "phases": [
         { "hp_above": 0.66,
           "emitters": [ { "pattern": "classic/spread" } ] },
@@ -18,8 +19,9 @@
 
     { "name": "timemage",
       "hp": 300,
+      "hitbox": [30, 30],
       "route": [[320, 90, 2.5], [160, 120, 2.5], [480, 120, 2.5]],
-      "parts": [[0, 0, 30, 30]],
+      "parts": [],
       "phases": [
         { "hp_above": 0.60,
           "emitters": [ { "pattern": "classic/spread" },
@@ -28,15 +30,15 @@
           "emitters": [ { "pattern": "timemage/stopgo_volley" },
                         { "pattern": "timemage/boomerang_burst" } ] },
         { "hp_above": 0.0,
-          "_doc": "Fase 3 adiciona espiral e Teleporter (cd 3.2s) na entidade",
           "emitters": [ { "pattern": "timemage/stopgo_volley" },
                         { "pattern": "timemage/boomerang_burst" },
-                        { "pattern": "classic/spiral" } ] }
+                        { "pattern": "mod/tether_pairs" } ] }
       ] },
 
     { "name": "wall",
-      "_doc": "Barra horizontal que desce até 216px; canhões a cada 110px = emitters filhos com offset.",
+      "_doc": "Barra horizontal que desce do topo (150px/s até y=216). A barra é uma parte única 640x60.",
       "hp": 350,
+      "motion": "descend",
       "route": [],
       "parts": [[0, 0, 320, 30]],
       "phases": [
@@ -48,27 +50,43 @@
       ] },
 
     { "name": "swarm",
-      "_doc": "3 unidades em triângulo orbitante (r=130, 0.75 rad/s); HP compartilhado via BossPart.root. Cada unidade carrega os emitters.",
+      "_doc": "3 unidades em triângulo orbitante (r≈130, 0.75 rad/s) ao redor de um centro invisível; HP compartilhado via part.root. Cada unidade carrega seu emitter.",
       "hp": 330,
-      "route": [[320, 130, 3.0]],
+      "motion": "swarm_orbit",
+      "route": [[640, 150, 3.0]],
       "parts": [[-113, 65, 22, 22], [113, 65, 22, 22], [0, -130, 22, 22]],
       "phases": [
         { "hp_above": 0.5,
-          "emitters": [ { "pattern": "swarm/crossfire" } ] },
+          "emitters": [ { "pattern": "swarm/crossfire", "part": 0 },
+                        { "pattern": "swarm/crossfire", "part": 1 },
+                        { "pattern": "swarm/crossfire", "part": 2 } ] },
         { "hp_above": 0.0,
-          "emitters": [ { "pattern": "swarm/crossfire" },
+          "emitters": [ { "pattern": "swarm/crossfire", "part": 0 },
+                        { "pattern": "swarm/crossfire", "part": 1 },
+                        { "pattern": "swarm/crossfire", "part": 2 },
                         { "pattern": "swarm/ring_volley" } ] }
       ] },
 
-    { "name": "twins",
-      "_doc": "Yin e Yang = 2 entidades-boss independentes com Health próprio; cada uma spawna com seu bloco de fases.",
+    { "name": "twin_yin",
+      "_doc": "Metade Yin do 'twins': balas azuis (dano só em movimento).",
       "hp": 180,
+      "hitbox": [26, 26],
       "route": [[200, 100, 2.0], [440, 100, 2.0]],
-      "parts": [[0, 0, 26, 26]],
+      "parts": [],
       "phases": [
         { "hp_above": 0.0,
-          "emitters": [ { "pattern": "twins/yin_arcs" },
-                        { "pattern": "twins/yang_rings" } ] }
+          "emitters": [ { "pattern": "twins/yin_arcs" } ] }
+      ] },
+
+    { "name": "twin_yang",
+      "_doc": "Metade Yang do 'twins': anéis laranja (dano só parado).",
+      "hp": 180,
+      "hitbox": [26, 26],
+      "route": [[440, 160, 2.0], [200, 160, 2.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "twins/yang_rings" } ] }
       ] }
   ]
 }
