@@ -117,13 +117,19 @@ if __name__ == "__main__":
             ok = False
         print(f"[{status}] {r}")
 
-    # bosses das fases 6-7: Invocador, Ômega e os pecados
+    # bosses das fases 6-8: Invocador, Ômega e os 8 pecados
     for boss, weapon, approach in [("summoner", "spread", False),
                                    ("omega", "spread+", True),
                                    ("pride", "spread", False),
                                    ("gluttony", "spread", False),
-                                   ("sloth", "spread+", True)]:
-        frames = 1600 if boss in ("omega", "pride", "sloth") else 900
+                                   ("sloth", "spread+", True),
+                                   ("envy", "spread", False),
+                                   ("greed", "spread", False),
+                                   ("lust", "spread", False),
+                                   ("wrath", "spread+", True),
+                                   ("sin", "spread+", True)]:
+        frames = 1600 if boss in ("omega", "pride", "sloth", "wrath", "sin") \
+            else 900
         r = run(boss, weapon, frames=frames, approach=approach)
         spawned = r["enemy_bullets_peak"] > 0
         damaged = r["boss_damage"] > 0

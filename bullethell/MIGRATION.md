@@ -139,16 +139,25 @@ Portado (fases 1–2):
 - [x] Novas emissões: orbit_ring, teeth (fileira com vão), radial_random,
       spotlight_rain, geo (formas yin/yang alternantes); lacaios ganham
       `kind` (kamikaze/sentinela/bolha — estáticos não perseguem)
-- [x] Smoke headless 52/52
+- [x] **TODOS os 8 pecados** (16/16 bosses do legado jogáveis):
+      Inveja (emissão `mirror` espelha a arma do jogador; `skill_thief`
+      rouba metade da recuperação do CD), Avareza (`corridor_rain`,
+      moedas-mina que explodem por proximidade, `border_random` com borda
+      encolhendo), Luxúria (pool `hazard` + HazardSystem: névoas SLOW;
+      `invert_controls`; agulhas quase invisíveis), Ira (`slam` com anel
+      de choque; `berserk_body`: corpo invulnerável ricocheteando 20s com
+      dano por contato), Pecado Original (minas de 16, cascata, 7
+      espirais, `seventh_seal`: sobreviva 30s — HP com floor multi-fase
+      para não pular o Selo)
+- [x] Lacaios `MINION_MINE` (explodem em anel por proximidade; `speed` =
+      nº de balas); helper `spawn_enemy_bullet` para gimmicks
+- [x] Smoke headless 57/57
 
-Fase 8:
-- [ ] Pecados restantes: Inveja (espelha arma), Avareza (paredes/moedas),
-      Luxúria, Ira, Pecado Original + hazards SLOW/BURN
-- [ ] Visual do holofote da Soberba (aguarda camada de efeitos no renderer)
-- [ ] Partículas/juice (aguarda pipeline de texturas da engine)
+Fase 9 (dependências da engine ou meta-jogo):
 - [ ] Save/conquistas/maestria (SaveManager fora do World, I/O só em menu)
-- [ ] Menus/seleção e modos Boss Rush/Wave Survival (aguarda texto no
-      renderer da engine)
+- [ ] Visual do holofote/telegraphs (camada de efeitos no renderer)
+- [ ] Partículas/juice (pipeline de texturas da engine)
+- [ ] Menus/seleção e modos Boss Rush/Wave Survival (texto no renderer)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

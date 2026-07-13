@@ -57,6 +57,18 @@
 
     { "name": "sin/venom",
       "_doc": "Gula: bala-veneno laranja que ricocheteia 3× nas bordas",
-      "contact": "always", "color": 2, "radius": 5.0, "bounces": 3 }
+      "contact": "always", "color": 2, "radius": 5.0, "bounces": 3 },
+
+    { "name": "sin/chimera",
+      "_doc": "Pecado fase 0: bolas laranja que ricocheteiam 2×",
+      "contact": "always", "color": 2, "radius": 4.0, "bounces": 2 },
+
+    { "name": "sin/needle_hidden",
+      "_doc": "Luxúria fase 2: agulhas quase invisíveis (cor 9 ≈ fundo)",
+      "contact": "always", "color": 9, "radius": 3.0 },
+
+    { "name": "sin/flower",
+      "_doc": "Luxúria fase 2: flores grandes e lentas (poluição visual)",
+      "contact": "always", "color": 5, "radius": 7.0 }
   ]
 }

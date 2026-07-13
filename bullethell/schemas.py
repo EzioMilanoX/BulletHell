@@ -48,6 +48,7 @@ PLAYER_DTYPE = np.dtype([
 CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
     ("world",   np.float32),     # FOCUS desacelera boss+padrões+balas
     ("bullets", np.float32),     # DILATAÇÃO congela só as balas inimigas
+    ("invert",  np.uint8),       # Luxúria fase 1: controles invertidos
 ])
 
 RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
@@ -67,12 +68,18 @@ HUD_DTYPE = np.dtype([
 ])
 
 # minion.kind
-MINION_KAMIKAZE, MINION_SENTINEL, MINION_BUBBLE = 0, 1, 2
-MINION_DTYPE = np.dtype([        # lacaios: kamikaze (Invocador) e
-    ("self",  np.uint64),        # sentinelas/bolhas estáticas (Preguiça)
-    ("kind",  np.uint8),
-    ("hp",    np.float32),
+MINION_KAMIKAZE, MINION_SENTINEL, MINION_BUBBLE, MINION_MINE = 0, 1, 2, 3
+MINION_DTYPE = np.dtype([        # lacaios: kamikaze (Invocador), sentinelas/
+    ("self",  np.uint64),        # bolhas estáticas (Preguiça) e minas/moedas
+    ("kind",  np.uint8),         # (Avareza/Pecado — explodem por proximidade;
+    ("hp",    np.float32),       #  para MINE, `speed` = nº de balas do anel)
     ("speed", np.float32),
+])
+
+HAZARD_DTYPE = np.dtype([        # zonas de névoa SLOW (Luxúria)
+    ("self",   np.uint64),
+    ("radius", np.float32),
+    ("t",      np.float32),      # tempo de vida restante
 ])
 
 BOSS_DTYPE = np.dtype([
@@ -192,6 +199,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "run_mods":     RUN_MODS_DTYPE,
     "hud":          HUD_DTYPE,
     "minion":       MINION_DTYPE,
+    "hazard":       HAZARD_DTYPE,
     "boss":         BOSS_DTYPE,
     "part":         PART_DTYPE,
     "laser":        LASER_DTYPE,
@@ -215,7 +223,8 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
     "player": 2, "clock": 1, "run_mods": 1, "hud": 8, "minion": 64,
-    "boss": 4, "part": 8, "laser": 16, "waypoint": 4, "emitter": 32,
+    "hazard": 8, "boss": 4, "part": 8, "laser": 16, "waypoint": 4,
+    "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,
@@ -234,4 +243,5 @@ PALETTE = {
     6: (90, 220, 180),   # phaser
     7: (255, 120, 200),  # spinner
     8: (255, 220, 0),    # ricochete amarela
+    9: (26, 22, 30),     # oculta (agulhas da Luxúria — some no fundo)
 }

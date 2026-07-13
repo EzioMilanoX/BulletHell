@@ -132,6 +132,95 @@
       "emit": "spiral", "bullet": "std/normal",
       "period": 0.35, "arms": 8, "spin_speed": 0.31, "speed": 185.0 },
 
+    { "name": "envy/mirror",
+      "_doc": "Inveja fase 0: espelha a arma atual do jogador, disparando para baixo.",
+      "emit": "mirror", "bullet": "std/normal",
+      "period": 0.22, "speed": 230.0 },
+
+    { "name": "envy/mirror_chaos",
+      "_doc": "Inveja fase 2: cicla spread/agulha/burst/teleguiado a cada 2s (kind=1).",
+      "emit": "mirror", "bullet": "std/normal",
+      "period": 0.30, "kind": 1, "speed": 230.0 },
+
+    { "name": "envy/theft_ring",
+      "_doc": "Inveja fase 1: anel hexagonal azul enquanto rouba o CD da skill.",
+      "emit": "ring", "bullet": "std/yin_blue",
+      "period": 0.35, "count": 6, "speed": 140.0 },
+
+    { "name": "greed/corridor_rain",
+      "_doc": "Avareza fase 0: rajadas nos corredores laterais (paredes por hash a cada ~4s).",
+      "emit": "corridor_rain", "bullet": "std/normal",
+      "period": 0.60, "count": 4, "speed": 195.0 },
+
+    { "name": "greed/coins",
+      "_doc": "Avareza fase 1: moedas-pedágio (minas kind=3; speed = nº de balas do anel).",
+      "emit": "summon", "bullet": "std/normal",
+      "period": 1.8, "count": 1, "kind": 3, "hp": 2.0, "speed": 8.0 },
+
+    { "name": "greed/toll_volley",
+      "_doc": "Avareza fase 1: leque triplo azul mirado.",
+      "emit": "arc", "bullet": "std/yin_blue",
+      "period": 0.90, "count": 3, "arc": 0.30, "aim": "player",
+      "speed": 155.0 },
+
+    { "name": "greed/eviction",
+      "_doc": "Avareza fase 2: balas-veneno da borda que encolhe (12px/s até 180).",
+      "emit": "border_random", "bullet": "sin/venom",
+      "period": 0.15, "speed": 180.0 },
+
+    { "name": "lust/fog",
+      "_doc": "Luxúria fase 0: névoas SLOW (speed = raio; hp = duração).",
+      "emit": "hazard", "bullet": "std/normal",
+      "period": 2.5, "speed": 70.0, "hp": 6.0 },
+
+    { "name": "lust/daggers",
+      "_doc": "Luxúria fase 0: adagas azuis rápidas miradas.",
+      "emit": "arc", "bullet": "std/yin_blue",
+      "period": 0.40, "count": 1, "aim": "player", "speed": 340.0 },
+
+    { "name": "lust/hearts",
+      "_doc": "Luxúria fase 1: 6 braços laranja girando 45°/s.",
+      "emit": "spiral", "bullet": "std/yang_orange",
+      "period": 0.55, "arms": 6, "spin_speed": 0.785, "speed": 165.0 },
+
+    { "name": "lust/flowers",
+      "_doc": "Luxúria fase 2: 12 flores lentas girando (poluição visual).",
+      "emit": "spiral", "bullet": "sin/flower",
+      "period": 0.45, "arms": 12, "spin_speed": 0.26, "speed": 55.0 },
+
+    { "name": "lust/hidden_needles",
+      "_doc": "Luxúria fase 2: agulhas quase invisíveis miradas a 420px/s.",
+      "emit": "arc", "bullet": "sin/needle_hidden",
+      "period": 0.18, "count": 1, "arc": 0.8, "aim": "player",
+      "speed": 420.0 },
+
+    { "name": "wrath/fury_rain",
+      "_doc": "Ira fase 0: rajadas triplas densas para baixo enquanto rastreia o jogador.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.12, "count": 3, "arc": 0.12, "aim": "down",
+      "speed": 240.0 },
+
+    { "name": "sin/chimera_ring",
+      "_doc": "Pecado fase 0: 6 braços de bolas ricocheteantes girando 30°/s.",
+      "emit": "spiral", "bullet": "sin/chimera",
+      "period": 0.45, "arms": 6, "spin_speed": 0.52, "speed": 190.0 },
+
+    { "name": "sin/mines",
+      "_doc": "Pecado fase 0: minas de 16 balas (kind=3, speed = nº do anel).",
+      "emit": "summon", "bullet": "std/normal",
+      "period": 2.2, "count": 1, "kind": 3, "hp": 2.0, "speed": 16.0 },
+
+    { "name": "sin/corruption",
+      "_doc": "Pecado fase 1: cascata tripla mirada com jitter, cadência alta.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.12, "count": 3, "arc": 0.5, "aim": "player",
+      "speed": 200.0 },
+
+    { "name": "sin/purity",
+      "_doc": "Pecado fase 2: 7 espirais simultâneas — pureza matemática.",
+      "emit": "spiral", "bullet": "std/normal",
+      "period": 0.045, "arms": 7, "spin_speed": 0.89, "speed": 160.0 },
+
     { "name": "player/flak_shrapnel",
       "_doc": "Padrão DO JOGADOR: 5 estilhaços em leque de 40° centrado a -90°, 400 px/s, dano 0.4 cada (FLAK_*). Referenciado pelo componente Fuse.",
       "emit": "arc", "bullet": "std/normal",

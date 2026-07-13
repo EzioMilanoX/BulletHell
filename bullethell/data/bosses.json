@@ -156,6 +156,92 @@
           "emitters": [ { "pattern": "sloth/awakening" } ] }
       ] },
 
+    { "name": "envy",
+      "_doc": "★ Inveja: espelha a arma do jogador; fase 1 rouba metade da recuperação do CD da skill; fase 2 cicla armas copiadas.",
+      "hp": 340,
+      "hitbox": [16, 16],
+      "motion": "track_x", "motion_rate": 1.8,
+      "route": [[640, 60, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.66,
+          "emitters": [ { "pattern": "envy/mirror" } ] },
+        { "hp_above": 0.33, "gimmick": "skill_thief",
+          "emitters": [ { "pattern": "envy/theft_ring" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "envy/mirror_chaos" } ] }
+      ] },
+
+    { "name": "greed",
+      "_doc": "★ Avareza: corredores de chuva, moedas-pedágio que explodem por proximidade, e a borda que encolhe despejando veneno.",
+      "hp": 340,
+      "hitbox": [18, 18],
+      "motion": "track_x", "motion_rate": 0.8,
+      "route": [[640, 60, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.66,
+          "emitters": [ { "pattern": "greed/corridor_rain" } ] },
+        { "hp_above": 0.33,
+          "emitters": [ { "pattern": "greed/coins" },
+                        { "pattern": "greed/toll_volley" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "greed/eviction" } ] }
+      ] },
+
+    { "name": "lust",
+      "_doc": "★ Luxúria: névoas SLOW + adagas; fase 1 inverte os controles com atração ascendente; fase 2 flores + agulhas quase invisíveis.",
+      "hp": 340,
+      "hitbox": [16, 16],
+      "motion": "track_x", "motion_rate": 2.0,
+      "route": [[640, 55, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.66,
+          "emitters": [ { "pattern": "lust/fog" },
+                        { "pattern": "lust/daggers" } ] },
+        { "hp_above": 0.33, "gimmick": "invert_controls", "force": [0, -65],
+          "emitters": [ { "pattern": "lust/hearts" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "lust/flowers" },
+                        { "pattern": "lust/hidden_needles" } ] }
+      ] },
+
+    { "name": "wrath",
+      "_doc": "★ Ira: rastreia e despeja fúria; fase 1 slam com anel de choque; fase 2 corpo em chamas ricocheteando 20s (invulnerável, dano por contato).",
+      "hp": 340,
+      "hitbox": [17, 17],
+      "motion": "track_x", "motion_rate": 1.8,
+      "route": [[640, 50, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.66,
+          "emitters": [ { "pattern": "wrath/fury_rain" } ] },
+        { "hp_above": 0.33, "gimmick": "slam",
+          "emitters": [] },
+        { "hp_above": 0.0, "gimmick": "berserk_body",
+          "emitters": [] }
+      ] },
+
+    { "name": "sin",
+      "_doc": "★★ Pecado Original (chefe final): Quimera (minas+ricochetes), Corrupção (cascata), Pureza Matemática (7 espirais) e o Sétimo Selo (sobreviva 30s).",
+      "hp": 400,
+      "hitbox": [20, 20],
+      "motion": "track_x", "motion_rate": 0.9,
+      "route": [[640, 60, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.75,
+          "emitters": [ { "pattern": "sin/mines" },
+                        { "pattern": "sin/chimera_ring" } ] },
+        { "hp_above": 0.50,
+          "emitters": [ { "pattern": "sin/corruption" } ] },
+        { "hp_above": 0.25,
+          "emitters": [ { "pattern": "sin/purity" } ] },
+        { "hp_above": 0.0, "gimmick": "seventh_seal",
+          "emitters": [] }
+      ] },
+
     { "name": "twin_yin",
       "_doc": "Metade Yin do 'twins': balas azuis (dano só em movimento).",
       "hp": 180,

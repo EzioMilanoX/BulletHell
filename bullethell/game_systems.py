@@ -26,8 +26,9 @@ from bullethell.schemas import (
     BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
     CHAKRAM_FROZEN, CHAKRAM_OUT, CHAKRAM_RETURN,
     CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
-    LASER_H, LASER_V, MINION_BUBBLE, MINION_KAMIKAZE, MINION_SENTINEL,
-    ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W, TETHER_NONE,
+    LASER_H, LASER_V, MINION_BUBBLE, MINION_KAMIKAZE, MINION_MINE,
+    MINION_SENTINEL, ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
+    TETHER_NONE,
 )
 
 if TYPE_CHECKING:
@@ -65,7 +66,56 @@ _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
     MINION_SENTINEL: (170, 170, 220),   # fantasmas da Preguiça
     MINION_BUBBLE:   (120, 200, 230),   # bolhas-sentinela
+    MINION_MINE:     (255, 215, 0),     # moedas da Avareza / minas do Pecado
 }
+
+
+def spawn_enemy_bullet(world: "World", mm: MemoryManager, x: float, y: float,
+                       vx: float, vy: float, color: int = 0,
+                       radius: float = 4.0, bounces: int = 0,
+                       homing_t: float = 0.0) -> int:
+    """Spawna uma bala inimiga 'simples' fora do EmitterSystem (explosões
+    de minas, anéis de slam, Sétimo Selo). Escreve TODAS as colunas."""
+    eb = mm.get_pool("enemy_bullet")
+    if eb.count >= eb.capacity - 1:
+        return -1
+    packed = world.create_entity("enemy_bullet")
+    idx = packed & 0xFFFFFFFF
+    t = mm.get_pool("transform")
+    trow = t.dense_row_of(idx); tv = t.active_view()
+    tv["position_x"][trow] = x
+    tv["position_y"][trow] = y
+    tv["scale_x"][trow] = tv["scale_y"][trow] = radius / 4.0
+    v = mm.get_pool("velocity")
+    vrow = v.dense_row_of(idx); vv = v.active_view()
+    vv["linear_x"][vrow] = vx
+    vv["linear_y"][vrow] = vy
+    s = mm.get_pool("sprite")
+    srow = s.dense_row_of(idx); sv = s.active_view()
+    r, g, b = PALETTE.get(color, (255, 64, 90))
+    sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
+    sv["tint_a"][srow] = 255
+    sv["layer_z"][srow] = 10
+    erow = eb.dense_row_of(idx); ev = eb.active_view()
+    ev["self"][erow] = np.uint64(packed)
+    ev["tether"][erow] = TETHER_NONE
+    ev["color"][erow] = color
+    ev["contact"][erow] = 0
+    ev["radius"][erow] = radius
+    ev["grazed"][erow] = 0
+    ev["homing_t"][erow] = homing_t
+    ev["spin"][erow] = 0.0
+    ev["phase_p"][erow] = 0.0
+    ev["phase_t"][erow] = 0.0
+    ev["gravity"][erow] = 0.0
+    ev["bounces"][erow] = bounces
+    ev["fragment"][erow] = 0
+    ev["beh"][erow] = BEH_NONE
+    ev["beh_t"][erow] = 0.0
+    ev["p1"][erow] = ev["p2"][erow] = ev["p3"][erow] = 0.0
+    ev["tgt_x"][erow] = ev["tgt_y"][erow] = 0.0
+    ev["stage"][erow] = 0
+    return packed
 
 
 def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
@@ -393,6 +443,7 @@ class PlayerControlSystem(ISystem):
         self._player = memory_manager.get_pool("player")
         self._transform = memory_manager.get_pool("transform")
         self._velocity = memory_manager.get_pool("velocity")
+        self._clock = memory_manager.get_pool("clock")
 
     def update(self, world: "World", delta_time: float) -> None:
         i, _ = _player_row(self._player, self._transform)
@@ -402,6 +453,8 @@ class PlayerControlSystem(ISystem):
              (1.0 if self._input.is_action_held("move_left") else 0.0)
         dy = (1.0 if self._input.is_action_held("move_down") else 0.0) - \
              (1.0 if self._input.is_action_held("move_up") else 0.0)
+        if self._clock.active_view()["invert"][0]:  # Luxúria: atração fatal
+            dx, dy = -dx, -dy
         if dx != 0.0 and dy != 0.0:
             dx *= 0.7071; dy *= 0.7071
         prow = self._player.dense_row_of(i)
@@ -654,15 +707,32 @@ class BossPhaseSystem(ISystem):
             bdef = self._data.bosses[int(bv["boss_id"][brow])]
             frac = float(bv["hp"][brow]) / float(bv["max_hp"][brow])
             phase = int(bv["phase_idx"][brow])
-            if bv["hp"][brow] <= 0.0:              # derrotado → reinicia
-                bv["hp"][brow] = bv["max_hp"][brow]
-                bv["phase_idx"][brow] = 0
-                self._swap_emitters(world, i, bdef.phases[0])
-                continue
+            if bv["hp"][brow] <= 0.0:
+                if phase < len(bdef.phases) - 1:   # ainda há fases (Pecado:
+                    bv["hp"][brow] = 1.0           # floor até o Sétimo Selo)
+                    frac = 1.0 / float(bv["max_hp"][brow])
+                else:                              # derrotado → reinicia
+                    bv["hp"][brow] = bv["max_hp"][brow]
+                    bv["phase_idx"][brow] = 0
+                    bv["aux_angle"][brow] = bv["aux2"][brow] = 0.0
+                    bv["invuln"][brow] = 0
+                    self._reset_waypoint_timer(i)
+                    self._swap_emitters(world, i, bdef.phases[0])
+                    continue
             nxt = phase + 1
             if nxt < len(bdef.phases) and frac <= bdef.phases[phase].hp_above:
                 bv["phase_idx"][brow] = nxt
+                bv["aux_angle"][brow] = bv["aux2"][brow] = 0.0   # estado limpo
+                self._reset_waypoint_timer(i)      # timers de gimmick (20s/30s)
                 self._swap_emitters(world, i, bdef.phases[nxt])
+
+    def _reset_waypoint_timer(self, boss_index: int) -> None:
+        wp = self._mm.get_pool("waypoint")
+        wrow = wp.dense_row_of(boss_index)
+        if wrow >= 0:
+            wv = wp.active_view()
+            wv["seg"][wrow] = 0
+            wv["seg_t"][wrow] = 0.0
 
     def _swap_emitters(self, world: "World", boss_index: int, phase_def) -> None:
         ev = self._emitter.active_view()
@@ -1029,6 +1099,97 @@ class EmitterSystem(ISystem):
                         vrow = self._velocity.dense_row_of(p & 0xFFFFFFFF)
                         vv2 = self._velocity.active_view()
                         vv2["linear_y"][vrow] += 55.0
+        elif pat.emit == "mirror":                  # Inveja: espelha a arma
+            pl_idx = self._player.active_entity_indices()
+            if pl_idx.size == 0:
+                return
+            prow = self._player.dense_row_of(int(pl_idx[0]))
+            wd = self._data.weapons.get(
+                int(self._player.active_view()["weapon_id"][prow]))
+            wname = (wd.name[:-1] if wd and wd.name.endswith("+")
+                     else (wd.name if wd else "padrao"))
+            if pat.kind == 1:                       # fase 2: cicla armas (2s)
+                ev["phase_angle"][k] += pat.period
+                cyc = int(float(ev["phase_angle"][k]) / 2.0) % 4
+                wname = ("spread", "agulha", "burst", "teleguiado")[cyc]
+            down = math.pi / 2
+            if wname == "spread":
+                for a in (-25.0, -12.0, 0.0, 12.0, 25.0):
+                    self._spawn_as(world, pat, sid("std/yang_orange"),
+                                   ox, oy + 30.0, down + math.radians(a), px, py)
+            elif wname == "agulha":
+                p = self._spawn_as(world, pat, sid("std/yin_blue"),
+                                   ox, oy + 30.0, down, px, py)
+                if p is not None:
+                    vrow = self._velocity.dense_row_of(p & 0xFFFFFFFF)
+                    self._velocity.active_view()["linear_y"][vrow] = 480.0
+            elif wname in ("burst", "carregado"):
+                for off in (-12.0, 0.0, 12.0):
+                    self._spawn(world, pat, ox + off, oy + 30.0, down, px, py)
+            elif wname == "teleguiado":
+                seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+                for j in range(4):
+                    jit = (((seed * 2654435761 + j * 97561) % 997) / 997.0 - 0.5)
+                    self._spawn_as(world, pat, sid("std/homing_purple"),
+                                   ox, oy + 30.0, down + jit * 1.05, px, py)
+            else:                                   # padrão e demais
+                self._spawn(world, pat, ox, oy + 30.0, down, px, py)
+        elif pat.emit == "corridor_rain":           # Avareza: corredores
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            # paredes deslocam a cada ~4s (hash do bloco de tempo)
+            blk = seed // 7
+            w0 = SCREEN_W * (0.20 + ((blk * 2654435761) % 499) / 499.0 * 0.18)
+            w1 = SCREEN_W * (0.62 + ((blk * 40503 + 3) % 499) / 499.0 * 0.18)
+            for cx_ in (w0 / 2.0, (w1 + SCREEN_W) / 2.0):
+                for j in range(pat.count):
+                    jit = (((seed * 69621 + j * 97561) % 997) / 997.0 - 0.5) * 60.0
+                    p = self._spawn(world, pat, cx_ + jit, -8.0, down_ := math.pi / 2, px, py)
+                    if p is not None:
+                        vrow = self._velocity.dense_row_of(p & 0xFFFFFFFF)
+                        vv2 = self._velocity.active_view()
+                        vv2["linear_x"][vrow] = (((seed * 13 + j * 7) % 51) - 25.0)
+                        vv2["linear_y"][vrow] = 160.0 + ((seed * 17 + j * 11) % 71)
+        elif pat.emit == "border_random":           # Avareza: despejo
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            inset = min(180.0, float(ev["phase_angle"][k]) + 12.0 * pat.period)
+            ev["phase_angle"][k] = inset
+            h1 = ((seed * 2654435761) % 997) / 997.0
+            h2 = ((seed * 40503 + 7) % 499) / 499.0
+            side = seed & 3
+            if side == 0:
+                bx_, by_ = inset + h1 * (SCREEN_W - 2 * inset), inset
+            elif side == 1:
+                bx_, by_ = inset + h1 * (SCREEN_W - 2 * inset), SCREEN_H - inset
+            elif side == 2:
+                bx_, by_ = inset, inset + h2 * (SCREEN_H - 2 * inset)
+            else:
+                bx_, by_ = SCREEN_W - inset, inset + h2 * (SCREEN_H - 2 * inset)
+            ang = ((seed * 69621) % 6283) / 1000.0
+            self._spawn(world, pat, bx_, by_, ang, px, py)
+        elif pat.emit == "hazard":                  # Luxúria: névoa SLOW
+            hz = self._mm.get_pool("hazard")
+            if hz.count >= hz.capacity - 1:
+                return
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            x = 120.0 + ((seed * 2654435761) % 997) / 997.0 * (SCREEN_W - 240.0)
+            y = 150.0 + ((seed * 40503 + 7) % 499) / 499.0 * (SCREEN_H - 250.0)
+            packed = world.create_entity("hazard_entity")
+            idx = packed & 0xFFFFFFFF
+            trow = self._transform.dense_row_of(idx)
+            tv2 = self._transform.active_view()
+            tv2["position_x"][trow] = x
+            tv2["position_y"][trow] = y
+            tv2["scale_x"][trow] = tv2["scale_y"][trow] = pat.speed / 4.0
+            srow = self._sprite.dense_row_of(idx)
+            sv = self._sprite.active_view()
+            sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 70, 25, 45
+            sv["tint_a"][srow] = 255
+            sv["layer_z"][srow] = 2                 # atrás de tudo
+            hrow = hz.dense_row_of(idx)
+            hv = hz.active_view()
+            hv["self"][hrow] = np.uint64(packed)
+            hv["radius"][hrow] = pat.speed          # speed reusado como raio
+            hv["t"][hrow] = pat.hp                  # hp reusado como duração
         elif pat.emit == "laser":
             seed = int(ev["shot_count"][k])
             ev["shot_count"][k] += 1
@@ -1937,20 +2098,42 @@ class BossGimmickSystem(ISystem):
 
     def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
         self._data = data
+        self._mm = memory_manager
         self._boss = memory_manager.get_pool("boss")
         self._transform = memory_manager.get_pool("transform")
         self._minion = memory_manager.get_pool("minion")
         self._player = memory_manager.get_pool("player")
+        self._waypoint = memory_manager.get_pool("waypoint")
         self._clock = memory_manager.get_pool("clock")
+        self._mods = memory_manager.get_pool("run_mods")
+
+    def _hit_player(self, pv, prow) -> None:
+        """Hit de contato de gimmick (corpo da Ira), escudo/glass-aware."""
+        if pv["invuln_t"][prow] > 0.0:
+            return
+        if pv["shield_up"][prow]:
+            pv["shield_up"][prow] = 0
+            pv["invuln_t"][prow] = 0.5
+            return
+        pv["invuln_t"][prow] = PLAYER_INVULN
+        pv["lives"][prow] -= 1
+        if pv["lives"][prow] < 0:
+            pv["lives"][prow] = 0 if self._mods.active_view()["glass"][0] else 3
 
     def update(self, world: "World", delta_time: float) -> None:
-        wdt = delta_time * float(self._clock.active_view()["world"][0])
+        ck = self._clock.active_view()
+        ck["invert"][0] = 0
+        wdt = delta_time * float(ck["world"][0])
         i, ptrow = _player_row(self._player, self._transform)
         if ptrow < 0:
             return
         tv = self._transform.active_view()
         px = float(tv["position_x"][ptrow])
+        py = float(tv["position_y"][ptrow])
+        prow = self._player.dense_row_of(i)
+        pv = self._player.active_view()
         bv = self._boss.active_view()
+        wpv = self._waypoint.active_view()
         for raw in self._boss.active_entity_indices():
             bi = int(raw)
             brow = self._boss.dense_row_of(bi)
@@ -1961,7 +2144,8 @@ class BossGimmickSystem(ISystem):
                 tv["position_x"][ptrow] += ph.force[0] * delta_time
                 tv["position_y"][ptrow] += ph.force[1] * delta_time
 
-            if ph.gimmick == "spotlight":
+            gm = ph.gimmick
+            if gm == "spotlight":
                 spot = float(bv["aux_angle"][brow])
                 direction = 1.0 if bv["aux2"][brow] >= 0.0 else -1.0
                 spot += SPOT_SWEEP * direction * wdt
@@ -1973,10 +2157,141 @@ class BossGimmickSystem(ISystem):
                 bv["aux2"][brow] = direction
                 # vulnerável só com o jogador dentro do feixe
                 bv["invuln"][brow] = 1 if abs(px - spot) > SPOT_HALF else 0
-            elif ph.gimmick == "gate_minions":
+
+            elif gm == "gate_minions":
                 bv["invuln"][brow] = 1 if self._minion.count > 0 else 0
+
+            elif gm == "skill_thief":               # Inveja: CD recupera à metade
+                bv["invuln"][brow] = 0
+                if pv["skill_cd"][prow] > 0.0:
+                    pv["skill_cd"][prow] += 0.5 * delta_time
+
+            elif gm == "invert_controls":           # Luxúria: atração fatal
+                bv["invuln"][brow] = 0
+                ck["invert"][0] = 1
+
+            elif gm == "slam":                      # Ira: onda de choque
+                bv["invuln"][brow] = 0
+                st = int(bv["aux2"][brow])
+                tmr = float(bv["aux_angle"][brow]) - wdt
+                trow = self._transform.dense_row_of(bi)
+                y = float(tv["position_y"][trow])
+                if st == 0 and tmr <= 0.0:          # topo → mergulha
+                    st, tmr = 1, 0.4
+                elif st == 1:                       # mergulhando
+                    y += (SCREEN_H - 80.0 - y) * 12.0 * wdt
+                    if abs(y - (SCREEN_H - 80.0)) < 5.0 or tmr <= 0.0:
+                        y = SCREEN_H - 80.0
+                        st, tmr = 2, 0.6
+                        bx0 = float(tv["position_x"][trow])
+                        for j in range(12):         # anel de impacto
+                            a = j * (TWO_PI / 12.0)
+                            spawn_enemy_bullet(world, self._mm, bx0, y,
+                                               math.cos(a) * 160.0,
+                                               math.sin(a) * 160.0, color=2)
+                elif st == 2 and tmr <= 0.0:        # chão → sobe
+                    st, tmr = 3, 0.5
+                elif st == 3:                       # subindo
+                    y += (50.0 - y) * 8.0 * wdt
+                    if abs(y - 50.0) < 5.0 or tmr <= 0.0:
+                        y, st, tmr = 50.0, 0, 2.5
+                tv["position_y"][trow] = y
+                bv["aux2"][brow] = st
+                bv["aux_angle"][brow] = tmr
+
+            elif gm == "berserk_body":              # Ira: corpo em chamas 20s
+                bv["invuln"][brow] = 1
+                vx = float(bv["aux_angle"][brow]); vy = float(bv["aux2"][brow])
+                if vx == 0.0 and vy == 0.0:
+                    vx, vy = 320.0, 240.0
+                trow = self._transform.dense_row_of(bi)
+                x = float(tv["position_x"][trow]) + vx * wdt
+                y = float(tv["position_y"][trow]) + vy * wdt
+                if x < 26.0 or x > SCREEN_W - 26.0:
+                    vx = -vx; x = min(max(x, 26.0), SCREEN_W - 26.0)
+                if y < 26.0 or y > SCREEN_H - 26.0:
+                    vy = -vy; y = min(max(y, 26.0), SCREEN_H - 26.0)
+                f = 1.0 + 0.08 * wdt                # acelera até 600
+                vx = math.copysign(min(abs(vx) * f, 600.0), vx)
+                vy = math.copysign(min(abs(vy) * f, 600.0), vy)
+                tv["position_x"][trow] = x
+                tv["position_y"][trow] = y
+                bv["aux_angle"][brow] = vx
+                bv["aux2"][brow] = vy
+                if (px - x) ** 2 + (py - y) ** 2 <= 36.0 ** 2:
+                    self._hit_player(pv, prow)
+                wrow = self._waypoint.dense_row_of(bi)
+                if wrow >= 0:                       # esgota em 20s
+                    wpv["seg_t"][wrow] += delta_time
+                    if wpv["seg_t"][wrow] >= 20.0:
+                        bv["hp"][brow] = 0.0
+
+            elif gm == "seventh_seal":              # Pecado: sobreviva 30s
+                bv["invuln"][brow] = 1
+                wrow = self._waypoint.dense_row_of(bi)
+                if wrow < 0:
+                    continue
+                wpv["seg_t"][wrow] += delta_time
+                elapsed = float(wpv["seg_t"][wrow])
+                rate = max(0.08, 0.25 - elapsed * 0.004)
+                acc = float(bv["aux_angle"][brow]) + wdt
+                while acc >= rate:
+                    acc -= rate
+                    seed = int(bv["aux2"][brow]); bv["aux2"][brow] += 1
+                    for j in range(3):              # anel elíptico → jogador
+                        a = ((seed * 2654435761 + j * 97561) % 6283) / 1000.0
+                        rx = SCREEN_W / 2.0 + math.cos(a) * 480.0
+                        ry = SCREEN_H / 2.0 + math.sin(a) * 300.0
+                        dx = px - rx; dy = py - ry
+                        d = math.hypot(dx, dy) or 1.0
+                        spawn_enemy_bullet(world, self._mm, rx, ry,
+                                           dx / d * 130.0, dy / d * 130.0,
+                                           color=3, homing_t=3.0)
+                bv["aux_angle"][brow] = acc
+                if elapsed >= 30.0:                 # sobreviveu → boss cai
+                    bv["hp"][brow] = 0.0
+
             else:
                 bv["invuln"][brow] = 0
+
+
+# ===========================================================================
+class HazardSystem(ISystem):
+    """Névoas SLOW da Luxúria: expiram por tempo; jogador dentro de uma
+    zona tem a velocidade cortada pela metade (roda após o PlayerControl
+    e antes do movimento)."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._hazard = memory_manager.get_pool("hazard")
+        self._transform = memory_manager.get_pool("transform")
+        self._velocity = memory_manager.get_pool("velocity")
+        self._player = memory_manager.get_pool("player")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._hazard.count
+        if n == 0:
+            return
+        hv = self._hazard.active_view()
+        hv["t"] -= delta_time
+        dead = hv["t"] <= 0.0
+        for h in hv["self"][dead]:
+            world.destroy_entity(int(h))
+
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow < 0:
+            return
+        tv = self._transform.active_view()
+        px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+        idxs = self._hazard.active_entity_indices()
+        trows = self._transform.dense_rows_of(idxs)
+        dx = tv["position_x"][trows] - px
+        dy = tv["position_y"][trows] - py
+        inside = (~dead) & (dx * dx + dy * dy <= hv["radius"] ** 2)
+        if inside.any():
+            vrow = self._velocity.dense_row_of(i)
+            vv = self._velocity.active_view()
+            vv["linear_x"][vrow] *= 0.5
+            vv["linear_y"][vrow] *= 0.5
 
 
 # ===========================================================================
@@ -2023,6 +2338,7 @@ class MinionCombatSystem(ISystem):
     consumir) e contato lacaio × jogador (kamikaze: explode no toque)."""
 
     def __init__(self, memory_manager: MemoryManager) -> None:
+        self._mm = memory_manager
         self._minion = memory_manager.get_pool("minion")
         self._transform = memory_manager.get_pool("transform")
         self._player = memory_manager.get_pool("player")
@@ -2030,6 +2346,14 @@ class MinionCombatSystem(ISystem):
         self._pb_dot = memory_manager.get_pool("pb_dot")
         self._pb_pierce = memory_manager.get_pool("pb_pierce")
         self._mods = memory_manager.get_pool("run_mods")
+
+    def _explode_mine(self, world, x: float, y: float, count: int) -> None:
+        """Moeda/mina: anel de balas ao explodir (Avareza 8, Pecado 16)."""
+        for j in range(max(1, count)):
+            a = j * (TWO_PI / max(1, count))
+            spawn_enemy_bullet(world, self._mm, x, y,
+                               math.cos(a) * 190.0, math.sin(a) * 190.0,
+                               color=2)
 
     def update(self, world: "World", delta_time: float) -> None:
         n = self._minion.count
@@ -2077,14 +2401,24 @@ class MinionCombatSystem(ISystem):
                 if mv["hp"][k] <= 0.0:
                     world.destroy_entity(int(mv["self"][k]))
 
-        # contato kamikaze × jogador
+        # proximidade com o jogador: kamikaze explode em dano de contato;
+        # minas/moedas explodem num anel de balas (sem hit direto)
         i, ptrow = _player_row(self._player, self._transform)
         if ptrow < 0:
             return
         px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
         dx = tv["position_x"][m_trows] - px
         dy = tv["position_y"][m_trows] - py
-        hit = dx * dx + dy * dy <= (MINION_RADIUS + PLAYER_HIT_R) ** 2
+        d2 = dx * dx + dy * dy
+        mines = (mv["kind"] == MINION_MINE) & (d2 <= 45.0 ** 2)
+        if mines.any():
+            for k in np.where(mines)[0]:
+                self._explode_mine(world, float(tv["position_x"][m_trows[k]]),
+                                   float(tv["position_y"][m_trows[k]]),
+                                   int(mv["speed"][k]))
+                world.destroy_entity(int(mv["self"][k]))
+        hit = (mv["kind"] == MINION_KAMIKAZE) & \
+              (d2 <= (MINION_RADIUS + PLAYER_HIT_R) ** 2)
         if hit.any():
             for h in mv["self"][hit]:               # kamikaze explode
                 world.destroy_entity(int(h))
