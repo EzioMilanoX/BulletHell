@@ -23,9 +23,13 @@ def main() -> None:
     ap.add_argument("--skill", default="none",
                     choices=["none", "dash", "parry", "focus", "emp", "blink",
                              "overclock", "shield", "timedil"])
+    ap.add_argument("--mutators", default="",
+                    help="lista separada por vírgula: predador,fantasma,"
+                         "glass,claustro,abissal,horde,berserker")
     args = ap.parse_args()
+    muts = frozenset(m.strip() for m in args.mutators.split(",") if m.strip())
     build_game(boss_name=args.boss, weapon_name=args.weapon,
-               skill_name=args.skill).run()
+               skill_name=args.skill, mutators=muts).run()
 
 
 if __name__ == "__main__":

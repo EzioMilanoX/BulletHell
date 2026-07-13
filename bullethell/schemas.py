@@ -50,6 +50,22 @@ CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
     ("bullets", np.float32),     # DILATAÇÃO congela só as balas inimigas
 ])
 
+RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
+    ("predator", np.uint8),      # boss mira 0.5s à frente do jogador
+    ("ghost",    np.uint8),      # balas invisíveis entre 200-400px do boss
+    ("glass",    np.uint8),      # 1 vida, dano ×3
+    ("claustro", np.uint8),      # arena encolhida 14% por borda
+    ("abissal",  np.uint8),      # balas fragmentam ao sair da tela
+    ("hp_mult",  np.float32),    # HORDE ×1.5 / BERSERKER ×0.75
+    ("spd_mult", np.float32),    # HORDE ×0.85 / BERSERKER ×1.35
+])
+
+# hud.kind
+HUD_BOSS_HP, HUD_LIFE0, HUD_LIFE1, HUD_LIFE2, HUD_SKILL_CD = 0, 1, 2, 3, 4
+HUD_DTYPE = np.dtype([
+    ("kind", np.uint8),
+])
+
 BOSS_DTYPE = np.dtype([
     ("boss_id",   np.uint32),    # sid em bosses.json
     ("hp",        np.float32),
@@ -101,6 +117,7 @@ TETHER_NONE = np.uint64(0xFFFFFFFFFFFFFFFF)
 ENEMY_BULLET_DTYPE = np.dtype([
     ("self",     np.uint64),
     ("tether",   np.uint64),     # PackedEntityId do par (TETHER_NONE = sem)
+    ("color",    np.uint8),      # índice na PALETTE (restaurado pelo FANTASMA)
     ("contact",  np.uint8),
     ("radius",   np.float32),
     ("grazed",   np.uint8),
@@ -110,6 +127,7 @@ ENEMY_BULLET_DTYPE = np.dtype([
     ("phase_t",  np.float32),
     ("gravity",  np.float32),    # px/s² de atração no jogador; 0 = off
     ("bounces",  np.int8),
+    ("fragment", np.uint8),      # ABISSAL: fragmenta ao sair da tela
     ("beh",      np.uint8),      # BEH_*
     ("beh_t",    np.float32),
     ("p1",       np.float32),    # parâmetros do comportamento (arquétipo)
@@ -160,6 +178,8 @@ PB_SHRAP_DTYPE = np.dtype([         # CARREGADO+: estilhaços no impacto
 GAME_SCHEMAS: Dict[str, np.dtype] = {
     "player":       PLAYER_DTYPE,
     "clock":        CLOCK_DTYPE,
+    "run_mods":     RUN_MODS_DTYPE,
+    "hud":          HUD_DTYPE,
     "boss":         BOSS_DTYPE,
     "part":         PART_DTYPE,
     "laser":        LASER_DTYPE,
@@ -182,8 +202,8 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
-    "player": 2, "clock": 1, "boss": 4, "part": 8, "laser": 16,
-    "waypoint": 4, "emitter": 32,
+    "player": 2, "clock": 1, "run_mods": 1, "hud": 8, "boss": 4,
+    "part": 8, "laser": 16, "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

@@ -23,7 +23,8 @@ ENTITY_CAPACITY = 8192
 
 
 def build_world(data: GameData, input_provider, boss_name: str = "classic",
-                weapon_name: str = "padrao", skill_name: str = "none") -> World:
+                weapon_name: str = "padrao", skill_name: str = "none",
+                mutators: frozenset = frozenset()) -> World:
     """Monta o World completo do jogo (sem backends — quem escolhe
     renderer/input é o chamador: janela real ou null/headless)."""
     mm = MemoryManager(entity_capacity=ENTITY_CAPACITY)
@@ -71,16 +72,20 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.ChakramSystem(mm, input_provider, data))   # CHAKRAM
     world.register_system(gs.AutoLaunchSystem(mm, data))   # SATÉLITE+
     world.register_system(gs.MaintenanceSystem(mm))
+    world.register_system(gs.GhostTintSystem(mm))          # mutador FANTASMA
     world.register_system(gs.PlayerHitSystem(mm, data))
     world.register_system(gs.PlayerBulletVsBossSystem(mm))
+    world.register_system(gs.HudSystem(mm, data))
 
-    _spawn_clock(world, mm)
-    _spawn_player(world, mm, data, weapon_name, skill_name)
+    _spawn_clock(world, mm, mutators)
+    _spawn_hud(world, mm)
+    _spawn_player(world, mm, data, weapon_name, skill_name,
+                  glass=("glass" in mutators))
     _spawn_boss(world, mm, data, boss_name)
     return world
 
 
-def _spawn_clock(world: World, mm: MemoryManager) -> None:
+def _spawn_clock(world: World, mm: MemoryManager, mutators: frozenset) -> None:
     world.register_archetype("clock_entity", ("clock",))
     packed = world.create_entity("clock_entity")
     row = mm.get_pool("clock").dense_row_of(packed & 0xFFFFFFFF)
@@ -88,9 +93,53 @@ def _spawn_clock(world: World, mm: MemoryManager) -> None:
     cv["world"][row] = 1.0
     cv["bullets"][row] = 1.0
 
+    world.register_archetype("run_mods_entity", ("run_mods",))
+    packed = world.create_entity("run_mods_entity")
+    row = mm.get_pool("run_mods").dense_row_of(packed & 0xFFFFFFFF)
+    mv = mm.get_pool("run_mods").active_view()
+    mv["predator"][row] = 1 if "predador" in mutators else 0
+    mv["ghost"][row] = 1 if "fantasma" in mutators else 0
+    mv["glass"][row] = 1 if "glass" in mutators else 0
+    mv["claustro"][row] = 1 if "claustro" in mutators else 0
+    mv["abissal"][row] = 1 if "abissal" in mutators else 0
+    hp_m, spd_m = 1.0, 1.0
+    if "horde" in mutators:
+        hp_m, spd_m = 1.5, 0.85
+    if "berserker" in mutators:
+        hp_m, spd_m = hp_m * 0.75, spd_m * 1.35
+    mv["hp_mult"][row] = hp_m
+    mv["spd_mult"][row] = spd_m
+
+
+def _spawn_hud(world: World, mm: MemoryManager) -> None:
+    """5 elementos de HUD: barra de HP (topo), 3 vidas, barra de skill."""
+    world.register_archetype("hud_entity", ("transform", "sprite", "hud"))
+    layout = [
+        (0, SCREEN_W / 2, 14.0, (255, 70, 100)),      # HP do boss
+        (1, 22.0, SCREEN_H - 18.0, (240, 240, 255)),  # vidas
+        (2, 44.0, SCREEN_H - 18.0, (240, 240, 255)),
+        (3, 66.0, SCREEN_H - 18.0, (240, 240, 255)),
+        (4, SCREEN_W - 90.0, SCREEN_H - 18.0, (90, 220, 140)),  # skill CD
+    ]
+    t = mm.get_pool("transform"); s = mm.get_pool("sprite"); h = mm.get_pool("hud")
+    for kind, x, y, (r, g, b) in layout:
+        packed = world.create_entity("hud_entity")
+        idx = packed & 0xFFFFFFFF
+        row = t.dense_row_of(idx); tv = t.active_view()
+        tv["position_x"][row] = x
+        tv["position_y"][row] = y
+        tv["scale_x"][row] = tv["scale_y"][row] = 1.25   # vidas 10px
+        row = s.dense_row_of(idx); sv = s.active_view()
+        sv["tint_r"][row], sv["tint_g"][row], sv["tint_b"][row] = r, g, b
+        sv["tint_a"][row] = 255
+        sv["layer_z"][row] = 30
+        row = h.dense_row_of(idx); hv = h.active_view()
+        hv["kind"][row] = kind
+
 
 def _spawn_player(world: World, mm: MemoryManager, data: GameData,
-                  weapon_name: str, skill_name: str = "none") -> None:
+                  weapon_name: str, skill_name: str = "none",
+                  glass: bool = False) -> None:
     packed = world.create_entity("player")
     idx = packed & 0xFFFFFFFF
     t = mm.get_pool("transform"); row = t.dense_row_of(idx); tv = t.active_view()
@@ -102,7 +151,7 @@ def _spawn_player(world: World, mm: MemoryManager, data: GameData,
     sv["tint_a"][row] = 255
     sv["layer_z"][row] = 20
     p = mm.get_pool("player"); row = p.dense_row_of(idx); pv = p.active_view()
-    pv["lives"][row] = 3
+    pv["lives"][row] = 0 if glass else 3            # CANHÃO DE VIDRO: 1 vida
     pv["weapon_id"][row] = sid(weapon_name)
     pv["skill_id"][row] = sid(skill_name)
     pv["focus_en"][row] = gs.FOCUS_MAX
@@ -138,7 +187,8 @@ def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str)
         hv["half_height"][row] = half_h
     b = mm.get_pool("boss"); row = b.dense_row_of(idx); bv = b.active_view()
     bv["boss_id"][row] = sid(boss_name)
-    bv["hp"][row] = bv["max_hp"][row] = bdef.hp
+    hp_mult = float(mm.get_pool("run_mods").active_view()["hp_mult"][0])
+    bv["hp"][row] = bv["max_hp"][row] = bdef.hp * hp_mult   # HORDE/BERSERKER
     bv["phase_idx"][row] = 0
     bv["aux_angle"][row] = 0.0
 
@@ -171,7 +221,8 @@ def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str)
 
 
 def build_game(boss_name: str = "classic", weapon_name: str = "padrao",
-               skill_name: str = "none") -> GameLoop:
+               skill_name: str = "none",
+               mutators: frozenset = frozenset()) -> GameLoop:
     """Composição com janela pygame real."""
     from ouroboros.adapters.pygame_backend.pygame_audio_engine import PygameAudioEngine
     from ouroboros.adapters.pygame_backend.pygame_input_provider import PygameInputProvider
@@ -183,17 +234,19 @@ def build_game(boss_name: str = "classic", weapon_name: str = "padrao",
     renderer.initialize(SCREEN_W, SCREEN_H, "BULLET HELL — OuroborosEngine")
     input_provider = PygameInputProvider()
     input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
-    world = build_world(data, input_provider, boss_name, weapon_name, skill_name)
+    world = build_world(data, input_provider, boss_name, weapon_name,
+                        skill_name, mutators)
     return GameLoop(world, renderer, input_provider, PygameAudioEngine())
 
 
 def build_headless(boss_name: str = "classic", weapon_name: str = "padrao",
-                   skill_name: str = "none"):
+                   skill_name: str = "none", mutators: frozenset = frozenset()):
     """Composição para testes: null backends, controle manual do step.
     Retorna (world, input_provider, memory acessível via world.get_pool)."""
     from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 
     data = load_all()
     input_provider = NullInputProvider()
-    world = build_world(data, input_provider, boss_name, weapon_name, skill_name)
+    world = build_world(data, input_provider, boss_name, weapon_name,
+                        skill_name, mutators)
     return world, input_provider

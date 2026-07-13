@@ -114,12 +114,23 @@ Portado (fases 1–2):
       congela), resto `clock.world` (FOCUS); cadência/timers de boss,
       emitters, lasers e comportamentos escalam junto; stun do EMP para
       movimento e disparo dos bosses
-- [x] Smoke headless 39/39 (armas, variantes, bosses, lasers, skills)
+- [x] **6 mutadores** (pool `run_mods` de 1 linha): PREDADOR (mira 0.5s à
+      frente), FANTASMA (balas invisíveis 200-400px do boss — tint preto no
+      fundo preto, restaurado pela PALETTE), CANHÃO DE VIDRO (1 vida, ×3),
+      CLAUSTROFOBIA (arena −14%/borda), HORDE (HP ×1.5, vel ×0.85),
+      BERSERKER (HP ×0.75, vel ×1.35)
+- [x] Fragmentação ABISSAL: balas fragmentam em ±30° ao sair da tela
+      (coluna `fragment`; revenge bullets em tudo com o mutador `abissal`)
+- [x] HUD de retângulos (pool `hud` + HudSystem): barra de HP do boss,
+      3 quadrados de vida, barra de CD/energia da habilidade
+- [x] Smoke headless 47/47 (armas, bosses, lasers, skills, mutadores)
 
-Fase 5:
-- [ ] Mutadores, fragmentação ABISSAL, hazards, partículas, HUD/menus
-- [ ] Bosses restantes do legado (Omega, Summoner+minions, SINS)
+Fase 6:
+- [ ] Bosses restantes do legado (Omega, Summoner+minions/EnemyPool, SINS)
+- [ ] Hazards (zonas SLOW/BURN — chegam com os bosses que as usam)
+- [ ] Partículas/juice (aguarda pipeline de texturas da engine)
 - [ ] Save/conquistas/maestria (SaveManager fora do World, I/O só em menu)
+- [ ] Menus/seleção (aguarda texto no renderer da engine)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

@@ -14,9 +14,9 @@ DT = 1 / 60
 
 
 def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
-        skill: str = "none") -> dict:
+        skill: str = "none", mutators: frozenset = frozenset()) -> dict:
     world, inp = build_headless(boss_name=boss, weapon_name=weapon,
-                                skill_name=skill)
+                                skill_name=skill, mutators=mutators)
     eb = world.get_pool("enemy_bullet")
     pb = world.get_pool("pb_core")
     bp = world.get_pool("boss")
@@ -97,6 +97,19 @@ if __name__ == "__main__":
         boss = "timemage" if skill.startswith("timedil") else "classic"
         r = run(boss, "padrao", skill=skill)
         r["skill"] = skill
+        spawned = r["enemy_bullets_peak"] > 0
+        damaged = r["boss_damage"] > 0
+        status = "OK " if (spawned and damaged) else "FAIL"
+        if not (spawned and damaged):
+            ok = False
+        print(f"[{status}] {r}")
+
+    # mutadores
+    for muts in [("predador",), ("fantasma",), ("glass",), ("claustro",),
+                 ("abissal",), ("horde",), ("berserker",),
+                 ("predador", "fantasma", "glass")]:
+        r = run("classic", "padrao", mutators=frozenset(muts))
+        r["mutators"] = "+".join(muts)
         spawned = r["enemy_bullets_peak"] > 0
         damaged = r["boss_damage"] > 0
         status = "OK " if (spawned and damaged) else "FAIL"

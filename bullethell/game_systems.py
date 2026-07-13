@@ -392,6 +392,7 @@ class WeaponFireSystem(ISystem):
         self._pb_core = memory_manager.get_pool("pb_core")
         self._pb_orbit = memory_manager.get_pool("pb_orbit")
         self._pb_shrap = memory_manager.get_pool("pb_shrap")
+        self._mods = memory_manager.get_pool("run_mods")
         self._fr = 1.0                               # mults frame-local
         self._dmg = 1.0
 
@@ -418,9 +419,11 @@ class WeaponFireSystem(ISystem):
         wd = self._data.weapons.get(int(pv["weapon_id"][prow]))
         if wd is None:
             return
-        # multiplicadores das habilidades (OVERCLOCK / EMP+) — frame-local
+        # multiplicadores: habilidades (OVERCLOCK / EMP+) + CANHÃO DE VIDRO
         self._fr = float(pv["fr_mult"][prow])
         self._dmg = float(pv["dmg_mult"][prow])
+        if self._mods.active_view()["glass"][0]:
+            self._dmg *= 3.0
         tv = self._transform.active_view()
         px = float(tv["position_x"][trow])
         py = float(tv["position_y"][trow])
@@ -555,9 +558,11 @@ class WaypointSystem(ISystem):
         self._waypoint = memory_manager.get_pool("waypoint")
         self._transform = memory_manager.get_pool("transform")
         self._clock = memory_manager.get_pool("clock")
+        self._mods = memory_manager.get_pool("run_mods")
 
     def update(self, world: "World", delta_time: float) -> None:
         delta_time *= float(self._clock.active_view()["world"][0])   # FOCUS
+        delta_time *= float(self._mods.active_view()["spd_mult"][0])  # HORDE/BERSERKER
         indices = intersect_entity_indices(self._boss, self._waypoint, self._transform)
         for raw in indices:                        # ≤2 bosses: loop primitivo
             i = int(raw)
@@ -671,9 +676,11 @@ class BossMotionSystem(ISystem):
         self._part = memory_manager.get_pool("part")
         self._transform = memory_manager.get_pool("transform")
         self._clock = memory_manager.get_pool("clock")
+        self._mods = memory_manager.get_pool("run_mods")
 
     def update(self, world: "World", delta_time: float) -> None:
         delta_time *= float(self._clock.active_view()["world"][0])   # FOCUS
+        delta_time *= float(self._mods.active_view()["spd_mult"][0])  # HORDE/BERSERKER
         tv = self._transform.active_view()
         bv = self._boss.active_view()
         for raw in self._boss.active_entity_indices():
@@ -787,13 +794,22 @@ class EmitterSystem(ISystem):
         self._player = memory_manager.get_pool("player")
         self._boss = memory_manager.get_pool("boss")
         self._clock = memory_manager.get_pool("clock")
+        self._mods = memory_manager.get_pool("run_mods")
+        self._abissal = False
 
     def update(self, world: "World", delta_time: float) -> None:
         delta_time *= float(self._clock.active_view()["world"][0])   # FOCUS
+        mods = self._mods.active_view()
+        self._abissal = bool(mods["abissal"][0])
         pi, ptrow = _player_row(self._player, self._transform)
         tv = self._transform.active_view()
         px = float(tv["position_x"][ptrow]) if ptrow >= 0 else SCREEN_W / 2
         py = float(tv["position_y"][ptrow]) if ptrow >= 0 else SCREEN_H * 0.8
+        if mods["predator"][0] and pi >= 0:         # PREDADOR: mira 0.5s à frente
+            pvrow = self._velocity.dense_row_of(pi)
+            vv = self._velocity.active_view()
+            px += float(vv["linear_x"][pvrow]) * 0.5
+            py += float(vv["linear_y"][pvrow]) * 0.5
 
         for k in range(self._emitter.count):       # ≤32 emitters
             ev = self._emitter.active_view()
@@ -921,6 +937,7 @@ class EmitterSystem(ISystem):
         eb = self._eb.active_view()
         eb["self"][erow] = np.uint64(packed)
         eb["tether"][erow] = TETHER_NONE
+        eb["color"][erow] = arch.color
         eb["contact"][erow] = arch.contact
         eb["radius"][erow] = arch.radius
         eb["grazed"][erow] = 0
@@ -930,6 +947,7 @@ class EmitterSystem(ISystem):
         eb["phase_t"][erow] = 0.0
         eb["gravity"][erow] = arch.gravity
         eb["bounces"][erow] = arch.bounces
+        eb["fragment"][erow] = 1 if (arch.fragment or self._abissal) else 0
         eb["beh"][erow] = arch.beh
         eb["beh_t"][erow] = arch.p1
         eb["p1"][erow], eb["p2"][erow], eb["p3"][erow] = arch.p1, arch.p2, arch.p3
@@ -1048,19 +1066,69 @@ class MaintenanceSystem(ISystem):
     balas do jogador, clamp do jogador na tela."""
 
     def __init__(self, memory_manager: MemoryManager) -> None:
+        self._mm = memory_manager
         self._eb = memory_manager.get_pool("enemy_bullet")
         self._transform = memory_manager.get_pool("transform")
         self._velocity = memory_manager.get_pool("velocity")
+        self._sprite = memory_manager.get_pool("sprite")
         self._player = memory_manager.get_pool("player")
+        self._mods = memory_manager.get_pool("run_mods")
         self._pb_core = memory_manager.get_pool("pb_core")
         self._pb_range = memory_manager.get_pool("pb_range")
         self._pb_life = memory_manager.get_pool("pb_life")
         self._pb_pierce = memory_manager.get_pool("pb_pierce")
         self._pb_bounce = memory_manager.get_pool("pb_bounce")
 
+    def _spawn_fragments(self, world, x: float, y: float,
+                         vx: float, vy: float, color: int) -> None:
+        """ABISSAL: 2 fragmentos em ±30° da direção de retorno, herdando
+        a velocidade escalar e a cor do pai. Fragmentos não re-fragmentam."""
+        spd = math.hypot(vx, vy)
+        if spd < 1.0 or self._eb.count >= self._eb.capacity - 2:
+            return
+        back = math.atan2(-vy, -vx)
+        for dth in (-0.524, 0.524):
+            packed = world.create_entity("enemy_bullet")
+            idx = packed & 0xFFFFFFFF
+            th = back + dth
+            trow = self._transform.dense_row_of(idx)
+            tvf = self._transform.active_view()
+            tvf["position_x"][trow] = min(max(x, 1.0), SCREEN_W - 1.0)
+            tvf["position_y"][trow] = min(max(y, 1.0), SCREEN_H - 1.0)
+            tvf["scale_x"][trow] = tvf["scale_y"][trow] = 1.0
+            vrow = self._velocity.dense_row_of(idx)
+            vvf = self._velocity.active_view()
+            vvf["linear_x"][vrow] = math.cos(th) * spd
+            vvf["linear_y"][vrow] = math.sin(th) * spd
+            srow = self._sprite.dense_row_of(idx)
+            svf = self._sprite.active_view()
+            r, g, b = PALETTE.get(int(color), (255, 64, 90))
+            svf["tint_r"][srow], svf["tint_g"][srow], svf["tint_b"][srow] = r, g, b
+            svf["tint_a"][srow] = 255
+            svf["layer_z"][srow] = 10
+            erow = self._eb.dense_row_of(idx)
+            ebf = self._eb.active_view()
+            ebf["self"][erow] = np.uint64(packed)
+            ebf["tether"][erow] = TETHER_NONE
+            ebf["color"][erow] = color
+            ebf["contact"][erow] = 0
+            ebf["radius"][erow] = 4.0
+            ebf["grazed"][erow] = 0
+            ebf["homing_t"][erow] = 0.0
+            ebf["spin"][erow] = 0.0
+            ebf["phase_p"][erow] = 0.0
+            ebf["phase_t"][erow] = 0.0
+            ebf["gravity"][erow] = 0.0
+            ebf["bounces"][erow] = 0
+            ebf["fragment"][erow] = 0
+            ebf["beh"][erow] = BEH_NONE
+            ebf["beh_t"][erow] = 0.0
+            ebf["stage"][erow] = 0
+
     def update(self, world: "World", delta_time: float) -> None:
         tv = self._transform.active_view()
         vv = self._velocity.active_view()
+        mods = self._mods.active_view()
 
         # ---- balas inimigas: ricochete lateral + cull fora da tela -------
         n = self._eb.count
@@ -1078,6 +1146,15 @@ class MaintenanceSystem(ISystem):
             out = ((bx < -CULL_MARGIN) | (bx > SCREEN_W + CULL_MARGIN) |
                    (by < -CULL_MARGIN) | (by > SCREEN_H + CULL_MARGIN))
             out &= ~hit_wall
+            # ABISSAL/fragmenting: revenge bullets antes do cull
+            frag = out & (eb["fragment"] != 0)
+            for k in np.where(frag)[0]:
+                self._spawn_fragments(
+                    world,
+                    float(bx[k]), float(by[k]),
+                    float(vv["linear_x"][vrows[k]]),
+                    float(vv["linear_y"][vrows[k]]),
+                    int(eb["color"][k]))
             for h in eb["self"][out]:              # destruição enfileirada
                 world.destroy_entity(int(h))
 
@@ -1140,11 +1217,13 @@ class MaintenanceSystem(ISystem):
             for h in cv["self"][dead]:
                 world.destroy_entity(int(h))
 
-        # ---- clamp do jogador ---------------------------------------------
+        # ---- clamp do jogador (CLAUSTROFOBIA encolhe 14% por borda) --------
         i, ptrow = _player_row(self._player, self._transform)
         if ptrow >= 0:
-            tv["position_x"][ptrow] = min(max(float(tv["position_x"][ptrow]), 9.0), SCREEN_W - 9.0)
-            tv["position_y"][ptrow] = min(max(float(tv["position_y"][ptrow]), 9.0), SCREEN_H - 9.0)
+            mx = SCREEN_W * 0.14 if mods["claustro"][0] else 9.0
+            my = SCREEN_H * 0.14 if mods["claustro"][0] else 9.0
+            tv["position_x"][ptrow] = min(max(float(tv["position_x"][ptrow]), mx), SCREEN_W - mx)
+            tv["position_y"][ptrow] = min(max(float(tv["position_y"][ptrow]), my), SCREEN_H - my)
 
 
 # ===========================================================================
@@ -1159,6 +1238,11 @@ class PlayerHitSystem(ISystem):
         self._transform = memory_manager.get_pool("transform")
         self._velocity = memory_manager.get_pool("velocity")
         self._player = memory_manager.get_pool("player")
+        self._mods = memory_manager.get_pool("run_mods")
+
+    def _reset_lives(self) -> int:
+        """CANHÃO DE VIDRO: 1 vida (0 = próximo hit mata)."""
+        return 0 if self._mods.active_view()["glass"][0] else 3
 
     def _absorb_or_damage(self, world, pv, prow, px: float, py: float) -> None:
         """Aplica um hit no jogador respeitando o ESCUDO."""
@@ -1221,7 +1305,7 @@ class PlayerHitSystem(ISystem):
             if pv["invuln_t"][prow] <= 0.0:
                 self._absorb_or_damage(world, pv, prow, px, py)
                 if pv["lives"][prow] < 0:          # game over → reset da run
-                    pv["lives"][prow] = 3
+                    pv["lives"][prow] = self._reset_lives()
                     for h in eb["self"][: self._eb.count]:
                         world.destroy_entity(int(h))
                     return
@@ -1255,7 +1339,7 @@ class PlayerHitSystem(ISystem):
                 if (px - qx) ** 2 + (py - qy) ** 2 <= PLAYER_HIT_R ** 2:
                     self._absorb_or_damage(world, pv, prow, px, py)
                     if pv["lives"][prow] < 0:
-                        pv["lives"][prow] = 3
+                        pv["lives"][prow] = self._reset_lives()
                     break
 
 
@@ -1399,6 +1483,115 @@ class PlayerBulletHomingSystem(ISystem):
             f = hv["vmax"][act][over] / spd[over]
             vv["linear_x"][rows_over] *= f
             vv["linear_y"][rows_over] *= f
+
+
+# ===========================================================================
+class GhostTintSystem(ISystem):
+    """Mutador FANTASMA: balas inimigas ficam invisíveis entre 200-400px
+    do boss (o renderer placeholder ignora alpha, então o tint vai a
+    preto — invisível no fundo preto — e é restaurado pela PALETTE)."""
+
+    GHOST_NEAR, GHOST_FAR = 200.0, 400.0
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._eb = memory_manager.get_pool("enemy_bullet")
+        self._transform = memory_manager.get_pool("transform")
+        self._sprite = memory_manager.get_pool("sprite")
+        self._boss = memory_manager.get_pool("boss")
+        self._mods = memory_manager.get_pool("run_mods")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        if not self._mods.active_view()["ghost"][0]:
+            return
+        n = self._eb.count
+        if n == 0 or self._boss.count == 0:
+            return
+        tv = self._transform.active_view()
+        btrow = self._transform.dense_row_of(int(self._boss.active_entity_indices()[0]))
+        bx = float(tv["position_x"][btrow]); by = float(tv["position_y"][btrow])
+        eb = self._eb.active_view()
+        idxs = self._eb.active_entity_indices()
+        trows = self._transform.dense_rows_of(idxs)
+        srows = self._sprite.dense_rows_of(idxs)
+        dx = tv["position_x"][trows] - bx
+        dy = tv["position_y"][trows] - by
+        d2 = dx * dx + dy * dy
+        hidden = (d2 > self.GHOST_NEAR ** 2) & (d2 < self.GHOST_FAR ** 2)
+        sv = self._sprite.active_view()
+        sv["tint_r"][srows[hidden]] = 0
+        sv["tint_g"][srows[hidden]] = 0
+        sv["tint_b"][srows[hidden]] = 0
+        vis = ~hidden
+        if vis.any():                                # restaura pela PALETTE
+            for cid, (r, g, b) in PALETTE.items():
+                m = vis & (eb["color"] == cid)
+                if m.any():
+                    sv["tint_r"][srows[m]] = r
+                    sv["tint_g"][srows[m]] = g
+                    sv["tint_b"][srows[m]] = b
+
+
+# ===========================================================================
+class HudSystem(ISystem):
+    """HUD de retângulos (o renderer placeholder não tem texto): barra de
+    HP do boss no topo, quadrados de vida embaixo à esquerda, barra de
+    CD/energia da habilidade embaixo à direita."""
+
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+        self._data = data
+        self._hud = memory_manager.get_pool("hud")
+        self._transform = memory_manager.get_pool("transform")
+        self._sprite = memory_manager.get_pool("sprite")
+        self._boss = memory_manager.get_pool("boss")
+        self._player = memory_manager.get_pool("player")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._hud.count
+        if n == 0:
+            return
+        hv = self._hud.active_view()
+        idxs = self._hud.active_entity_indices()
+        tv = self._transform.active_view()
+        sv = self._sprite.active_view()
+
+        bvv = self._boss.active_view()
+        hp_frac = 0.0
+        if self._boss.count:
+            hp_frac = float(np.sum(bvv["hp"][: self._boss.count])) / \
+                      max(1.0, float(np.sum(bvv["max_hp"][: self._boss.count])))
+
+        pi = self._player.active_entity_indices()
+        lives, cd_frac = 0, 0.0
+        if pi.size:
+            prow = self._player.dense_row_of(int(pi[0]))
+            pv = self._player.active_view()
+            lives = int(pv["lives"][prow])
+            sd = self._data.skills.get(int(pv["skill_id"][prow]))
+            if sd is not None and sd.name != "none":
+                if sd.name.startswith("focus"):
+                    cd_frac = float(pv["focus_en"][prow]) / FOCUS_MAX
+                elif sd.cd > 0.0:
+                    cd_frac = 1.0 - min(max(float(pv["skill_cd"][prow]) / sd.cd, 0.0), 1.0)
+
+        for k in range(n):                           # ≤8 elementos de HUD
+            kind = int(hv["kind"][k])
+            trow = self._transform.dense_row_of(int(idxs[k]))
+            srow = self._sprite.dense_rows_of(idxs[k:k + 1])[0]
+            if kind == 0:                            # barra de HP do boss
+                tv["scale_x"][trow] = max(0.01, 400.0 * hp_frac / 8.0)
+                tv["scale_y"][trow] = 10.0 / 8.0
+            elif kind in (1, 2, 3):                  # vidas
+                on = lives >= kind
+                sv["tint_r"][srow] = 240 if on else 40
+                sv["tint_g"][srow] = 240 if on else 40
+                sv["tint_b"][srow] = 255 if on else 55
+            elif kind == 4:                          # CD/energia da skill
+                tv["scale_x"][trow] = max(0.01, 140.0 * cd_frac / 8.0)
+                tv["scale_y"][trow] = 8.0 / 8.0
+                full = cd_frac >= 0.999
+                sv["tint_r"][srow] = 90 if full else 200
+                sv["tint_g"][srow] = 220 if full else 160
+                sv["tint_b"][srow] = 140 if full else 60
 
 
 # ===========================================================================
