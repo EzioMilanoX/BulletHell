@@ -19,7 +19,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--boss", default="classic",
                     choices=["classic", "timemage", "wall", "swarm", "twins",
-                             "summoner", "omega"])
+                             "summoner", "omega", "pride", "gluttony", "sloth"])
     ap.add_argument("--weapon", default="padrao")
     ap.add_argument("--skill", default="none",
                     choices=["none", "dash", "parry", "focus", "emp", "blink",

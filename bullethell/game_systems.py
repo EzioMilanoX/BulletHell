@@ -26,8 +26,8 @@ from bullethell.schemas import (
     BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
     CHAKRAM_FROZEN, CHAKRAM_OUT, CHAKRAM_RETURN,
     CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
-    LASER_H, LASER_V, ORBIT_GEM, ORBIT_HELD, PALETTE,
-    SCREEN_H, SCREEN_W, TETHER_NONE,
+    LASER_H, LASER_V, MINION_BUBBLE, MINION_KAMIKAZE, MINION_SENTINEL,
+    ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W, TETHER_NONE,
 )
 
 if TYPE_CHECKING:
@@ -57,6 +57,46 @@ WALL_DESCENT_SPEED = 150.0        # px/s
 WALL_MAX_Y = 216.0
 SUMMONER_TELEPORT_CD = 4.2        # s entre teleportes do Invocador
 MINION_RADIUS = 10.0              # semi-extensão do lacaio (20px)
+# Soberba (Pride): holofote
+SPOT_HALF = 44.0                  # meia-largura do holofote (88px)
+SPOT_SWEEP = 95.0                 # px/s de varredura
+
+_MINION_COLORS = {
+    MINION_KAMIKAZE: (255, 120, 60),
+    MINION_SENTINEL: (170, 170, 220),   # fantasmas da Preguiça
+    MINION_BUBBLE:   (120, 200, 230),   # bolhas-sentinela
+}
+
+
+def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
+                 kind: int, hp: float, speed: float) -> int:
+    """Spawna um lacaio (kamikaze/sentinela/bolha). Retorna packed ou -1."""
+    minion = mm.get_pool("minion")
+    if minion.count >= minion.capacity - 1:
+        return -1
+    packed = world.create_entity("minion")
+    idx = packed & 0xFFFFFFFF
+    t = mm.get_pool("transform")
+    trow = t.dense_row_of(idx); tv = t.active_view()
+    tv["position_x"][trow] = x
+    tv["position_y"][trow] = y
+    tv["scale_x"][trow] = tv["scale_y"][trow] = MINION_RADIUS / 4.0
+    v = mm.get_pool("velocity")
+    vrow = v.dense_row_of(idx); vv = v.active_view()
+    vv["linear_x"][vrow] = 0.0
+    vv["linear_y"][vrow] = speed if kind == MINION_KAMIKAZE else 0.0
+    s = mm.get_pool("sprite")
+    srow = s.dense_row_of(idx); sv = s.active_view()
+    r, g, b = _MINION_COLORS.get(kind, (255, 120, 60))
+    sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
+    sv["tint_a"][srow] = 255
+    sv["layer_z"][srow] = 12
+    mrow = minion.dense_row_of(idx); mv = minion.active_view()
+    mv["self"][mrow] = np.uint64(packed)
+    mv["kind"][mrow] = kind
+    mv["hp"][mrow] = hp
+    mv["speed"][mrow] = speed
+    return packed
 LASER_TELEGRAPH, LASER_FIRE_DUR = 1.8, 0.65
 LASER_HALF = 6.0
 FOCUS_MAX = 3.0                   # s de energia de FOCUS
@@ -599,6 +639,7 @@ class BossPhaseSystem(ISystem):
 
     def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
         self._data = data
+        self._mm = memory_manager
         self._boss = memory_manager.get_pool("boss")
         self._emitter = memory_manager.get_pool("emitter")
         self._part = memory_manager.get_pool("part")
@@ -630,6 +671,12 @@ class BossPhaseSystem(ISystem):
                 world.destroy_entity(int(ev["self"][k]))
         spawn_emitters(world, self._emitter, boss_index, phase_def,
                        parts_of(self._part, boss_index))
+        # lacaios de entrada da fase (Preguiça: 3 fantasmas espalhados)
+        n_min, kind, hp, speed = phase_def.minions
+        for j in range(int(n_min)):
+            x = SCREEN_W * (0.25 + 0.25 * j)
+            y = 150.0 + (j * 97) % 250
+            spawn_minion(world, self._mm, x, y, int(kind), float(hp), float(speed))
 
 
 def parts_of(part_pool, boss_index: int) -> tuple:
@@ -699,6 +746,14 @@ class BossMotionSystem(ISystem):
                                                  y + WALL_DESCENT_SPEED * delta_time)
             elif bdef.motion == "swarm_orbit":
                 bv["aux_angle"][brow] += SWARM_ORBIT_SPEED * delta_time
+            elif bdef.motion == "track_x":          # persegue o x do jogador
+                pl_idx = world.get_pool("player").active_entity_indices()
+                if pl_idx.size:
+                    ptrow = self._transform.dense_row_of(int(pl_idx[0]))
+                    trow = self._transform.dense_row_of(bi)
+                    x = float(tv["position_x"][trow])
+                    x += (float(tv["position_x"][ptrow]) - x) * bdef.motion_rate * delta_time
+                    tv["position_x"][trow] = min(max(x, 100.0), SCREEN_W - 100.0)
             elif bdef.motion == "teleport":         # Invocador
                 bv["aux_angle"][brow] += delta_time
                 if bv["aux_angle"][brow] >= SUMMONER_TELEPORT_CD:
@@ -803,6 +858,7 @@ class EmitterSystem(ISystem):
 
     def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
         self._data = data
+        self._mm = memory_manager
         self._emitter = memory_manager.get_pool("emitter")
         self._transform = memory_manager.get_pool("transform")
         self._velocity = memory_manager.get_pool("velocity")
@@ -901,31 +957,78 @@ class EmitterSystem(ISystem):
                 eb = self._eb.active_view()
                 eb["tether"][self._eb.dense_row_of(p1 & 0xFFFFFFFF)] = np.uint64(p2)
                 eb["tether"][self._eb.dense_row_of(p2 & 0xFFFFFFFF)] = np.uint64(p1)
-        elif pat.emit == "summon":                  # Invocador: lacaio
-            for _ in range(pat.count):
-                if self._minion.count >= self._minion.capacity - 1:
-                    return
-                packed = world.create_entity("minion")
-                idx = packed & 0xFFFFFFFF
-                trow = self._transform.dense_row_of(idx)
-                tv2 = self._transform.active_view()
-                tv2["position_x"][trow] = ox
-                tv2["position_y"][trow] = oy + 30.0
-                tv2["scale_x"][trow] = tv2["scale_y"][trow] = MINION_RADIUS / 4.0
-                vrow = self._velocity.dense_row_of(idx)
-                vv2 = self._velocity.active_view()
-                vv2["linear_x"][vrow] = 0.0
-                vv2["linear_y"][vrow] = pat.speed
-                srow = self._sprite.dense_row_of(idx)
-                sv = self._sprite.active_view()
-                sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 255, 120, 60
-                sv["tint_a"][srow] = 255
-                sv["layer_z"][srow] = 12
-                mrow = self._minion.dense_row_of(idx)
-                mv = self._minion.active_view()
-                mv["self"][mrow] = np.uint64(packed)
-                mv["hp"][mrow] = pat.hp
-                mv["speed"][mrow] = pat.speed
+        elif pat.emit == "summon":                  # lacaio (Invocador/Preguiça)
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            for j in range(pat.count):
+                if pat.kind == MINION_KAMIKAZE:
+                    x, y = ox, oy + 30.0
+                else:                               # estático: posição hash
+                    h1 = (seed * 2654435761 + j * 97561) % 997
+                    h2 = (seed * 40503 + j * 69621 + 13) % 499
+                    x = 100.0 + h1 / 997.0 * (SCREEN_W - 200.0)
+                    y = 120.0 + h2 / 499.0 * 260.0
+                spawn_minion(world, self._mm, x, y, pat.kind, pat.hp, pat.speed)
+        elif pat.emit == "orbit_ring":              # Gula: anel orbital
+            ev["phase_angle"][k] += 1.396 * pat.period   # 80°/s
+            base = float(ev["phase_angle"][k])
+            for j in range(pat.count):
+                ang = base + j * (TWO_PI / pat.count)
+                bx_ = ox + math.cos(ang) * 100.0
+                by_ = oy + math.sin(ang) * 100.0
+                p = self._spawn(world, pat, bx_, by_, 0.0, px, py)
+                if p is not None:                   # tangencial + deriva
+                    vrow = self._velocity.dense_row_of(p & 0xFFFFFFFF)
+                    vv2 = self._velocity.active_view()
+                    vv2["linear_x"][vrow] = -math.sin(ang) * pat.speed
+                    vv2["linear_y"][vrow] = math.cos(ang) * pat.speed + 55.0
+        elif pat.emit == "teeth":                   # Gula: fileira com vão
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            gy = 80.0 + ((seed * 2654435761) % 997) / 997.0 * 120.0
+            gap = 180.0 + ((seed * 40503 + 7) % 499) / 499.0 * 80.0
+            gap_cx = gap / 2 + ((seed * 69621 + 3) % 991) / 991.0 * (SCREEN_W - gap)
+            x = 0.0
+            while x < SCREEN_W:
+                if abs(x - gap_cx) > gap / 2:
+                    self._spawn(world, pat, x, gy, math.pi / 2, px, py)
+                x += 50.0
+        elif pat.emit == "radial_random":           # Gula: regurgitar
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            ang = ((seed * 2654435761) % 6283) / 1000.0
+            self._spawn(world, pat, ox, oy, ang, px, py)
+        elif pat.emit == "spotlight_rain":          # Soberba: chuva do holofote
+            brow = self._boss.dense_row_of(int(ev["root"][k]))
+            if brow < 0:
+                return
+            spot_x = float(self._boss.active_view()["aux_angle"][brow])
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            for j in range(pat.count):
+                jit = (((seed * 2654435761 + j * 97561) % 997) / 997.0 - 0.5) * 36.0
+                vx_j = (((seed * 40503 + j * 69621) % 499) / 499.0 - 0.5) * 70.0
+                vy_j = 180.0 + ((seed * 69621 + j * 13) % 991) / 991.0 * 80.0
+                p = self._spawn(world, pat, spot_x + jit, oy + 34.0,
+                                math.pi / 2, px, py)
+                if p is not None:
+                    vrow = self._velocity.dense_row_of(p & 0xFFFFFFFF)
+                    vv2 = self._velocity.active_view()
+                    vv2["linear_x"][vrow] = vx_j
+                    vv2["linear_y"][vrow] = vy_j
+        elif pat.emit == "geo":                     # Soberba: formas yin/yang
+            ev["shot_count"][k] += 1
+            shape = int(ev["shot_count"][k]) & 1    # alterna quadrado/triângulo
+            narms = 4 if shape == 0 else 3
+            ev["phase_angle"][k] += 0.96 * pat.period    # 55°/s
+            base = float(ev["phase_angle"][k])
+            arch_name = "std/yin_blue" if shape == 0 else "std/yang_orange"
+            pat_bullet = sid(arch_name)
+            for i in range(narms):
+                b0 = base + i * (TWO_PI / narms)
+                for spread in (-0.12, 0.0, 0.12):
+                    p = self._spawn_as(world, pat, pat_bullet, ox, oy + 34.0,
+                                       b0 + spread, px, py)
+                    if p is not None:               # deriva descendente
+                        vrow = self._velocity.dense_row_of(p & 0xFFFFFFFF)
+                        vv2 = self._velocity.active_view()
+                        vv2["linear_y"][vrow] += 55.0
         elif pat.emit == "laser":
             seed = int(ev["shot_count"][k])
             ev["shot_count"][k] += 1
@@ -957,9 +1060,13 @@ class EmitterSystem(ISystem):
                 sv["layer_z"][srow] = 8
 
     def _spawn(self, world, pat: PatternDef, x, y, theta, px, py):
+        return self._spawn_as(world, pat, pat.bullet, x, y, theta, px, py)
+
+    def _spawn_as(self, world, pat: PatternDef, bullet_sid: int,
+                  x, y, theta, px, py):
         if self._eb.count >= self._eb.capacity - 1:
             return None                             # pool cheio: descarta
-        arch = self._data.archetypes[pat.bullet]
+        arch = self._data.archetypes[bullet_sid]
         packed = world.create_entity("enemy_bullet")
         idx = packed & 0xFFFFFFFF
         trow = self._transform.dense_row_of(idx)
@@ -1432,6 +1539,8 @@ class PlayerBulletVsBossSystem(ISystem):
         brow = self._boss.dense_row_of(boss_entity)
         if btrow < 0 or hrow < 0 or brow < 0:
             return
+        if self._boss.active_view()["invuln"][brow]:   # gimmick dos pecados
+            return
         hv = self._hitbox.active_view()
         cx = float(tv["position_x"][btrow]); cy = float(tv["position_y"][btrow])
         hw = float(hv["half_width"][hrow]); hh = float(hv["half_height"][hrow])
@@ -1818,9 +1927,62 @@ class ChakramSystem(ISystem):
 
 
 # ===========================================================================
+class BossGimmickSystem(ISystem):
+    """Gimmicks dos pecados, declarados por fase em bosses.json:
+    `force` empurra o jogador (Gula/Soberba); `spotlight` (Soberba fase 0)
+    varre um holofote e só deixa o boss vulnerável com o jogador dentro;
+    `gate_minions` (Preguiça fase 1) mantém o boss invulnerável até os
+    fantasmas morrerem. Roda após o BossMotion e antes do Emitter (o
+    spotlight_rain lê aux_angle)."""
+
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+        self._data = data
+        self._boss = memory_manager.get_pool("boss")
+        self._transform = memory_manager.get_pool("transform")
+        self._minion = memory_manager.get_pool("minion")
+        self._player = memory_manager.get_pool("player")
+        self._clock = memory_manager.get_pool("clock")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        wdt = delta_time * float(self._clock.active_view()["world"][0])
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow < 0:
+            return
+        tv = self._transform.active_view()
+        px = float(tv["position_x"][ptrow])
+        bv = self._boss.active_view()
+        for raw in self._boss.active_entity_indices():
+            bi = int(raw)
+            brow = self._boss.dense_row_of(bi)
+            bdef = self._data.bosses[int(bv["boss_id"][brow])]
+            ph = bdef.phases[int(bv["phase_idx"][brow])]
+
+            if ph.force != (0.0, 0.0):              # sucção/empuxo no jogador
+                tv["position_x"][ptrow] += ph.force[0] * delta_time
+                tv["position_y"][ptrow] += ph.force[1] * delta_time
+
+            if ph.gimmick == "spotlight":
+                spot = float(bv["aux_angle"][brow])
+                direction = 1.0 if bv["aux2"][brow] >= 0.0 else -1.0
+                spot += SPOT_SWEEP * direction * wdt
+                if spot > SCREEN_W:
+                    spot, direction = float(SCREEN_W), -1.0
+                elif spot < 0.0:
+                    spot, direction = 0.0, 1.0
+                bv["aux_angle"][brow] = spot
+                bv["aux2"][brow] = direction
+                # vulnerável só com o jogador dentro do feixe
+                bv["invuln"][brow] = 1 if abs(px - spot) > SPOT_HALF else 0
+            elif ph.gimmick == "gate_minions":
+                bv["invuln"][brow] = 1 if self._minion.count > 0 else 0
+            else:
+                bv["invuln"][brow] = 0
+
+
+# ===========================================================================
 class MinionAISystem(ISystem):
-    """Lacaios kamikaze: perseguem o jogador (velocity ajustada por frame;
-    a integração fica com o ScaledMovementSystem, escala `world`)."""
+    """Lacaios: kamikazes perseguem o jogador; sentinelas/bolhas ficam
+    paradas (alvos a destruir). Integração no ScaledMovementSystem."""
 
     def __init__(self, memory_manager: MemoryManager) -> None:
         self._minion = memory_manager.get_pool("minion")
@@ -1838,15 +2000,21 @@ class MinionAISystem(ISystem):
         tv = self._transform.active_view()
         px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
         mv = self._minion.active_view()
+        chase = mv["kind"] == MINION_KAMIKAZE
         idxs = self._minion.active_entity_indices()
         trows = self._transform.dense_rows_of(idxs)
         vrows = self._velocity.dense_rows_of(idxs)
-        dx = px - tv["position_x"][trows]
-        dy = py - tv["position_y"][trows]
-        d = np.sqrt(dx * dx + dy * dy) + 1e-6
         vv = self._velocity.active_view()
-        vv["linear_x"][vrows] = dx / d * mv["speed"]
-        vv["linear_y"][vrows] = dy / d * mv["speed"]
+        if chase.any():
+            dx = px - tv["position_x"][trows[chase]]
+            dy = py - tv["position_y"][trows[chase]]
+            d = np.sqrt(dx * dx + dy * dy) + 1e-6
+            vv["linear_x"][vrows[chase]] = dx / d * mv["speed"][chase]
+            vv["linear_y"][vrows[chase]] = dy / d * mv["speed"][chase]
+        static = ~chase
+        if static.any():
+            vv["linear_x"][vrows[static]] = 0.0
+            vv["linear_y"][vrows[static]] = 0.0
 
 
 # ===========================================================================

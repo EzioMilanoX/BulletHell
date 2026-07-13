@@ -129,10 +129,22 @@ Portado (fases 1–2):
       pierce/DoT, contato kamikaze explode no jogador)
 - [x] **Ômega ★**: 100% data-driven — 4 fases combinando os padrões de
       todos os bosses (bosses.json, hp 500)
-- [x] Smoke headless 49/49
+- [x] **Pecados (1ª leva): Soberba, Gula e Preguiça** com as mecânicas
+      transversais dos SINS declaradas por fase em bosses.json:
+      `force` (sucção/empuxo no jogador), `gimmick: spotlight` (holofote
+      varrendo; boss vulnerável só com o jogador no feixe — aux_angle/aux2
+      + coluna `invuln`), `gimmick: gate_minions` (invulnerável até os
+      fantasmas morrerem), `minions` na entrada de fase, motion `track_x`
+      (persegue o x do jogador com taxa configurável)
+- [x] Novas emissões: orbit_ring, teeth (fileira com vão), radial_random,
+      spotlight_rain, geo (formas yin/yang alternantes); lacaios ganham
+      `kind` (kamikaze/sentinela/bolha — estáticos não perseguem)
+- [x] Smoke headless 52/52
 
-Fase 7:
-- [ ] Bosses SINS (7 pecados) + hazards SLOW/BURN que eles usam
+Fase 8:
+- [ ] Pecados restantes: Inveja (espelha arma), Avareza (paredes/moedas),
+      Luxúria, Ira, Pecado Original + hazards SLOW/BURN
+- [ ] Visual do holofote da Soberba (aguarda camada de efeitos no renderer)
 - [ ] Partículas/juice (aguarda pipeline de texturas da engine)
 - [ ] Save/conquistas/maestria (SaveManager fora do World, I/O só em menu)
 - [ ] Menus/seleção e modos Boss Rush/Wave Survival (aguarda texto no

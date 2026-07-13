@@ -62,6 +62,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.BossPhaseSystem(mm, data))
     world.register_system(gs.WaypointSystem(mm, data))
     world.register_system(gs.BossMotionSystem(mm, data))   # partes/orbit/descend
+    world.register_system(gs.BossGimmickSystem(mm, data))  # pecados: holofote/força/gate
     world.register_system(gs.EmitterSystem(mm, data))
     world.register_system(gs.LaserSystem(mm))
     world.register_system(gs.MinionAISystem(mm))           # kamikazes perseguem

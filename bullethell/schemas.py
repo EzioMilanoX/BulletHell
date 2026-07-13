@@ -66,8 +66,11 @@ HUD_DTYPE = np.dtype([
     ("kind", np.uint8),
 ])
 
-MINION_DTYPE = np.dtype([        # lacaios kamikaze do Invocador
-    ("self",  np.uint64),
+# minion.kind
+MINION_KAMIKAZE, MINION_SENTINEL, MINION_BUBBLE = 0, 1, 2
+MINION_DTYPE = np.dtype([        # lacaios: kamikaze (Invocador) e
+    ("self",  np.uint64),        # sentinelas/bolhas estáticas (Preguiça)
+    ("kind",  np.uint8),
     ("hp",    np.float32),
     ("speed", np.float32),
 ])
@@ -78,7 +81,9 @@ BOSS_DTYPE = np.dtype([
     ("max_hp",    np.float32),
     ("phase_idx", np.int8),
     ("stun_t",    np.float32),
-    ("aux_angle", np.float32),   # swarm: ângulo orbital; wall: (reserva)
+    ("aux_angle", np.float32),   # swarm: ângulo; teleport: timer; pride: spot_x
+    ("aux2",      np.float32),   # pride: direção do holofote
+    ("invuln",    np.uint8),     # gimmicks: holofote / gate de fantasmas
 ])
 
 PART_DTYPE = np.dtype([          # hitbox-filha de boss composto

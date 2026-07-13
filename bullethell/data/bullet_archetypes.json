@@ -53,6 +53,10 @@
     { "name": "mod/sleeper",
       "_doc": "Dormente até o timer; acorda mirando o jogador a 145 px/s",
       "contact": "always", "color": 6, "radius": 4.0,
-      "behavior": "sleeper", "behavior_params": [1.0, 145.0] }
+      "behavior": "sleeper", "behavior_params": [1.0, 145.0] },
+
+    { "name": "sin/venom",
+      "_doc": "Gula: bala-veneno laranja que ricocheteia 3× nas bordas",
+      "contact": "always", "color": 2, "radius": 5.0, "bounces": 3 }
   ]
 }

@@ -59,6 +59,7 @@ class PatternDef:
     track: str
     warmup: float
     hp: float             # summon: HP do lacaio invocado
+    kind: int             # summon: MINION_* (0=kamikaze, 1=sentinela, 2=bolha)
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,13 +132,18 @@ class BossPhaseDef:
     hp_above: float
     # (pattern_sid, off_x, off_y, part_idx) — part_idx -1 = origem na raiz
     emitters: Tuple[Tuple[int, float, float, int], ...]
+    force: Tuple[float, float]    # px/s empurrando o jogador (Gula/Soberba)
+    gimmick: str                  # "" | "spotlight" | "gate_minions"
+    # (n, kind, hp, speed) — lacaios spawnados na ENTRADA da fase
+    minions: Tuple[int, int, float, float]
 
 
 @dataclass(frozen=True, slots=True)
 class BossDef:
     name: str
     hp: float
-    motion: str          # "" | "swarm_orbit" | "descend"
+    motion: str          # "" | "swarm_orbit" | "descend" | "teleport" | "track_x"
+    motion_rate: float   # track_x: taxa do lerp em direção ao jogador
     hitbox: Tuple[float, float]   # semi-extensões da raiz (boss simples)
     route: Tuple[Tuple[float, float, float], ...]
     parts: Tuple[Tuple[float, float, float, float], ...]
@@ -178,7 +184,7 @@ def load_patterns(path=DATA_DIR / "patterns.json") -> Dict[int, PatternDef]:
             gap_step=e.get("gap_step", 0.0),
             spin_speed=e.get("spin_speed", 0.0), arms=e.get("arms", 1),
             track=e.get("track", ""), warmup=e.get("warmup", 0.0),
-            hp=e.get("hp", 3.0),
+            hp=e.get("hp", 3.0), kind=e.get("kind", 0),
         )
         out[sid(d.name)] = d
     return out
@@ -217,6 +223,7 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
         d = BossDef(
             name=e["name"], hp=float(e["hp"]),
             motion=e.get("motion", ""),
+            motion_rate=float(e.get("motion_rate", 1.0)),
             hitbox=tuple(map(float, e.get("hitbox", [24.0, 24.0]))),
             route=tuple(tuple(map(float, p)) for p in e.get("route", ())),
             parts=tuple(tuple(map(float, p)) for p in e.get("parts", ())),
@@ -229,6 +236,9 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
                          float(em.get("offset", [0, 0])[1]),
                          int(em.get("part", -1)))
                         for em in ph["emitters"]),
+                    force=tuple(map(float, ph.get("force", [0.0, 0.0]))),
+                    gimmick=ph.get("gimmick", ""),
+                    minions=tuple(ph.get("minions", [0, 0, 0.0, 0.0])),
                 )
                 for ph in e["phases"]),
         )

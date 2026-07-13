@@ -106,6 +106,56 @@
                         { "pattern": "wall/pillar" } ] }
       ] },
 
+    { "name": "pride",
+      "_doc": "★ Soberba: fase 0 = holofote (vulnerável só com o jogador no feixe; chuva cai do feixe); fase 1 = formas yin/yang girando; fase 2 = catavento homing + vento ascendente.",
+      "hp": 340,
+      "hitbox": [17, 17],
+      "motion": "track_x", "motion_rate": 1.2,
+      "route": [[640, 52, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.66, "gimmick": "spotlight",
+          "emitters": [ { "pattern": "pride/spotlight_rain" } ] },
+        { "hp_above": 0.33,
+          "emitters": [ { "pattern": "pride/geo" } ] },
+        { "hp_above": 0.0, "force": [0, -60],
+          "emitters": [ { "pattern": "pride/judgement" } ] }
+      ] },
+
+    { "name": "gluttony",
+      "_doc": "★ Gula: sucção crescente (fases 0-1) e gravidade invertida (fase 2) via 'force'; anéis orbitais, dentes com vão e veneno ricocheteante.",
+      "hp": 340,
+      "hitbox": [22, 22],
+      "motion": "track_x", "motion_rate": 0.6,
+      "route": [[640, 50, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.66, "force": [0, -48],
+          "emitters": [ { "pattern": "gluttony/orbit_ring" } ] },
+        { "hp_above": 0.33, "force": [0, -85],
+          "emitters": [ { "pattern": "gluttony/orbit_ring" },
+                        { "pattern": "gluttony/teeth" } ] },
+        { "hp_above": 0.0, "force": [0, 70],
+          "emitters": [ { "pattern": "gluttony/regurgitate" } ] }
+      ] },
+
+    { "name": "sloth",
+      "_doc": "★ Preguiça: fase 0 deriva spawnando bolhas; fase 1 invulnerável até os 3 fantasmas morrerem (gate_minions); fase 2 despertar brutal.",
+      "hp": 340,
+      "hitbox": [20, 20],
+      "route": [[420, 80, 2.8], [860, 120, 2.8], [640, 60, 2.4]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.66,
+          "emitters": [ { "pattern": "sloth/bubbles" },
+                        { "pattern": "summoner/volley" } ] },
+        { "hp_above": 0.33, "gimmick": "gate_minions",
+          "minions": [3, 1, 6.0, 0.0],
+          "emitters": [ { "pattern": "swarm/ring_volley" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "sloth/awakening" } ] }
+      ] },
+
     { "name": "twin_yin",
       "_doc": "Metade Yin do 'twins': balas azuis (dano só em movimento).",
       "hp": 180,

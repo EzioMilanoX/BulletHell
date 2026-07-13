@@ -92,6 +92,46 @@
       "emit": "summon", "bullet": "std/normal",
       "period": 2.6, "count": 1, "speed": 120.0, "hp": 3.0 },
 
+    { "name": "pride/spotlight_rain",
+      "_doc": "Soberba fase 0: chuva de balas caindo do holofote (aux_angle do boss).",
+      "emit": "spotlight_rain", "bullet": "std/normal",
+      "period": 0.18, "count": 3, "speed": 220.0 },
+
+    { "name": "pride/geo",
+      "_doc": "Soberba fase 1: formas geométricas alternando quadrado (yin azul) e triângulo (yang laranja), 3 tiros por braço, girando 55°/s.",
+      "emit": "geo", "bullet": "std/normal",
+      "period": 0.55, "speed": 145.0 },
+
+    { "name": "pride/judgement",
+      "_doc": "Soberba fase 2: catavento de 5 braços de balas homing roxas.",
+      "emit": "spiral", "bullet": "std/homing_purple",
+      "period": 0.28, "arms": 5, "spin_speed": 1.48, "speed": 195.0 },
+
+    { "name": "gluttony/orbit_ring",
+      "_doc": "Gula fase 0: anel de 8 balas a r=100 com velocidade tangencial 125 e deriva descendente.",
+      "emit": "orbit_ring", "bullet": "std/normal",
+      "period": 0.65, "count": 8, "speed": 125.0 },
+
+    { "name": "gluttony/teeth",
+      "_doc": "Gula fase 1: fileira horizontal de dentes com vão de fuga (y e vão por hash).",
+      "emit": "teeth", "bullet": "std/normal",
+      "period": 0.8, "speed": 110.0 },
+
+    { "name": "gluttony/regurgitate",
+      "_doc": "Gula fase 2: bala-veneno em ângulo aleatório (hash) que ricocheteia 3×.",
+      "emit": "radial_random", "bullet": "sin/venom",
+      "period": 0.20, "speed": 170.0 },
+
+    { "name": "sloth/bubbles",
+      "_doc": "Preguiça fase 0: bolhas-sentinela estáticas (kind=2) em posições hash.",
+      "emit": "summon", "bullet": "std/normal",
+      "period": 3.5, "count": 1, "kind": 2, "hp": 2.0, "speed": 0.0 },
+
+    { "name": "sloth/awakening",
+      "_doc": "Preguiça fase 2: 8 braços girando 18°/s a 185px/s (despertar brutal).",
+      "emit": "spiral", "bullet": "std/normal",
+      "period": 0.35, "arms": 8, "spin_speed": 0.31, "speed": 185.0 },
+
     { "name": "player/flak_shrapnel",
       "_doc": "Padrão DO JOGADOR: 5 estilhaços em leque de 40° centrado a -90°, 400 px/s, dano 0.4 cada (FLAK_*). Referenciado pelo componente Fuse.",
       "emit": "arc", "bullet": "std/normal",
