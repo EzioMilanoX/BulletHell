@@ -67,6 +67,45 @@
                         { "pattern": "swarm/ring_volley" } ] }
       ] },
 
+    { "name": "summoner",
+      "_doc": "Invocador: teleporta a cada 4.2s (SUMMONER_TELEPORT_CD) e invoca lacaios kamikaze a cada 2.6s.",
+      "hp": 320,
+      "hitbox": [19, 19],
+      "motion": "teleport",
+      "route": [],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.5,
+          "emitters": [ { "pattern": "summoner/summon" },
+                        { "pattern": "summoner/volley" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "summoner/summon" },
+                        { "pattern": "summoner/volley" },
+                        { "pattern": "swarm/ring_volley" } ] }
+      ] },
+
+    { "name": "omega",
+      "_doc": "★ Boss secreto: 4 fases combinando os padrões de todos os bosses.",
+      "hp": 500,
+      "hitbox": [40, 40],
+      "route": [[320, 100, 2.0], [960, 100, 2.0], [640, 160, 1.6]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.75,
+          "emitters": [ { "pattern": "classic/spread" },
+                        { "pattern": "classic/ring" } ] },
+        { "hp_above": 0.5,
+          "emitters": [ { "pattern": "classic/spiral" },
+                        { "pattern": "timemage/stopgo_volley" } ] },
+        { "hp_above": 0.25,
+          "emitters": [ { "pattern": "wall/rain" },
+                        { "pattern": "timemage/boomerang_burst" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "classic/circular_saw" },
+                        { "pattern": "classic/laser_wave" },
+                        { "pattern": "wall/pillar" } ] }
+      ] },
+
     { "name": "twin_yin",
       "_doc": "Metade Yin do 'twins': balas azuis (dano só em movimento).",
       "hp": 180,

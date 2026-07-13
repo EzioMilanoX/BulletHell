@@ -58,6 +58,7 @@ class PatternDef:
     arms: int
     track: str
     warmup: float
+    hp: float             # summon: HP do lacaio invocado
 
 
 @dataclass(frozen=True, slots=True)
@@ -177,6 +178,7 @@ def load_patterns(path=DATA_DIR / "patterns.json") -> Dict[int, PatternDef]:
             gap_step=e.get("gap_step", 0.0),
             spin_speed=e.get("spin_speed", 0.0), arms=e.get("arms", 1),
             track=e.get("track", ""), warmup=e.get("warmup", 0.0),
+            hp=e.get("hp", 3.0),
         )
         out[sid(d.name)] = d
     return out

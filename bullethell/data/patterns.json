@@ -81,6 +81,17 @@
       "period": 1.6, "count": 2, "arc": 0.5, "aim": "player",
       "speed": 160.0 },
 
+    { "name": "summoner/volley",
+      "_doc": "Leque leve do Invocador entre invocações.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 1.4, "count": 3, "arc": 0.5, "aim": "player",
+      "speed": 190.0 },
+
+    { "name": "summoner/summon",
+      "_doc": "Invoca 1 lacaio kamikaze (SUMMONER_SUMMON_CD=2.6s). 'speed' = perseguição; 'hp' = vida do lacaio.",
+      "emit": "summon", "bullet": "std/normal",
+      "period": 2.6, "count": 1, "speed": 120.0, "hp": 3.0 },
+
     { "name": "player/flak_shrapnel",
       "_doc": "Padrão DO JOGADOR: 5 estilhaços em leque de 40° centrado a -90°, 400 px/s, dano 0.4 cada (FLAK_*). Referenciado pelo componente Fuse.",
       "emit": "arc", "bullet": "std/normal",

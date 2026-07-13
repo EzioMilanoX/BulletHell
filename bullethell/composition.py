@@ -45,6 +45,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
                                              "waypoint"))   # raiz de composto
     world.register_archetype("part", ("transform", "sprite", "hitbox", "part"))
     world.register_archetype("laser", ("transform", "sprite", "laser"))
+    world.register_archetype("minion", ("transform", "velocity", "sprite", "minion"))
     world.register_archetype("emitter", ("emitter",))
     world.register_archetype("enemy_bullet", ("transform", "velocity", "sprite",
                                               "enemy_bullet"))
@@ -63,6 +64,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.BossMotionSystem(mm, data))   # partes/orbit/descend
     world.register_system(gs.EmitterSystem(mm, data))
     world.register_system(gs.LaserSystem(mm))
+    world.register_system(gs.MinionAISystem(mm))           # kamikazes perseguem
     world.register_system(gs.ScaledMovementSystem(mm))     # física com escalas de tempo
     world.register_system(gs.OrbitSystem(mm))              # pós-física: sobrescreve Transform
     world.register_system(gs.EnemyBulletBehaviorSystem(mm))
@@ -75,6 +77,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.GhostTintSystem(mm))          # mutador FANTASMA
     world.register_system(gs.PlayerHitSystem(mm, data))
     world.register_system(gs.PlayerBulletVsBossSystem(mm))
+    world.register_system(gs.MinionCombatSystem(mm))       # lacaios do Invocador
     world.register_system(gs.HudSystem(mm, data))
 
     _spawn_clock(world, mm, mutators)

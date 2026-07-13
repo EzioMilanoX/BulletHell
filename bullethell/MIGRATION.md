@@ -123,14 +123,20 @@ Portado (fases 1–2):
       (coluna `fragment`; revenge bullets em tudo com o mutador `abissal`)
 - [x] HUD de retângulos (pool `hud` + HudSystem): barra de HP do boss,
       3 quadrados de vida, barra de CD/energia da habilidade
-- [x] Smoke headless 47/47 (armas, bosses, lasers, skills, mutadores)
+- [x] **Invocador**: motion `teleport` (salto determinístico por hash a
+      cada 4.2s), emissão `summon` (lacaios kamikaze, pool `minion` cap 64,
+      MinionAISystem persegue + MinionCombatSystem: balas×lacaio com
+      pierce/DoT, contato kamikaze explode no jogador)
+- [x] **Ômega ★**: 100% data-driven — 4 fases combinando os padrões de
+      todos os bosses (bosses.json, hp 500)
+- [x] Smoke headless 49/49
 
-Fase 6:
-- [ ] Bosses restantes do legado (Omega, Summoner+minions/EnemyPool, SINS)
-- [ ] Hazards (zonas SLOW/BURN — chegam com os bosses que as usam)
+Fase 7:
+- [ ] Bosses SINS (7 pecados) + hazards SLOW/BURN que eles usam
 - [ ] Partículas/juice (aguarda pipeline de texturas da engine)
 - [ ] Save/conquistas/maestria (SaveManager fora do World, I/O só em menu)
-- [ ] Menus/seleção (aguarda texto no renderer da engine)
+- [ ] Menus/seleção e modos Boss Rush/Wave Survival (aguarda texto no
+      renderer da engine)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

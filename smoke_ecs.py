@@ -116,4 +116,16 @@ if __name__ == "__main__":
         if not (spawned and damaged):
             ok = False
         print(f"[{status}] {r}")
+
+    # bosses da fase 6: Invocador (lacaios) e Ômega (4 fases)
+    for boss, weapon, approach in [("summoner", "spread", False),
+                                   ("omega", "spread+", True)]:
+        frames = 1600 if boss == "omega" else 900
+        r = run(boss, weapon, frames=frames, approach=approach)
+        spawned = r["enemy_bullets_peak"] > 0
+        damaged = r["boss_damage"] > 0
+        status = "OK " if (spawned and damaged) else "FAIL"
+        if not (spawned and damaged):
+            ok = False
+        print(f"[{status}] {r}")
     raise SystemExit(0 if ok else 1)

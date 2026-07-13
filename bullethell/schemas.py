@@ -66,6 +66,12 @@ HUD_DTYPE = np.dtype([
     ("kind", np.uint8),
 ])
 
+MINION_DTYPE = np.dtype([        # lacaios kamikaze do Invocador
+    ("self",  np.uint64),
+    ("hp",    np.float32),
+    ("speed", np.float32),
+])
+
 BOSS_DTYPE = np.dtype([
     ("boss_id",   np.uint32),    # sid em bosses.json
     ("hp",        np.float32),
@@ -180,6 +186,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "clock":        CLOCK_DTYPE,
     "run_mods":     RUN_MODS_DTYPE,
     "hud":          HUD_DTYPE,
+    "minion":       MINION_DTYPE,
     "boss":         BOSS_DTYPE,
     "part":         PART_DTYPE,
     "laser":        LASER_DTYPE,
@@ -202,8 +209,8 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
-    "player": 2, "clock": 1, "run_mods": 1, "hud": 8, "boss": 4,
-    "part": 8, "laser": 16, "waypoint": 4, "emitter": 32,
+    "player": 2, "clock": 1, "run_mods": 1, "hud": 8, "minion": 64,
+    "boss": 4, "part": 8, "laser": 16, "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

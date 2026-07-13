@@ -55,6 +55,8 @@ INTERCEPT_RANGE, INTERCEPT_CD = 250.0, 2.5
 SWARM_ORBIT_SPEED = 0.75          # rad/s do triângulo
 WALL_DESCENT_SPEED = 150.0        # px/s
 WALL_MAX_Y = 216.0
+SUMMONER_TELEPORT_CD = 4.2        # s entre teleportes do Invocador
+MINION_RADIUS = 10.0              # semi-extensão do lacaio (20px)
 LASER_TELEGRAPH, LASER_FIRE_DUR = 1.8, 0.65
 LASER_HALF = 6.0
 FOCUS_MAX = 3.0                   # s de energia de FOCUS
@@ -697,6 +699,22 @@ class BossMotionSystem(ISystem):
                                                  y + WALL_DESCENT_SPEED * delta_time)
             elif bdef.motion == "swarm_orbit":
                 bv["aux_angle"][brow] += SWARM_ORBIT_SPEED * delta_time
+            elif bdef.motion == "teleport":         # Invocador
+                bv["aux_angle"][brow] += delta_time
+                if bv["aux_angle"][brow] >= SUMMONER_TELEPORT_CD:
+                    bv["aux_angle"][brow] -= SUMMONER_TELEPORT_CD
+                    # posição determinística por hash do contador (waypoint.seg)
+                    wrow = None
+                    if world.get_pool("waypoint").is_attached(bi):
+                        wp = world.get_pool("waypoint")
+                        wrow = wp.dense_row_of(bi)
+                        wp.active_view()["seg"][wrow] += 1
+                        seed = int(wp.active_view()["seg"][wrow])
+                    else:
+                        seed = int(bv["hp"][brow])
+                    trow = self._transform.dense_row_of(bi)
+                    tv["position_x"][trow] = 120.0 + ((seed * 2654435761) % 997) / 997.0 * (SCREEN_W - 240.0)
+                    tv["position_y"][trow] = 60.0 + ((seed * 40503 + 7) % 499) / 499.0 * 150.0
 
         n = self._part.count
         if n == 0:
@@ -791,6 +809,7 @@ class EmitterSystem(ISystem):
         self._sprite = memory_manager.get_pool("sprite")
         self._eb = memory_manager.get_pool("enemy_bullet")
         self._laser = memory_manager.get_pool("laser")
+        self._minion = memory_manager.get_pool("minion")
         self._player = memory_manager.get_pool("player")
         self._boss = memory_manager.get_pool("boss")
         self._clock = memory_manager.get_pool("clock")
@@ -882,6 +901,31 @@ class EmitterSystem(ISystem):
                 eb = self._eb.active_view()
                 eb["tether"][self._eb.dense_row_of(p1 & 0xFFFFFFFF)] = np.uint64(p2)
                 eb["tether"][self._eb.dense_row_of(p2 & 0xFFFFFFFF)] = np.uint64(p1)
+        elif pat.emit == "summon":                  # Invocador: lacaio
+            for _ in range(pat.count):
+                if self._minion.count >= self._minion.capacity - 1:
+                    return
+                packed = world.create_entity("minion")
+                idx = packed & 0xFFFFFFFF
+                trow = self._transform.dense_row_of(idx)
+                tv2 = self._transform.active_view()
+                tv2["position_x"][trow] = ox
+                tv2["position_y"][trow] = oy + 30.0
+                tv2["scale_x"][trow] = tv2["scale_y"][trow] = MINION_RADIUS / 4.0
+                vrow = self._velocity.dense_row_of(idx)
+                vv2 = self._velocity.active_view()
+                vv2["linear_x"][vrow] = 0.0
+                vv2["linear_y"][vrow] = pat.speed
+                srow = self._sprite.dense_row_of(idx)
+                sv = self._sprite.active_view()
+                sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 255, 120, 60
+                sv["tint_a"][srow] = 255
+                sv["layer_z"][srow] = 12
+                mrow = self._minion.dense_row_of(idx)
+                mv = self._minion.active_view()
+                mv["self"][mrow] = np.uint64(packed)
+                mv["hp"][mrow] = pat.hp
+                mv["speed"][mrow] = pat.speed
         elif pat.emit == "laser":
             seed = int(ev["shot_count"][k])
             ev["shot_count"][k] += 1
@@ -1771,6 +1815,123 @@ class ChakramSystem(ISystem):
                 if d < CHAKRAM_CATCH_R:
                     crow = self._pb_core.dense_row_of(eidx)
                     world.destroy_entity(int(cv["self"][crow]))
+
+
+# ===========================================================================
+class MinionAISystem(ISystem):
+    """Lacaios kamikaze: perseguem o jogador (velocity ajustada por frame;
+    a integração fica com o ScaledMovementSystem, escala `world`)."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._minion = memory_manager.get_pool("minion")
+        self._transform = memory_manager.get_pool("transform")
+        self._velocity = memory_manager.get_pool("velocity")
+        self._player = memory_manager.get_pool("player")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._minion.count
+        if n == 0:
+            return
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow < 0:
+            return
+        tv = self._transform.active_view()
+        px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+        mv = self._minion.active_view()
+        idxs = self._minion.active_entity_indices()
+        trows = self._transform.dense_rows_of(idxs)
+        vrows = self._velocity.dense_rows_of(idxs)
+        dx = px - tv["position_x"][trows]
+        dy = py - tv["position_y"][trows]
+        d = np.sqrt(dx * dx + dy * dy) + 1e-6
+        vv = self._velocity.active_view()
+        vv["linear_x"][vrows] = dx / d * mv["speed"]
+        vv["linear_y"][vrows] = dy / d * mv["speed"]
+
+
+# ===========================================================================
+class MinionCombatSystem(ISystem):
+    """Balas do jogador × lacaios (impacto consome; PLASMA aplica DPS sem
+    consumir) e contato lacaio × jogador (kamikaze: explode no toque)."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._minion = memory_manager.get_pool("minion")
+        self._transform = memory_manager.get_pool("transform")
+        self._player = memory_manager.get_pool("player")
+        self._pb_core = memory_manager.get_pool("pb_core")
+        self._pb_dot = memory_manager.get_pool("pb_dot")
+        self._pb_pierce = memory_manager.get_pool("pb_pierce")
+        self._mods = memory_manager.get_pool("run_mods")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._minion.count
+        if n == 0:
+            return
+        tv = self._transform.active_view()
+        mv = self._minion.active_view()
+        m_idxs = self._minion.active_entity_indices()
+        m_trows = self._transform.dense_rows_of(m_idxs)
+
+        # balas do jogador × lacaios
+        if self._pb_core.count:
+            pb_idx = self._pb_core.active_entity_indices()
+            pb_trows = self._transform.dense_rows_of(pb_idx)
+            bxs = tv["position_x"][pb_trows]
+            bys = tv["position_y"][pb_trows]
+            cv = self._pb_core.active_view()
+            drows = self._pb_dot.dense_rows_of(pb_idx)
+            is_dot = drows != -1
+            prows = self._pb_pierce.dense_rows_of(pb_idx)
+            is_pierce = prows != -1
+            for k in range(n):                      # ≤64 lacaios
+                mx = float(tv["position_x"][m_trows[k]])
+                my = float(tv["position_y"][m_trows[k]])
+                inside = ((bxs >= mx - MINION_RADIUS) & (bxs <= mx + MINION_RADIUS) &
+                          (bys >= my - MINION_RADIUS) & (bys <= my + MINION_RADIUS))
+                if not inside.any():
+                    continue
+                dot_in = inside & is_dot
+                if dot_in.any():
+                    dv = self._pb_dot.active_view()
+                    mv["hp"][k] -= float(np.sum(dv["dps"][drows[dot_in]])) * delta_time
+                impact = inside & ~is_dot & ~is_pierce
+                if impact.any():
+                    mv["hp"][k] -= float(np.sum(cv["damage"][impact]))
+                    for h in cv["self"][impact]:
+                        world.destroy_entity(int(h))
+                pierce_in = inside & is_pierce
+                if pierce_in.any():
+                    pv = self._pb_pierce.active_view()
+                    ready = pv["t"][prows[pierce_in]] <= 0.0
+                    sel = np.where(pierce_in)[0][ready]
+                    mv["hp"][k] -= float(np.sum(cv["damage"][sel]))
+                    pv["t"][prows[sel]] = pv["cd"][prows[sel]]
+                if mv["hp"][k] <= 0.0:
+                    world.destroy_entity(int(mv["self"][k]))
+
+        # contato kamikaze × jogador
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow < 0:
+            return
+        px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+        dx = tv["position_x"][m_trows] - px
+        dy = tv["position_y"][m_trows] - py
+        hit = dx * dx + dy * dy <= (MINION_RADIUS + PLAYER_HIT_R) ** 2
+        if hit.any():
+            for h in mv["self"][hit]:               # kamikaze explode
+                world.destroy_entity(int(h))
+            prow = self._player.dense_row_of(i)
+            pv = self._player.active_view()
+            if pv["invuln_t"][prow] <= 0.0:
+                if pv["shield_up"][prow]:
+                    pv["shield_up"][prow] = 0
+                    pv["invuln_t"][prow] = 0.5
+                else:
+                    pv["invuln_t"][prow] = PLAYER_INVULN
+                    pv["lives"][prow] -= 1
+                    if pv["lives"][prow] < 0:
+                        pv["lives"][prow] = \
+                            0 if self._mods.active_view()["glass"][0] else 3
 
 
 # ===========================================================================
