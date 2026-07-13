@@ -23,11 +23,15 @@ CONTACT_ALWAYS, CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER = 0, 1, 2, 3
 BEH_NONE, BEH_STOPGO, BEH_BOOMERANG, BEH_SLEEPER = 0, 1, 2, 3
 
 PLAYER_DTYPE = np.dtype([
-    ("lives",     np.int8),
-    ("invuln_t",  np.float32),
-    ("fire_cd",   np.float32),
-    ("weapon_id", np.uint32),    # sid do nome em weapons.json (já com "+")
-    ("graze",     np.uint32),
+    ("lives",      np.int8),
+    ("invuln_t",   np.float32),
+    ("fire_cd",    np.float32),
+    ("weapon_id",  np.uint32),   # sid do nome em weapons.json (já com "+")
+    ("graze",      np.uint32),
+    ("charge_t",   np.float32),  # CARREGADO: tempo de carga acumulado
+    ("burst_left", np.int8),     # BURST: tiros restantes da rajada
+    ("burst_t",    np.float32),  # BURST: intervalo até o próximo tiro
+    ("aux_cd",     np.float32),  # SATÉLITE+: CD do interceptor
 ])
 
 BOSS_DTYPE = np.dtype([
@@ -91,6 +95,27 @@ PB_LIFE_DTYPE   = np.dtype([("t", np.float32)])
 PB_HOMING_DTYPE = np.dtype([
     ("turn", np.float32), ("vmax", np.float32), ("t", np.float32),
 ])
+PB_FUSE_DTYPE = np.dtype([          # FLAK: detona em t → estilhaços
+    ("t", np.float32), ("frozen", np.uint8),
+])
+# ChakramMotion.state
+CHAKRAM_OUT, CHAKRAM_RETURN, CHAKRAM_FROZEN = 0, 1, 2
+PB_CHAKRAM_DTYPE = np.dtype([
+    ("state", np.uint8), ("dps", np.float32),
+])
+PB_DELAY_DTYPE = np.dtype([         # BURST+: arma após t, dispara a vmax
+    ("t", np.float32), ("vmax", np.float32),
+    ("ax", np.float32), ("ay", np.float32),
+])
+# pb_orbit.kind
+ORBIT_GEM, ORBIT_HELD = 0, 1        # SATÉLITE gema / TELEGUIADO+ em espera
+PB_ORBIT_DTYPE = np.dtype([
+    ("kind", np.uint8), ("angle", np.float32),
+    ("radius", np.float32), ("ang_speed", np.float32),
+])
+PB_SHRAP_DTYPE = np.dtype([         # CARREGADO+: estilhaços no impacto
+    ("n", np.uint8), ("speed", np.float32), ("dmg", np.float32),
+])
 
 GAME_SCHEMAS: Dict[str, np.dtype] = {
     "player":       PLAYER_DTYPE,
@@ -105,6 +130,11 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "pb_dot":       PB_DOT_DTYPE,
     "pb_life":      PB_LIFE_DTYPE,
     "pb_homing":    PB_HOMING_DTYPE,
+    "pb_fuse":      PB_FUSE_DTYPE,
+    "pb_chakram":   PB_CHAKRAM_DTYPE,
+    "pb_delay":     PB_DELAY_DTYPE,
+    "pb_orbit":     PB_ORBIT_DTYPE,
+    "pb_shrap":     PB_SHRAP_DTYPE,
 }
 
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
@@ -113,6 +143,8 @@ GAME_POOL_CAPACITY: Dict[str, int] = {
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,
+    "pb_fuse": 256, "pb_chakram": 256, "pb_delay": 256, "pb_orbit": 256,
+    "pb_shrap": 256,
 }
 
 # Paleta placeholder (color_id do arquétipo → tint RGB do sprite)

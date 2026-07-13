@@ -16,17 +16,28 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False) -> di
     eb = world.get_pool("enemy_bullet")
     pb = world.get_pool("pb_core")
     bp = world.get_pool("boss")
+    pl = world.get_pool("player")
+    tp = world.get_pool("transform")
 
-    inp.set_action_held("fire", True)
     max_eb = 0
     hp0 = float(bp.active_view()["hp"][0])
     for f in range(frames):
-        # fase 1: alinhar com a rota do boss (x 160..480); depois oscilar
-        inp.set_action_held("move_left", f < 90 or (f >= 90 and (f // 30) % 2 == 0))
-        inp.set_action_held("move_right", f >= 90 and (f // 30) % 2 == 1)
-        # plasma: alcance de 120px exige aproximar por baixo do boss
-        # (diagonal normalizada ⇒ 155px/s de subida; 150 frames ⇒ y≈200)
-        inp.set_action_held("move_up", approach and 90 <= f < 240)
+        # fire com pulsos de release (charged/flak+/swarm dependem do edge);
+        # período 300 = CD 1.5s + carga cheia 2.5s do CARREGADO (frac 1.0)
+        inp.set_action_held("fire", (f % 300) < 288)
+        # mira: rastreia o x do boss como um jogador faria
+        tv = tp.active_view()
+        brow = tp.dense_row_of(int(bp.active_entity_indices()[0]))
+        prow = tp.dense_row_of(int(pl.active_entity_indices()[0]))
+        bx = float(tv["position_x"][brow])
+        px = float(tv["position_x"][prow])
+        py = float(tv["position_y"][prow])
+        inp.set_action_held("move_right", px < bx - 6.0)
+        inp.set_action_held("move_left", px > bx + 6.0)
+        # armas curto-alcance ou de tiro lento (plasma/spread+/chakram/
+        # satélite/carregado): aproximar reduz o tempo de voo e o erro
+        # de antecipação do driver
+        inp.set_action_held("move_up", approach and py > 205.0)
         inp.poll()
         world.step(DT)
         max_eb = max(max_eb, eb.count)
@@ -44,9 +55,17 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False) -> di
 if __name__ == "__main__":
     ok = True
     for boss, weapon, approach in [
-            ("classic", "padrao", False), ("classic", "spread", False),
-            ("classic", "agulha+", False), ("classic", "plasma", True),
-            ("classic", "teleguiado", False), ("timemage", "padrao", False)]:
+            ("classic", "padrao", False), ("classic", "padrao+", False),
+            ("classic", "spread", False), ("classic", "spread+", True),
+            ("classic", "agulha", False), ("classic", "agulha+", False),
+            ("classic", "teleguiado", False), ("classic", "teleguiado+", False),
+            ("classic", "plasma", True),
+            ("classic", "carregado", True), ("classic", "carregado+", True),
+            ("classic", "burst", False), ("classic", "burst+", False),
+            ("classic", "flak", False), ("classic", "flak+", False),
+            ("classic", "chakram", True), ("classic", "chakram+", True),
+            ("classic", "satelite", True), ("classic", "satelite+", True),
+            ("timemage", "padrao", False)]:
         r = run(boss, weapon, approach=approach)
         spawned = r["enemy_bullets_peak"] > 0
         damaged = r["boss_damage"] > 0

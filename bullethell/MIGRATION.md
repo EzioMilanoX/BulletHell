@@ -81,21 +81,28 @@ de colisão podem destruir à vontade sem invalidar linhas densas do frame.
 
 ## 6. Paridade com o legado — checklist
 
-Portado nesta fase:
-- [x] 5 armas: padrão(+ricochete), spread(+alcance), agulha(+pierce),
-      teleguiado (homing), plasma (DoT sem consumo — o fix do bug do legado)
+Portado (fases 1–2):
+- [x] **10/10 armas com as 10 variantes +**:
+      padrão(+ricochete), spread(+ponto-cego 150px), agulha(+pierce CD 0.25),
+      teleguiado(+enxame orbital), plasma(DoT sem consumo — o fix do legado),
+      carregado(+estilhaços com carga ≥85%), burst(+minas de atraso 80→800),
+      flak(+detonador manual), chakram(+congelador 8 DPS),
+      satélite(+interceptor a 250px)
+- [x] Sistemas dedicados: FuseSystem, ChakramSystem, OrbitSystem,
+      PlayerBulletDelaySystem, AutoLaunchSystem (dispatch `special` no
+      WeaponFireSystem: charged/burst/orbit/swarm)
 - [x] Padrões: arc, ring (vão rotativo), spiral, rain (gaps), stream (pillar)
 - [x] Arquétipos de bala: normal, yin/yang, homing, phaser, spinner,
       gravity well, ricochete, stop&go, boomerang, sleeper
 - [x] Bosses classic/timemage/wall/swarm/twins nos dados; classic e
       timemage jogáveis (fases trocando emitters)
 - [x] Graze, vidas/invuln, reset de run
+- [x] Smoke headless 20/20: cada arma e variante causando dano
 
-Fase 2 (mecânica exige sistema dedicado — marcadas `special` em weapons.json):
-- [ ] Armas: carregado, burst, flak (fuse), chakram, satélite (orbit)
+Fase 3:
 - [ ] Emissões `laser` (entidades LaserBeam) e `pair` (tether)
 - [ ] Bosses multi-parte (Swarm 3 unidades, Wall canhões) — `BossPart.root`
-- [ ] Habilidades (dash/parry/focus/emp/...) e Skill+/Weapon+ restantes
+- [ ] Habilidades (dash/parry/focus/emp/...) e Skill+
 - [ ] Mutadores, fragmentação ABISSAL, hazards, partículas, HUD/menus
 - [ ] Save/conquistas (SaveManager fora do World, I/O só em menu)
 

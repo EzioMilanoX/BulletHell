@@ -17,9 +17,14 @@
                 "pools": { "pb_pierce": { "cd": 0.25, "t": 0.0 } } } },
 
     { "name": "teleguiado",
+      "_doc": "5 mísseis em cone que curvam ao boss. TELEGUIADO+ (enxame orbital): segurar acumula mísseis orbitando; soltar lança todos.",
       "fire_rate": 0.30, "damage": 0.2, "speed": 290.0, "size": 3.5,
       "shots": 5, "arc": 1.326,
-      "pools": { "pb_homing": { "turn": 260.0, "vmax": 370.0, "t": 2.8 } } },
+      "pools": { "pb_homing": { "turn": 260.0, "vmax": 370.0, "t": 2.8 } },
+      "plus": { "special": "swarm", "fire_rate": 0.45, "shots": 1,
+                "pools": { "pb_homing": { "turn": 260.0, "vmax": 370.0, "t": 0.0 },
+                           "pb_orbit": { "kind": 1, "angle": 0.0,
+                                         "radius": 50.0, "ang_speed": 3.5 } } } },
 
     { "name": "plasma",
       "_doc": "Stream de bolts lentos; 10 DPS por sobreposição; nunca consumida pela colisão; alcance 100×1.2 = 120px.",
@@ -27,23 +32,40 @@
       "pools": { "pb_dot": { "dps": 10.0 }, "pb_life": { "t": 1.2 } } },
 
     { "name": "carregado",
+      "_doc": "Segurar carrega (0→2.5s ⇒ dano 2→8, tam 5→14); soltar dispara; CD 1.5s. CARREGADO+ com carga ≥85%: estilhaços no impacto.",
       "fire_rate": 1.5, "damage": 2.0, "speed": 500.0, "size": 5.0,
-      "special": "charged" },
+      "special": "charged",
+      "plus": { "special": "charged",
+                "pools": { "pb_shrap": { "n": 0, "speed": 320.0, "dmg": 0.5 } } } },
 
     { "name": "burst",
+      "_doc": "3 tiros com 0.05s de intervalo, CD 0.45s. BURST+ (minas de atraso): saem a 80px/s e armam para 800px/s após 0.60s.",
       "fire_rate": 0.45, "damage": 1.0, "speed": 500.0, "size": 4.0,
-      "shots": 3, "special": "burst" },
+      "shots": 3, "special": "burst",
+      "plus": { "special": "burst", "speed": 80.0,
+                "pools": { "pb_delay": { "t": 0.60, "vmax": 800.0,
+                                          "ax": 0.0, "ay": -1.0 } } } },
 
     { "name": "flak",
+      "_doc": "Projétil lento com fusível 0.40s → 5 estilhaços (40°, 400px/s, 0.4 dano). FLAK+ (detonador): fire seguro congela o fusível; soltar detona tudo.",
       "fire_rate": 0.50, "damage": 0.0, "speed": 200.0, "size": 6.0,
-      "special": "fuse" },
+      "pools": { "pb_fuse": { "t": 0.40, "frozen": 0 } },
+      "plus": { "pools": {} } },
 
     { "name": "chakram",
+      "_doc": "Disco: drag 1600 desacelera, inverte e retorna (captura a 22px). Dano na ida/volta via pierce (CD 0.4s). CHAKRAM+ (congelador): fire seguro no ápice congela aplicando 8 DPS.",
       "fire_rate": 0.70, "damage": 2.0, "speed": 580.0, "size": 7.0,
-      "special": "chakram" },
+      "pools": { "pb_chakram": { "state": 0, "dps": 8.0 },
+                 "pb_pierce": { "cd": 0.4, "t": 0.0 } },
+      "plus": { "pools": {} } },
 
     { "name": "satelite",
+      "_doc": "Até 4 gemas orbitando (r=44, 4rad/s); dano por toque via pierce (CD 0.5s). SATÉLITE+ (interceptor): boss ≤250px lança a gema mais próxima como míssil (CD 2.5s).",
       "fire_rate": 0.35, "damage": 0.6, "speed": 0.0, "size": 5.0,
-      "special": "orbit" }
+      "special": "orbit",
+      "pools": { "pb_orbit": { "kind": 0, "angle": 0.0, "radius": 44.0,
+                               "ang_speed": 4.0 },
+                 "pb_pierce": { "cd": 0.5, "t": 0.0 } },
+      "plus": { "special": "orbit" } }
   ]
 }

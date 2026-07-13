@@ -57,8 +57,13 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.WaypointSystem(mm, data))
     world.register_system(gs.EmitterSystem(mm, data))
     world.register_system(PhysicsSystem(mm))               # engine: Transform += Velocity*dt
+    world.register_system(gs.OrbitSystem(mm))              # pós-física: sobrescreve Transform
     world.register_system(gs.EnemyBulletBehaviorSystem(mm))
     world.register_system(gs.PlayerBulletHomingSystem(mm))
+    world.register_system(gs.PlayerBulletDelaySystem(mm))  # BURST+
+    world.register_system(gs.FuseSystem(mm, input_provider, data))      # FLAK
+    world.register_system(gs.ChakramSystem(mm, input_provider, data))   # CHAKRAM
+    world.register_system(gs.AutoLaunchSystem(mm, data))   # SATÉLITE+
     world.register_system(gs.MaintenanceSystem(mm))
     world.register_system(gs.PlayerHitSystem(mm))
     world.register_system(gs.PlayerBulletVsBossSystem(mm))

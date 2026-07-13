@@ -24,8 +24,9 @@ from bullethell.ids import sid
 from bullethell.loaders import GameData, PatternDef
 from bullethell.schemas import (
     BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
+    CHAKRAM_FROZEN, CHAKRAM_OUT, CHAKRAM_RETURN,
     CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
-    PALETTE, SCREEN_H, SCREEN_W,
+    ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
 )
 
 if TYPE_CHECKING:
@@ -38,8 +39,53 @@ PLAYER_GRAZE_R = 26.0
 PLAYER_INVULN = 1.5
 CULL_MARGIN = 24.0
 
-# Armas selecionáveis pelas teclas 1..5 (as 5 "special" virão na fase 2)
-WEAPON_KEYS = ("padrao", "spread", "agulha", "teleguiado", "plasma")
+# constantes das armas special (legado)
+CHARGED_MAX_T = 2.5
+CHARGED_MIN_DMG, CHARGED_MAX_DMG = 2.0, 8.0
+CHARGED_MIN_SZ, CHARGED_MAX_SZ = 5.0, 14.0
+CHARGED_PLUS_FRAC = 0.85
+BURST_INTERVAL = 0.05
+FLAK_SHRAP_N, FLAK_SHRAP_SPD, FLAK_SHRAP_DMG = 5, 400.0, 0.4
+FLAK_SHRAP_ARC = 0.698                       # 40°
+CHAKRAM_DRAG, CHAKRAM_CATCH_R = 1600.0, 22.0
+ORBIT_MAX_GEMS, SWARM_MAX_HELD = 4, 8
+INTERCEPT_RANGE, INTERCEPT_CD = 250.0, 2.5
+
+# Armas selecionáveis pelas teclas 1..0
+WEAPON_KEYS = ("padrao", "spread", "agulha", "teleguiado", "plasma",
+               "carregado", "burst", "flak", "chakram", "satelite")
+
+
+def spawn_player_bullet(world: "World", mm: MemoryManager, arch_name: str,
+                        x: float, y: float, vx: float, vy: float,
+                        damage: float, size: float,
+                        color=(120, 220, 255)) -> int:
+    """Spawna uma bala do jogador e escreve os campos base (transform,
+    velocity, sprite, pb_core). Retorna o PackedEntityId ou -1 (pool cheio)."""
+    pb_core = mm.get_pool("pb_core")
+    if pb_core.count >= pb_core.capacity:
+        return -1
+    packed = world.create_entity(arch_name)
+    idx = packed & 0xFFFFFFFF
+    t = mm.get_pool("transform")
+    row = t.dense_row_of(idx); tv = t.active_view()
+    tv["position_x"][row] = x
+    tv["position_y"][row] = y
+    tv["scale_x"][row] = tv["scale_y"][row] = size / 4.0
+    v = mm.get_pool("velocity")
+    row = v.dense_row_of(idx); vv = v.active_view()
+    vv["linear_x"][row] = vx
+    vv["linear_y"][row] = vy
+    s = mm.get_pool("sprite")
+    row = s.dense_row_of(idx); sv = s.active_view()
+    sv["tint_r"][row], sv["tint_g"][row], sv["tint_b"][row] = color
+    sv["tint_a"][row] = 255
+    sv["layer_z"][row] = 5
+    row = pb_core.dense_row_of(idx); cv = pb_core.active_view()
+    cv["self"][row] = np.uint64(packed)
+    cv["damage"][row] = damage
+    cv["radius"][row] = size
+    return packed
 
 
 # ---------------------------------------------------------------------------
@@ -91,8 +137,9 @@ class PlayerControlSystem(ISystem):
 # ===========================================================================
 class WeaponFireSystem(ISystem):
     """Cadência + spawn de balas-entidade conforme weapons.json.
-    A composição registra 1 arquétipo por arma ("pb_<nome>") com as pools
-    da receita; aqui só se escolhe o arquétipo e se escrevem os valores."""
+    Armas data-driven puras (padrão/spread/agulha/teleguiado/plasma/flak/
+    chakram) usam o caminho padrão; `special` despacha para os quatro
+    estados que precisam de máquina própria: charged, burst, orbit, swarm."""
 
     def __init__(self, memory_manager: MemoryManager, input_provider: IInputProvider,
                  data: GameData) -> None:
@@ -101,9 +148,9 @@ class WeaponFireSystem(ISystem):
         self._mm = memory_manager
         self._player = memory_manager.get_pool("player")
         self._transform = memory_manager.get_pool("transform")
-        self._velocity = memory_manager.get_pool("velocity")
-        self._sprite = memory_manager.get_pool("sprite")
         self._pb_core = memory_manager.get_pool("pb_core")
+        self._pb_orbit = memory_manager.get_pool("pb_orbit")
+        self._pb_shrap = memory_manager.get_pool("pb_shrap")
 
     def update(self, world: "World", delta_time: float) -> None:
         i, trow = _player_row(self._player, self._transform)
@@ -112,10 +159,12 @@ class WeaponFireSystem(ISystem):
         prow = self._player.dense_row_of(i)
         pv = self._player.active_view()
 
-        # troca de arma (teclas 1..5) e toggle da variante + (tecla P)
+        # troca de arma (teclas 1..0) e toggle da variante + (tecla P)
         for slot, wname in enumerate(WEAPON_KEYS):
             if self._input.is_action_pressed(f"weapon_{slot + 1}"):
                 pv["weapon_id"][prow] = sid(wname)
+                pv["charge_t"][prow] = 0.0
+                pv["burst_left"][prow] = 0
         if self._input.is_action_pressed("toggle_plus"):
             cur = self._data.weapons.get(int(pv["weapon_id"][prow]))
             if cur is not None:
@@ -124,48 +173,130 @@ class WeaponFireSystem(ISystem):
                     pv["weapon_id"][prow] = sid(target)
 
         wd = self._data.weapons.get(int(pv["weapon_id"][prow]))
-        if wd is None or wd.special:
-            return                                  # armas "special": fase 2
-        if not self._input.is_action_held("fire") or pv["fire_cd"][prow] > 0.0:
+        if wd is None:
             return
-        if self._pb_core.count + wd.shots >= self._pb_core.capacity:
-            return                                  # pool de balas cheio
-        pv["fire_cd"][prow] = wd.fire_rate
-
         tv = self._transform.active_view()
         px = float(tv["position_x"][trow])
         py = float(tv["position_y"][trow])
-        base = -math.pi / 2
-        n = wd.shots
-        for k in range(n):
-            th = base if n == 1 else base - wd.arc / 2 + wd.arc * k / (n - 1)
-            packed = world.create_entity("pb_" + wd.name)
-            idx = packed & 0xFFFFFFFF
-            row_t = self._transform.dense_row_of(idx)
-            tv2 = self._transform.active_view()
-            tv2["position_x"][row_t] = px
-            tv2["position_y"][row_t] = py
-            tv2["scale_x"][row_t] = tv2["scale_y"][row_t] = wd.size / 4.0
-            row_v = self._velocity.dense_row_of(idx)
-            vv = self._velocity.active_view()
-            vv["linear_x"][row_v] = math.cos(th) * wd.speed
-            vv["linear_y"][row_v] = math.sin(th) * wd.speed
-            row_s = self._sprite.dense_row_of(idx)
-            sv = self._sprite.active_view()
-            sv["tint_r"][row_s], sv["tint_g"][row_s], sv["tint_b"][row_s] = 120, 220, 255
-            sv["tint_a"][row_s] = 255
-            sv["layer_z"][row_s] = 5
-            row_c = self._pb_core.dense_row_of(idx)
+        held = self._input.is_action_held("fire")
+        released = self._input.is_action_released("fire")
+
+        if wd.special == "charged":
+            self._charged(world, wd, pv, prow, px, py, held, released, delta_time)
+        elif wd.special == "burst":
+            self._burst(world, wd, pv, prow, px, py, held, delta_time)
+        elif wd.special == "orbit":
+            self._orbit(world, wd, pv, prow, px, py, held)
+        elif wd.special == "swarm":
+            self._swarm(world, wd, pv, prow, px, py, held, released)
+        elif held and pv["fire_cd"][prow] <= 0.0:
+            pv["fire_cd"][prow] = wd.fire_rate
+            n = wd.shots
+            base = -math.pi / 2
+            for k in range(n):
+                th = base if n == 1 else base - wd.arc / 2 + wd.arc * k / (n - 1)
+                self._fire_one(world, wd, px, py, th)
+
+    # -- helpers --------------------------------------------------------------
+
+    def _fire_one(self, world, wd, px, py, theta, damage=None, size=None,
+                  speed=None, arch=None) -> int:
+        spd = wd.speed if speed is None else speed
+        packed = spawn_player_bullet(
+            world, self._mm, arch or ("pb_" + wd.name), px, py,
+            math.cos(theta) * spd, math.sin(theta) * spd,
+            wd.damage if damage is None else damage,
+            wd.size if size is None else size)
+        if packed >= 0:
+            self._write_recipe(packed & 0xFFFFFFFF, wd)
+        return packed
+
+    def _write_recipe(self, idx: int, wd) -> None:
+        for pool_name, fields in wd.init:
+            pool = self._mm.get_pool(pool_name)
+            row = pool.dense_row_of(idx)
+            view = pool.active_view()
+            for fname, fval in fields:
+                view[fname][row] = fval
+
+    # -- specials -------------------------------------------------------------
+
+    def _charged(self, world, wd, pv, prow, px, py, held, released, dt) -> None:
+        if pv["fire_cd"][prow] > 0.0:
+            return
+        if held:
+            pv["charge_t"][prow] = min(float(pv["charge_t"][prow]) + dt, CHARGED_MAX_T)
+            return
+        if released and pv["charge_t"][prow] > 0.0:
+            frac = float(pv["charge_t"][prow]) / CHARGED_MAX_T
+            dmg = CHARGED_MIN_DMG + (CHARGED_MAX_DMG - CHARGED_MIN_DMG) * frac
+            size = CHARGED_MIN_SZ + (CHARGED_MAX_SZ - CHARGED_MIN_SZ) * frac
+            packed = self._fire_one(world, wd, px, py, -math.pi / 2,
+                                    damage=dmg, size=size)
+            # CARREGADO+: estilhaços só com carga quase cheia (≥85%)
+            if packed >= 0 and wd.name.endswith("+"):
+                row = self._pb_shrap.dense_row_of(packed & 0xFFFFFFFF)
+                if row != -1:
+                    self._pb_shrap.active_view()["n"][row] = \
+                        6 if frac >= CHARGED_PLUS_FRAC else 0
+            pv["charge_t"][prow] = 0.0
+            pv["fire_cd"][prow] = wd.fire_rate
+
+    def _burst(self, world, wd, pv, prow, px, py, held, dt) -> None:
+        if pv["burst_left"][prow] > 0:               # meio da rajada
+            pv["burst_t"][prow] -= dt
+            if pv["burst_t"][prow] <= 0.0:
+                pv["burst_t"][prow] = BURST_INTERVAL
+                pv["burst_left"][prow] -= 1
+                self._fire_one(world, wd, px, py, -math.pi / 2)
+            return
+        if held and pv["fire_cd"][prow] <= 0.0:
+            pv["fire_cd"][prow] = wd.fire_rate
+            pv["burst_left"][prow] = wd.shots - 1
+            pv["burst_t"][prow] = BURST_INTERVAL
+            self._fire_one(world, wd, px, py, -math.pi / 2)
+
+    def _orbit(self, world, wd, pv, prow, px, py, held) -> None:
+        if not held or pv["fire_cd"][prow] > 0.0:
+            return
+        ov = self._pb_orbit.active_view()
+        gems = int(np.sum(ov["kind"] == ORBIT_GEM))
+        if gems >= ORBIT_MAX_GEMS:
+            return
+        pv["fire_cd"][prow] = wd.fire_rate
+        packed = self._fire_one(world, wd, px, py, -math.pi / 2, speed=0.0)
+        if packed >= 0:                              # espalha as gemas
+            row = self._pb_orbit.dense_row_of(packed & 0xFFFFFFFF)
+            self._pb_orbit.active_view()["angle"][row] = gems * (TWO_PI / ORBIT_MAX_GEMS)
+
+    def _swarm(self, world, wd, pv, prow, px, py, held, released) -> None:
+        """TELEGUIADO+: segurar acumula mísseis orbitando; soltar lança
+        todos como mísseis homing da arma base."""
+        if held and pv["fire_cd"][prow] <= 0.0:
+            ov = self._pb_orbit.active_view()
+            n_held = int(np.sum(ov["kind"] == ORBIT_HELD))
+            if n_held < SWARM_MAX_HELD:
+                pv["fire_cd"][prow] = wd.fire_rate
+                packed = self._fire_one(world, wd, px, py, -math.pi / 2, speed=0.0)
+                if packed >= 0:
+                    row = self._pb_orbit.dense_row_of(packed & 0xFFFFFFFF)
+                    self._pb_orbit.active_view()["angle"][row] = \
+                        n_held * (TWO_PI / SWARM_MAX_HELD)
+        if released:
+            base = self._data.weapons.get(sid("teleguiado"))
+            ov = self._pb_orbit.active_view()
+            idxs = self._pb_orbit.active_entity_indices()
+            tv = self._transform.active_view()
             cv = self._pb_core.active_view()
-            cv["self"][row_c] = np.uint64(packed)
-            cv["damage"][row_c] = wd.damage
-            cv["radius"][row_c] = wd.size
-            for pool_name, fields in wd.init:      # pools extras da receita
-                pool = self._mm.get_pool(pool_name)
-                row = pool.dense_row_of(idx)
-                view = pool.active_view()
-                for fname, fval in fields:
-                    view[fname][row] = fval
+            for k in range(self._pb_orbit.count):    # snapshot: novos mísseis
+                if ov["kind"][k] != ORBIT_HELD:      # não têm pb_orbit
+                    continue
+                eidx = int(idxs[k])
+                trow = self._transform.dense_row_of(eidx)
+                x = float(tv["position_x"][trow]); y = float(tv["position_y"][trow])
+                crow = self._pb_core.dense_row_of(eidx)
+                world.destroy_entity(int(cv["self"][crow]))
+                self._fire_one(world, base, x, y, -math.pi / 2)
 
 
 # ===========================================================================
@@ -657,9 +788,11 @@ class PlayerBulletVsBossSystem(ISystem):
     (a regra que corrigiu o bug do plasma no legado)."""
 
     def __init__(self, memory_manager: MemoryManager) -> None:
+        self._mm = memory_manager
         self._pb_core = memory_manager.get_pool("pb_core")
         self._pb_pierce = memory_manager.get_pool("pb_pierce")
         self._pb_dot = memory_manager.get_pool("pb_dot")
+        self._pb_shrap = memory_manager.get_pool("pb_shrap")
         self._transform = memory_manager.get_pool("transform")
         self._hitbox = memory_manager.get_pool("hitbox")
         self._boss = memory_manager.get_pool("boss")
@@ -713,12 +846,26 @@ class PlayerBulletVsBossSystem(ISystem):
                     rows_sel = np.where(pierce_ready)[0][ready]
                     bv["hp"][brow] -= float(np.sum(cv["damage"][rows_sel]))
                     pv["t"][prows[rows_sel]] = pv["cd"][prows[rows_sel]]
-                # bala normal: dano + destruição
+                # bala normal: dano + destruição (+ CARREGADO+ estilhaça)
                 normal = impact & ~is_pierce
                 if normal.any():
                     bv["hp"][brow] -= float(np.sum(cv["damage"][normal]))
-                    for h in cv["self"][normal]:
-                        world.destroy_entity(int(h))
+                    srows = self._pb_shrap.dense_rows_of(pb_idx)
+                    sv = self._pb_shrap.active_view() if self._pb_shrap.count else None
+                    for k in np.where(normal)[0]:
+                        srow = int(srows[k])
+                        if sv is not None and srow != -1 and int(sv["n"][srow]) > 0:
+                            sn = int(sv["n"][srow])
+                            for j in range(sn):
+                                th = j * (TWO_PI / sn)
+                                spawn_player_bullet(
+                                    world, self._mm, "pb_padrao",
+                                    float(bxs[k]), float(bys[k]),
+                                    math.cos(th) * float(sv["speed"][srow]),
+                                    math.sin(th) * float(sv["speed"][srow]),
+                                    float(sv["dmg"][srow]), 3.0,
+                                    color=(255, 200, 60))
+                        world.destroy_entity(int(cv["self"][k]))
 
 
 # ===========================================================================
@@ -762,3 +909,251 @@ class PlayerBulletHomingSystem(ISystem):
             f = hv["vmax"][act][over] / spd[over]
             vv["linear_x"][rows_over] *= f
             vv["linear_y"][rows_over] *= f
+
+
+# ===========================================================================
+class OrbitSystem(ISystem):
+    """SATÉLITE (gemas) e TELEGUIADO+ (mísseis em espera): Transform é
+    derivada do jogador — roda DEPOIS do PhysicsSystem e sobrescreve."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._pb_orbit = memory_manager.get_pool("pb_orbit")
+        self._transform = memory_manager.get_pool("transform")
+        self._player = memory_manager.get_pool("player")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._pb_orbit.count
+        if n == 0:
+            return
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow < 0:
+            return
+        tv = self._transform.active_view()
+        px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+        ov = self._pb_orbit.active_view()
+        ov["angle"] += ov["ang_speed"] * delta_time
+        idxs = self._pb_orbit.active_entity_indices()
+        trows = self._transform.dense_rows_of(idxs)
+        tv["position_x"][trows] = px + np.cos(ov["angle"]) * ov["radius"]
+        tv["position_y"][trows] = py + np.sin(ov["angle"]) * ov["radius"]
+
+
+# ===========================================================================
+class PlayerBulletDelaySystem(ISystem):
+    """BURST+ (minas de atraso): após armar (t≤0), dispara na direção
+    capturada a vmax. t vai a 1e9 para nunca rearmar."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._pb_delay = memory_manager.get_pool("pb_delay")
+        self._velocity = memory_manager.get_pool("velocity")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._pb_delay.count
+        if n == 0:
+            return
+        dv = self._pb_delay.active_view()
+        pending = dv["t"] < 1e8
+        if not pending.any():
+            return
+        dv["t"][pending] -= delta_time
+        fire = pending & (dv["t"] <= 0.0)
+        if fire.any():
+            idxs = self._pb_delay.active_entity_indices()
+            vrows = self._velocity.dense_rows_of(idxs)
+            vv = self._velocity.active_view()
+            vv["linear_x"][vrows[fire]] = dv["ax"][fire] * dv["vmax"][fire]
+            vv["linear_y"][vrows[fire]] = dv["ay"][fire] * dv["vmax"][fire]
+            dv["t"][fire] = 1e9
+
+
+# ===========================================================================
+class FuseSystem(ISystem):
+    """FLAK: fusível detona em estilhaços (5 × 0.4 dano, leque 40° para
+    cima, 400px/s). FLAK+ (detonador): fire seguro congela os fusíveis;
+    soltar zera todos (detonação simultânea)."""
+
+    def __init__(self, memory_manager: MemoryManager, input_provider: IInputProvider,
+                 data: GameData) -> None:
+        self._input = input_provider
+        self._data = data
+        self._mm = memory_manager
+        self._pb_fuse = memory_manager.get_pool("pb_fuse")
+        self._pb_core = memory_manager.get_pool("pb_core")
+        self._transform = memory_manager.get_pool("transform")
+        self._player = memory_manager.get_pool("player")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._pb_fuse.count
+        if n == 0:
+            return
+        fv = self._pb_fuse.active_view()
+        i, _ = _player_row(self._player, self._transform)
+        if i >= 0:
+            prow = self._player.dense_row_of(i)
+            wd = self._data.weapons.get(
+                int(self._player.active_view()["weapon_id"][prow]))
+            if wd is not None and wd.name == "flak+":
+                fv["frozen"][:] = 1 if self._input.is_action_held("fire") else 0
+                if self._input.is_action_released("fire"):
+                    fv["t"][:] = 0.0
+
+        ticking = fv["frozen"] == 0
+        fv["t"][ticking] -= delta_time
+        expired = fv["t"] <= 0.0
+        if not expired.any():
+            return
+        idxs = self._pb_fuse.active_entity_indices()
+        tv = self._transform.active_view()
+        cv = self._pb_core.active_view()
+        for k in np.where(expired)[0]:
+            eidx = int(idxs[k])
+            trow = self._transform.dense_row_of(eidx)
+            x = float(tv["position_x"][trow]); y = float(tv["position_y"][trow])
+            crow = self._pb_core.dense_row_of(eidx)
+            world.destroy_entity(int(cv["self"][crow]))
+            for j in range(FLAK_SHRAP_N):
+                th = -math.pi / 2 - FLAK_SHRAP_ARC / 2 + \
+                     FLAK_SHRAP_ARC * j / (FLAK_SHRAP_N - 1)
+                spawn_player_bullet(world, self._mm, "pb_padrao", x, y,
+                                    math.cos(th) * FLAK_SHRAP_SPD,
+                                    math.sin(th) * FLAK_SHRAP_SPD,
+                                    FLAK_SHRAP_DMG, 3.0, color=(255, 160, 40))
+
+
+# ===========================================================================
+class ChakramSystem(ISystem):
+    """CHAKRAM: drag desacelera; no ápice inverte e retorna ao jogador
+    (captura a 22px). CHAKRAM+ (congelador): fire seguro no ápice congela
+    o disco aplicando DPS ao boss; soltar retoma o retorno."""
+
+    def __init__(self, memory_manager: MemoryManager, input_provider: IInputProvider,
+                 data: GameData) -> None:
+        self._input = input_provider
+        self._data = data
+        self._pb_chakram = memory_manager.get_pool("pb_chakram")
+        self._pb_core = memory_manager.get_pool("pb_core")
+        self._transform = memory_manager.get_pool("transform")
+        self._velocity = memory_manager.get_pool("velocity")
+        self._player = memory_manager.get_pool("player")
+        self._boss = memory_manager.get_pool("boss")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._pb_chakram.count
+        if n == 0:
+            return
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow < 0:
+            return
+        tv = self._transform.active_view()
+        px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+        prow = self._player.dense_row_of(i)
+        wd = self._data.weapons.get(
+            int(self._player.active_view()["weapon_id"][prow]))
+        is_plus = wd is not None and wd.name == "chakram+"
+        held = self._input.is_action_held("fire")
+
+        kv = self._pb_chakram.active_view()
+        idxs = self._pb_chakram.active_entity_indices()
+        vv = self._velocity.active_view()
+        cv = self._pb_core.active_view()
+        for k in range(n):                          # ≤ poucos discos
+            eidx = int(idxs[k])
+            vrow = self._velocity.dense_row_of(eidx)
+            vx = float(vv["linear_x"][vrow]); vy = float(vv["linear_y"][vrow])
+            spd = math.hypot(vx, vy)
+            state = int(kv["state"][k])
+            if state == CHAKRAM_OUT:
+                if spd > 12.0:
+                    f = max(0.0, 1.0 - CHAKRAM_DRAG * delta_time / spd)
+                    vv["linear_x"][vrow] = vx * f
+                    vv["linear_y"][vrow] = vy * f
+                elif is_plus and held:
+                    kv["state"][k] = CHAKRAM_FROZEN
+                    vv["linear_x"][vrow] = vv["linear_y"][vrow] = 0.0
+                else:
+                    kv["state"][k] = CHAKRAM_RETURN
+            elif state == CHAKRAM_FROZEN:
+                if self._boss.count > 0:
+                    bv = self._boss.active_view()
+                    bv["hp"][0] -= float(kv["dps"][k]) * delta_time
+                if not held:
+                    kv["state"][k] = CHAKRAM_RETURN
+            else:                                   # CHAKRAM_RETURN
+                trow = self._transform.dense_row_of(eidx)
+                dx = px - float(tv["position_x"][trow])
+                dy = py - float(tv["position_y"][trow])
+                d = math.hypot(dx, dy) or 1.0
+                vv["linear_x"][vrow] = dx / d * 580.0
+                vv["linear_y"][vrow] = dy / d * 580.0
+                if d < CHAKRAM_CATCH_R:
+                    crow = self._pb_core.dense_row_of(eidx)
+                    world.destroy_entity(int(cv["self"][crow]))
+
+
+# ===========================================================================
+class AutoLaunchSystem(ISystem):
+    """SATÉLITE+ (interceptor): com o boss a ≤250px do jogador, a gema
+    mais próxima do boss é convertida em míssil homing (CD 2.5s)."""
+
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+        self._data = data
+        self._mm = memory_manager
+        self._pb_orbit = memory_manager.get_pool("pb_orbit")
+        self._pb_core = memory_manager.get_pool("pb_core")
+        self._pb_homing = memory_manager.get_pool("pb_homing")
+        self._transform = memory_manager.get_pool("transform")
+        self._player = memory_manager.get_pool("player")
+        self._boss = memory_manager.get_pool("boss")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow < 0 or self._boss.count == 0:
+            return
+        prow = self._player.dense_row_of(i)
+        pv = self._player.active_view()
+        wd = self._data.weapons.get(int(pv["weapon_id"][prow]))
+        if wd is None or wd.name != "satelite+":
+            return
+        if pv["aux_cd"][prow] > 0.0:
+            pv["aux_cd"][prow] -= delta_time
+            return
+        tv = self._transform.active_view()
+        px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+        bi = int(self._boss.active_entity_indices()[0])
+        btrow = self._transform.dense_row_of(bi)
+        bx = float(tv["position_x"][btrow]); by = float(tv["position_y"][btrow])
+        if math.hypot(bx - px, by - py) > INTERCEPT_RANGE:
+            return
+
+        ov = self._pb_orbit.active_view()
+        idxs = self._pb_orbit.active_entity_indices()
+        best_k, best_d = -1, 1e18
+        for k in range(self._pb_orbit.count):
+            if ov["kind"][k] != ORBIT_GEM:
+                continue
+            trow = self._transform.dense_row_of(int(idxs[k]))
+            d = (float(tv["position_x"][trow]) - bx) ** 2 + \
+                (float(tv["position_y"][trow]) - by) ** 2
+            if d < best_d:
+                best_d, best_k = d, k
+        if best_k < 0:
+            return
+        eidx = int(idxs[best_k])
+        trow = self._transform.dense_row_of(eidx)
+        x = float(tv["position_x"][trow]); y = float(tv["position_y"][trow])
+        crow = self._pb_core.dense_row_of(eidx)
+        world.destroy_entity(int(self._pb_core.active_view()["self"][crow]))
+        # míssil homing com o dano da gema
+        base = self._data.weapons.get(sid("teleguiado"))
+        dx = bx - x; dy = by - y
+        d = math.hypot(dx, dy) or 1.0
+        packed = spawn_player_bullet(world, self._mm, "pb_teleguiado", x, y,
+                                     dx / d * 370.0, dy / d * 370.0,
+                                     wd.damage, wd.size, color=(255, 220, 0))
+        if packed >= 0:
+            hrow = self._pb_homing.dense_row_of(packed & 0xFFFFFFFF)
+            hv = self._pb_homing.active_view()
+            hv["turn"][hrow] = 260.0
+            hv["vmax"][hrow] = 370.0
+            hv["t"][hrow] = 2.8
+        pv["aux_cd"][prow] = INTERCEPT_CD

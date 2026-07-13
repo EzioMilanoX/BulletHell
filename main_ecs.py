@@ -2,9 +2,12 @@
 BULLET HELL sobre a OuroborosEngine (port ECS).
 
 Uso:
-    python main_ecs.py [--boss classic|timemage] [--weapon padrao|spread|agulha|teleguiado|plasma]
+    python main_ecs.py [--boss classic|timemage|wall] [--weapon <nome>]
+    (armas: padrao spread agulha teleguiado plasma carregado burst flak
+     chakram satelite — sufixo + para a variante evoluída, ex.: agulha+)
 
-Controles: WASD move · ESPAÇO atira · 1-5 troca arma · P alterna variante +
+Controles: WASD move · ESPAÇO atira (segurar/soltar tem mecânica por arma)
+           1-0 troca arma · P alterna variante +
 """
 import argparse
 
