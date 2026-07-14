@@ -14,9 +14,10 @@ DT = 1 / 60
 
 
 def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
-        skill: str = "none", mutators: frozenset = frozenset()) -> dict:
+        skill: str = "none", mutators: frozenset = frozenset(),
+        mode: str = "classic") -> dict:
     world, inp = build_headless(boss_name=boss, weapon_name=weapon,
-                                skill_name=skill, mutators=mutators)
+                                skill_name=skill, mutators=mutators, mode=mode)
     eb = world.get_pool("enemy_bullet")
     pb = world.get_pool("pb_core")
     bp = world.get_pool("boss")
@@ -54,6 +55,7 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
         max_eb = max(max_eb, eb.count)
         max_lz = max(max_lz, lz.count)
     hp1 = float(np.sum(bp.active_view()["hp"]))
+    st = world.get_pool("stats").active_view()
     return {
         "boss": boss, "weapon": weapon,
         "enemy_bullets_now": eb.count, "enemy_bullets_peak": max_eb,
@@ -61,6 +63,7 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
         "boss_hp": f"{hp1:.1f}/{hp0:.0f}", "boss_damage": hp0 - hp1,
         "graze": int(world.get_pool("player").active_view()["graze"][0]),
         "lives": int(world.get_pool("player").active_view()["lives"][0]),
+        "kills": int(st["kills"][0]),
     }
 
 
@@ -116,6 +119,15 @@ if __name__ == "__main__":
         if not (spawned and damaged):
             ok = False
         print(f"[{status}] {r}")
+
+    # Boss Rush: spread+ derrete o classic → deve avançar para o swarm
+    r = run("classic", "spread+", frames=2400, approach=True, mode="rush")
+    r["mode"] = "rush"
+    rushed = r["kills"] >= 1
+    status = "OK " if rushed else "FAIL"
+    if not rushed:
+        ok = False
+    print(f"[{status}] {r}")
 
     # bosses das fases 6-8: Invocador, Ômega e os 8 pecados
     for boss, weapon, approach in [("summoner", "spread", False),

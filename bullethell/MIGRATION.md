@@ -151,13 +151,20 @@ Portado (fases 1–2):
       para não pular o Selo)
 - [x] Lacaios `MINION_MINE` (explodem em anel por proximidade; `speed` =
       nº de balas); helper `spawn_enemy_bullet` para gimmicks
-- [x] Smoke headless 57/57
+- [x] **Modos Boss Rush e SINS Rush** (`--mode rush|sins`): boss derrotado
+      → raiz+partes+emitters destruídos e o próximo da sequência entra;
+      +1 vida de cura entre bosses; twins tratado (avança só quando os
+      dois caem — liveness por hp, não por count, pois destroy é diferido)
+- [x] **Fundação do save**: pool `stats` (kills/deaths) + graze; persistido
+      em `save_ecs.json` APÓS o GameLoop encerrar (I/O fora do step,
+      Constituição §1); totais acumulados entre runs
+- [x] Smoke headless 58/58 (rush: classic morto → swarm no lugar)
 
-Fase 9 (dependências da engine ou meta-jogo):
-- [ ] Save/conquistas/maestria (SaveManager fora do World, I/O só em menu)
-- [ ] Visual do holofote/telegraphs (camada de efeitos no renderer)
-- [ ] Partículas/juice (pipeline de texturas da engine)
-- [ ] Menus/seleção e modos Boss Rush/Wave Survival (texto no renderer)
+Fase 10 (bloqueada pela engine — roadmap dela, não do jogo):
+- [ ] Menus/seleção, HUD textual, conquistas visíveis (texto no renderer)
+- [ ] Visual do holofote/telegraphs (camada de efeitos)
+- [ ] Partículas/juice (pipeline de texturas)
+- [ ] Wave Survival (waves.json — viável já, mas melhor com HUD textual)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

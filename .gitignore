@@ -5,6 +5,7 @@ __pycache__/
 
 # Dados locais do jogador (progresso pessoal, não versionar)
 save.json
+save_ecs.json
 
 # Logs de debug
 err.txt

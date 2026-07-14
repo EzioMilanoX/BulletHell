@@ -59,6 +59,13 @@ RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
     ("abissal",  np.uint8),      # balas fragmentam ao sair da tela
     ("hp_mult",  np.float32),    # HORDE ×1.5 / BERSERKER ×0.75
     ("spd_mult", np.float32),    # HORDE ×0.85 / BERSERKER ×1.35
+    ("rush",     np.uint8),      # 0=clássico, 1=Boss Rush, 2=SINS Rush
+    ("rush_idx", np.uint8),      # posição atual na sequência
+])
+
+STATS_DTYPE = np.dtype([         # estatísticas da run (persistidas ao sair)
+    ("kills",  np.uint32),
+    ("deaths", np.uint32),
 ])
 
 # hud.kind
@@ -83,6 +90,7 @@ HAZARD_DTYPE = np.dtype([        # zonas de névoa SLOW (Luxúria)
 ])
 
 BOSS_DTYPE = np.dtype([
+    ("self",      np.uint64),    # PackedEntityId (Boss Rush destrói/troca)
     ("boss_id",   np.uint32),    # sid em bosses.json
     ("hp",        np.float32),
     ("max_hp",    np.float32),
@@ -197,6 +205,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "player":       PLAYER_DTYPE,
     "clock":        CLOCK_DTYPE,
     "run_mods":     RUN_MODS_DTYPE,
+    "stats":        STATS_DTYPE,
     "hud":          HUD_DTYPE,
     "minion":       MINION_DTYPE,
     "hazard":       HAZARD_DTYPE,
@@ -222,9 +231,9 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
-    "player": 2, "clock": 1, "run_mods": 1, "hud": 8, "minion": 64,
-    "hazard": 8, "boss": 4, "part": 8, "laser": 16, "waypoint": 4,
-    "emitter": 32,
+    "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "hud": 8,
+    "minion": 64, "hazard": 8, "boss": 4, "part": 8, "laser": 16,
+    "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

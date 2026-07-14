@@ -62,6 +62,12 @@ MINION_RADIUS = 10.0              # semi-extensão do lacaio (20px)
 SPOT_HALF = 44.0                  # meia-largura do holofote (88px)
 SPOT_SWEEP = 95.0                 # px/s de varredura
 
+# Boss Rush (legado: BOSS_RUSH_ORDER e SINS Rush → desbloqueia ABISSAL)
+RUSH_ORDERS = {
+    1: ("classic", "swarm", "wall", "timemage", "twins", "summoner", "omega"),
+    2: ("pride", "sloth", "envy", "gluttony", "greed", "lust", "wrath", "sin"),
+}
+
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
     MINION_SENTINEL: (170, 170, 220),   # fantasmas da Preguiça
@@ -116,6 +122,82 @@ def spawn_enemy_bullet(world: "World", mm: MemoryManager, x: float, y: float,
     ev["tgt_x"][erow] = ev["tgt_y"][erow] = 0.0
     ev["stage"][erow] = 0
     return packed
+
+
+def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
+               boss_name: str) -> None:
+    """Spawna um boss completo (raiz, partes, emitters da fase 0).
+    Usado pela composição no boot e pelo Boss Rush em runtime."""
+    if boss_name == "twins":                     # composto por 2 raízes
+        spawn_boss(world, mm, data, "twin_yin")
+        spawn_boss(world, mm, data, "twin_yang")
+        return
+
+    bdef = data.bosses[sid(boss_name)]
+    composite = len(bdef.parts) > 0
+    packed = world.create_entity("boss_hidden" if composite else "boss")
+    idx = packed & 0xFFFFFFFF
+    t = mm.get_pool("transform")
+    row = t.dense_row_of(idx); tv = t.active_view()
+    x0, y0 = (bdef.route[0][0], bdef.route[0][1]) if bdef.route \
+        else (SCREEN_W / 2, 100.0)
+    if bdef.motion == "descend":
+        y0 = 30.0                                # entra pelo topo
+    tv["position_x"][row] = x0
+    tv["position_y"][row] = y0
+    if not composite:                            # raiz visível com hitbox
+        half_w, half_h = bdef.hitbox
+        tv["scale_x"][row] = half_w / 4.0
+        tv["scale_y"][row] = half_h / 4.0
+        s = mm.get_pool("sprite")
+        srow = s.dense_row_of(idx); sv = s.active_view()
+        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 230, 60, 120
+        sv["tint_a"][srow] = 255
+        sv["layer_z"][srow] = 15
+        h = mm.get_pool("hitbox")
+        hrow = h.dense_row_of(idx); hv = h.active_view()
+        hv["half_width"][hrow] = half_w
+        hv["half_height"][hrow] = half_h
+    b = mm.get_pool("boss")
+    brow = b.dense_row_of(idx); bv = b.active_view()
+    bv["self"][brow] = np.uint64(packed)
+    bv["boss_id"][brow] = sid(boss_name)
+    hp_mult = float(mm.get_pool("run_mods").active_view()["hp_mult"][0])
+    bv["hp"][brow] = bv["max_hp"][brow] = bdef.hp * hp_mult
+    bv["phase_idx"][brow] = 0
+    bv["stun_t"][brow] = 0.0
+    bv["aux_angle"][brow] = bv["aux2"][brow] = 0.0
+    bv["invuln"][brow] = 0
+
+    part_indices = []
+    pt = mm.get_pool("part")
+    for (dx, dy, hw, hh) in bdef.parts:          # hitboxes-filhas visíveis
+        p_packed = world.create_entity("part")
+        pidx = p_packed & 0xFFFFFFFF
+        prow_t = t.dense_row_of(pidx)
+        tvp = t.active_view()                    # re-busca: attach cresceu
+        tvp["position_x"][prow_t] = x0 + dx
+        tvp["position_y"][prow_t] = y0 + dy
+        tvp["scale_x"][prow_t] = hw / 4.0
+        tvp["scale_y"][prow_t] = hh / 4.0
+        s = mm.get_pool("sprite")
+        srow = s.dense_row_of(pidx); sv = s.active_view()
+        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 230, 60, 120
+        sv["tint_a"][srow] = 255
+        sv["layer_z"][srow] = 15
+        h = mm.get_pool("hitbox")
+        hrow = h.dense_row_of(pidx); hv = h.active_view()
+        hv["half_width"][hrow] = hw
+        hv["half_height"][hrow] = hh
+        prow = pt.dense_row_of(pidx); pv = pt.active_view()
+        pv["self"][prow] = np.uint64(p_packed)
+        pv["root"][prow] = idx
+        pv["off_x"][prow] = dx
+        pv["off_y"][prow] = dy
+        part_indices.append(pidx)
+
+    spawn_emitters(world, mm.get_pool("emitter"), idx, bdef.phases[0],
+                   tuple(part_indices))
 
 
 def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
@@ -696,6 +778,9 @@ class BossPhaseSystem(ISystem):
         self._boss = memory_manager.get_pool("boss")
         self._emitter = memory_manager.get_pool("emitter")
         self._part = memory_manager.get_pool("part")
+        self._mods = memory_manager.get_pool("run_mods")
+        self._stats = memory_manager.get_pool("stats")
+        self._player = memory_manager.get_pool("player")
 
     def update(self, world: "World", delta_time: float) -> None:
         for raw in self._boss.active_entity_indices():
@@ -711,13 +796,18 @@ class BossPhaseSystem(ISystem):
                 if phase < len(bdef.phases) - 1:   # ainda há fases (Pecado:
                     bv["hp"][brow] = 1.0           # floor até o Sétimo Selo)
                     frac = 1.0 / float(bv["max_hp"][brow])
-                else:                              # derrotado → reinicia
-                    bv["hp"][brow] = bv["max_hp"][brow]
-                    bv["phase_idx"][brow] = 0
-                    bv["aux_angle"][brow] = bv["aux2"][brow] = 0.0
-                    bv["invuln"][brow] = 0
-                    self._reset_waypoint_timer(i)
-                    self._swap_emitters(world, i, bdef.phases[0])
+                else:                              # derrotado
+                    sv_ = self._stats.active_view()
+                    sv_["kills"][0] += 1
+                    if self._mods.active_view()["rush"][0]:
+                        self._rush_advance(world, i, brow, bv)
+                    else:                          # clássico → reinicia
+                        bv["hp"][brow] = bv["max_hp"][brow]
+                        bv["phase_idx"][brow] = 0
+                        bv["aux_angle"][brow] = bv["aux2"][brow] = 0.0
+                        bv["invuln"][brow] = 0
+                        self._reset_waypoint_timer(i)
+                        self._swap_emitters(world, i, bdef.phases[0])
                     continue
             nxt = phase + 1
             if nxt < len(bdef.phases) and frac <= bdef.phases[phase].hp_above:
@@ -733,6 +823,36 @@ class BossPhaseSystem(ISystem):
             wv = wp.active_view()
             wv["seg"][wrow] = 0
             wv["seg_t"][wrow] = 0.0
+
+    def _rush_advance(self, world: "World", boss_index: int, brow, bv) -> None:
+        """Boss Rush: destrói o boss atual (raiz+partes+emitters) e spawna
+        o próximo da sequência; jogador ganha +1 vida (legado)."""
+        # twins: a outra raiz ainda viva? só remove esta, não avança
+        # (destroy é diferido → count mente; o boss morto tem hp<=0, então
+        # qualquer hp>0 restante é um irmão vivo)
+        hp_all = self._boss.active_view()["hp"][: self._boss.count]
+        others_alive = bool(np.any(hp_all > 0.0))
+        ev = self._emitter.active_view()
+        for k in range(self._emitter.count):
+            if int(ev["root"][k]) == boss_index:
+                world.destroy_entity(int(ev["self"][k]))
+        pvw = self._part.active_view()
+        for k in range(self._part.count):
+            if int(pvw["root"][k]) == boss_index:
+                world.destroy_entity(int(pvw["self"][k]))
+        world.destroy_entity(int(bv["self"][brow]))
+        if others_alive:
+            return
+        mods = self._mods.active_view()
+        order = RUSH_ORDERS[int(mods["rush"][0])]
+        mods["rush_idx"][0] = (int(mods["rush_idx"][0]) + 1) % len(order)
+        # +1 vida de cura entre bosses (cap 3)
+        pl = self._player.active_entity_indices()
+        if pl.size:
+            prow = self._player.dense_row_of(int(pl[0]))
+            pv = self._player.active_view()
+            pv["lives"][prow] = min(3, int(pv["lives"][prow]) + 1)
+        spawn_boss(world, self._mm, self._data, order[int(mods["rush_idx"][0])])
 
     def _swap_emitters(self, world: "World", boss_index: int, phase_def) -> None:
         ev = self._emitter.active_view()
@@ -1551,9 +1671,11 @@ class PlayerHitSystem(ISystem):
         self._velocity = memory_manager.get_pool("velocity")
         self._player = memory_manager.get_pool("player")
         self._mods = memory_manager.get_pool("run_mods")
+        self._stats = memory_manager.get_pool("stats")
 
     def _reset_lives(self) -> int:
-        """CANHÃO DE VIDRO: 1 vida (0 = próximo hit mata)."""
+        """CANHÃO DE VIDRO: 1 vida (0 = próximo hit mata). Conta a morte."""
+        self._stats.active_view()["deaths"][0] += 1
         return 0 if self._mods.active_view()["glass"][0] else 3
 
     def _absorb_or_damage(self, world, pv, prow, px: float, py: float) -> None:

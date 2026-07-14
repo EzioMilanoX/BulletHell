@@ -24,7 +24,7 @@ ENTITY_CAPACITY = 8192
 
 def build_world(data: GameData, input_provider, boss_name: str = "classic",
                 weapon_name: str = "padrao", skill_name: str = "none",
-                mutators: frozenset = frozenset()) -> World:
+                mutators: frozenset = frozenset(), mode: str = "classic") -> World:
     """Monta o World completo do jogo (sem backends — quem escolhe
     renderer/input é o chamador: janela real ou null/headless)."""
     mm = MemoryManager(entity_capacity=ENTITY_CAPACITY)
@@ -87,7 +87,17 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     _spawn_hud(world, mm)
     _spawn_player(world, mm, data, weapon_name, skill_name,
                   glass=("glass" in mutators))
-    _spawn_boss(world, mm, data, boss_name)
+    # modos: classic = boss escolhido em loop; rush/sins = sequência
+    rush_kind = {"classic": 0, "rush": 1, "sins": 2}.get(mode, 0)
+    mods = mm.get_pool("run_mods")
+    mods.active_view()["rush"][0] = rush_kind
+    mods.active_view()["rush_idx"][0] = 0
+    world.register_archetype("stats_entity", ("stats",))
+    world.create_entity("stats_entity")
+    if rush_kind:
+        _spawn_boss(world, mm, data, gs.RUSH_ORDERS[rush_kind][0])
+    else:
+        _spawn_boss(world, mm, data, boss_name)
     return world
 
 
@@ -165,71 +175,14 @@ def _spawn_player(world: World, mm: MemoryManager, data: GameData,
 
 
 def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str) -> None:
-    if boss_name == "twins":                     # boss composto por 2 raízes
-        _spawn_boss(world, mm, data, "twin_yin")
-        _spawn_boss(world, mm, data, "twin_yang")
-        return
-
-    bdef = data.bosses[sid(boss_name)]
-    composite = len(bdef.parts) > 0
-    packed = world.create_entity("boss_hidden" if composite else "boss")
-    idx = packed & 0xFFFFFFFF
-    t = mm.get_pool("transform"); row = t.dense_row_of(idx); tv = t.active_view()
-    x0, y0 = (bdef.route[0][0], bdef.route[0][1]) if bdef.route else (SCREEN_W / 2, 100.0)
-    if bdef.motion == "descend":
-        y0 = 30.0                                # entra pelo topo
-    tv["position_x"][row] = x0
-    tv["position_y"][row] = y0
-    if not composite:                            # raiz visível com hitbox
-        half_w, half_h = bdef.hitbox
-        tv["scale_x"][row] = half_w / 4.0
-        tv["scale_y"][row] = half_h / 4.0
-        s = mm.get_pool("sprite"); row = s.dense_row_of(idx); sv = s.active_view()
-        sv["tint_r"][row], sv["tint_g"][row], sv["tint_b"][row] = 230, 60, 120
-        sv["tint_a"][row] = 255
-        sv["layer_z"][row] = 15
-        h = mm.get_pool("hitbox"); row = h.dense_row_of(idx); hv = h.active_view()
-        hv["half_width"][row] = half_w
-        hv["half_height"][row] = half_h
-    b = mm.get_pool("boss"); row = b.dense_row_of(idx); bv = b.active_view()
-    bv["boss_id"][row] = sid(boss_name)
-    hp_mult = float(mm.get_pool("run_mods").active_view()["hp_mult"][0])
-    bv["hp"][row] = bv["max_hp"][row] = bdef.hp * hp_mult   # HORDE/BERSERKER
-    bv["phase_idx"][row] = 0
-    bv["aux_angle"][row] = 0.0
-
-    part_indices = []
-    for (dx, dy, hw, hh) in bdef.parts:          # hitboxes-filhas visíveis
-        p_packed = world.create_entity("part")
-        pidx = p_packed & 0xFFFFFFFF
-        row = t.dense_row_of(pidx)
-        tvp = t.active_view()                    # re-busca: attach cresceu o denso
-        tvp["position_x"][row] = x0 + dx
-        tvp["position_y"][row] = y0 + dy
-        tvp["scale_x"][row] = hw / 4.0
-        tvp["scale_y"][row] = hh / 4.0
-        s = mm.get_pool("sprite"); srow = s.dense_row_of(pidx); sv = s.active_view()
-        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 230, 60, 120
-        sv["tint_a"][srow] = 255
-        sv["layer_z"][srow] = 15
-        h = mm.get_pool("hitbox"); hrow = h.dense_row_of(pidx); hv = h.active_view()
-        hv["half_width"][hrow] = hw
-        hv["half_height"][hrow] = hh
-        pp = mm.get_pool("part"); prow = pp.dense_row_of(pidx); pv = pp.active_view()
-        pv["self"][prow] = np.uint64(p_packed)
-        pv["root"][prow] = idx
-        pv["off_x"][prow] = dx
-        pv["off_y"][prow] = dy
-        part_indices.append(pidx)
-
-    gs.spawn_emitters(world, mm.get_pool("emitter"), idx, bdef.phases[0],
-                      tuple(part_indices))
+    gs.spawn_boss(world, mm, data, boss_name)   # runtime também usa (Boss Rush)
 
 
 def build_game(boss_name: str = "classic", weapon_name: str = "padrao",
-               skill_name: str = "none",
-               mutators: frozenset = frozenset()) -> GameLoop:
-    """Composição com janela pygame real."""
+               skill_name: str = "none", mutators: frozenset = frozenset(),
+               mode: str = "classic"):
+    """Composição com janela pygame. Retorna (GameLoop, World) — o World
+    permite ler as estatísticas após o run() para persistir o save."""
     from ouroboros.adapters.pygame_backend.pygame_audio_engine import PygameAudioEngine
     from ouroboros.adapters.pygame_backend.pygame_input_provider import PygameInputProvider
     from ouroboros.adapters.pygame_backend.pygame_renderer import PygameRenderer
@@ -241,12 +194,13 @@ def build_game(boss_name: str = "classic", weapon_name: str = "padrao",
     input_provider = PygameInputProvider()
     input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
     world = build_world(data, input_provider, boss_name, weapon_name,
-                        skill_name, mutators)
-    return GameLoop(world, renderer, input_provider, PygameAudioEngine())
+                        skill_name, mutators, mode)
+    return GameLoop(world, renderer, input_provider, PygameAudioEngine()), world
 
 
 def build_headless(boss_name: str = "classic", weapon_name: str = "padrao",
-                   skill_name: str = "none", mutators: frozenset = frozenset()):
+                   skill_name: str = "none", mutators: frozenset = frozenset(),
+                   mode: str = "classic"):
     """Composição para testes: null backends, controle manual do step.
     Retorna (world, input_provider, memory acessível via world.get_pool)."""
     from ouroboros.interfaces.null.null_input_provider import NullInputProvider
@@ -254,5 +208,5 @@ def build_headless(boss_name: str = "classic", weapon_name: str = "padrao",
     data = load_all()
     input_provider = NullInputProvider()
     world = build_world(data, input_provider, boss_name, weapon_name,
-                        skill_name, mutators)
+                        skill_name, mutators, mode)
     return world, input_provider
