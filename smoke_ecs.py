@@ -38,10 +38,13 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
                                 True if skill.startswith("focus")
                                 else (f % 240) < 20)
         # mira: rastreia o x do boss como um jogador faria
+        # (waves pode não ter boss: mira o centro)
         tv = tp.active_view()
-        brow = tp.dense_row_of(int(bp.active_entity_indices()[0]))
         prow = tp.dense_row_of(int(pl.active_entity_indices()[0]))
-        bx = float(tv["position_x"][brow])
+        bx = 640.0
+        if bp.count:
+            brow = tp.dense_row_of(int(bp.active_entity_indices()[0]))
+            bx = float(tv["position_x"][brow])
         px = float(tv["position_x"][prow])
         py = float(tv["position_y"][prow])
         inp.set_action_held("move_right", px < bx - 6.0)
@@ -56,6 +59,7 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
         max_lz = max(max_lz, lz.count)
     hp1 = float(np.sum(bp.active_view()["hp"]))
     st = world.get_pool("stats").active_view()
+    wv = world.get_pool("wave").active_view()
     return {
         "boss": boss, "weapon": weapon,
         "enemy_bullets_now": eb.count, "enemy_bullets_peak": max_eb,
@@ -64,6 +68,7 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
         "graze": int(world.get_pool("player").active_view()["graze"][0]),
         "lives": int(world.get_pool("player").active_view()["lives"][0]),
         "kills": int(st["kills"][0]),
+        "wave": int(wv["idx"][0]) + 1 if world.get_pool("wave").count else 0,
     }
 
 
@@ -126,6 +131,15 @@ if __name__ == "__main__":
     rushed = r["kills"] >= 1
     status = "OK " if rushed else "FAIL"
     if not rushed:
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Wave Survival: ondas de lacaios devem ser limpas e avançar
+    r = run("classic", "spread", frames=2400, mode="waves")
+    r["mode"] = "waves"
+    waved = r["wave"] >= 2
+    status = "OK " if waved else "FAIL"
+    if not waved:
         ok = False
     print(f"[{status}] {r}")
 

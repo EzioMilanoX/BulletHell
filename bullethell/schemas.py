@@ -68,6 +68,13 @@ STATS_DTYPE = np.dtype([         # estatísticas da run (persistidas ao sair)
     ("deaths", np.uint32),
 ])
 
+WAVE_DTYPE = np.dtype([          # Wave Survival (1 linha)
+    ("idx",     np.int16),       # onda atual (-1 = ainda não começou)
+    ("pending", np.int16),       # lacaios por spawnar nesta onda
+    ("t",       np.float32),     # timer do intervalo de spawn
+    ("seed",    np.uint32),      # posições determinísticas por hash
+])
+
 # hud.kind
 HUD_BOSS_HP, HUD_LIFE0, HUD_LIFE1, HUD_LIFE2, HUD_SKILL_CD = 0, 1, 2, 3, 4
 HUD_DTYPE = np.dtype([
@@ -206,6 +213,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "clock":        CLOCK_DTYPE,
     "run_mods":     RUN_MODS_DTYPE,
     "stats":        STATS_DTYPE,
+    "wave":         WAVE_DTYPE,
     "hud":          HUD_DTYPE,
     "minion":       MINION_DTYPE,
     "hazard":       HAZARD_DTYPE,
@@ -231,9 +239,9 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
-    "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "hud": 8,
-    "minion": 64, "hazard": 8, "boss": 4, "part": 8, "laser": 16,
-    "waypoint": 4, "emitter": 32,
+    "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "wave": 1,
+    "hud": 8, "minion": 64, "hazard": 8, "boss": 4, "part": 8,
+    "laser": 16, "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

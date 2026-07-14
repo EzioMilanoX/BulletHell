@@ -247,12 +247,30 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
 
 
 @dataclass(frozen=True, slots=True)
+class WaveDef:
+    enemies: int
+    kamikaze_ratio: float
+    interval: float
+    boss: str             # "" = onda normal; nome = boss wave
+
+
+def load_waves(path=DATA_DIR / "waves.json") -> Tuple[WaveDef, ...]:
+    return tuple(
+        WaveDef(enemies=e.get("enemies", 0),
+                kamikaze_ratio=float(e.get("kamikaze_ratio", 1.0)),
+                interval=float(e.get("spawn_interval", 1.0)),
+                boss=e.get("boss", ""))
+        for e in json.loads(path.read_text(encoding="utf-8"))["waves"])
+
+
+@dataclass(frozen=True, slots=True)
 class GameData:
     archetypes: Dict[int, BulletArchetypeDef]
     patterns: Dict[int, PatternDef]
     weapons: Dict[int, WeaponDef]
     bosses: Dict[int, BossDef]
     skills: Dict[int, SkillDef]
+    waves: Tuple[WaveDef, ...]
 
 
 def load_all() -> GameData:
@@ -262,4 +280,5 @@ def load_all() -> GameData:
         weapons=load_weapons(),
         bosses=load_bosses(),
         skills=load_skills(),
+        waves=load_waves(),
     )

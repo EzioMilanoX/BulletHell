@@ -158,13 +158,17 @@ Portado (fases 1–2):
 - [x] **Fundação do save**: pool `stats` (kills/deaths) + graze; persistido
       em `save_ecs.json` APÓS o GameLoop encerrar (I/O fora do step,
       Constituição §1); totais acumulados entre runs
-- [x] Smoke headless 58/58 (rush: classic morto → swarm no lugar)
+- [x] **Wave Survival** (`--mode waves`, waves.json): 30 ondas com mistura
+      kamikaze/sentinela por intervalo de spawn; bosses nas ondas 10/20/30;
+      onda limpa (sem lacaios nem boss) → próxima; endless após a 30;
+      barra de progresso roxa no HUD
+- [x] Smoke headless 59/59 (rush: swarm no lugar do classic; waves: onda 3
+      alcançada limpando lacaios)
 
 Fase 10 (bloqueada pela engine — roadmap dela, não do jogo):
 - [ ] Menus/seleção, HUD textual, conquistas visíveis (texto no renderer)
 - [ ] Visual do holofote/telegraphs (camada de efeitos)
 - [ ] Partículas/juice (pipeline de texturas)
-- [ ] Wave Survival (waves.json — viável já, mas melhor com HUD textual)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

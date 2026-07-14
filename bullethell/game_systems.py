@@ -799,8 +799,11 @@ class BossPhaseSystem(ISystem):
                 else:                              # derrotado
                     sv_ = self._stats.active_view()
                     sv_["kills"][0] += 1
-                    if self._mods.active_view()["rush"][0]:
+                    mode = int(self._mods.active_view()["rush"][0])
+                    if mode in (1, 2):             # Boss Rush / SINS
                         self._rush_advance(world, i, brow, bv)
+                    elif mode == 3:                # Waves: só remove; o
+                        self._destroy_boss(world, i, brow, bv)   # WaveSystem avança
                     else:                          # clássico → reinicia
                         bv["hp"][brow] = bv["max_hp"][brow]
                         bv["phase_idx"][brow] = 0
@@ -824,14 +827,8 @@ class BossPhaseSystem(ISystem):
             wv["seg"][wrow] = 0
             wv["seg_t"][wrow] = 0.0
 
-    def _rush_advance(self, world: "World", boss_index: int, brow, bv) -> None:
-        """Boss Rush: destrói o boss atual (raiz+partes+emitters) e spawna
-        o próximo da sequência; jogador ganha +1 vida (legado)."""
-        # twins: a outra raiz ainda viva? só remove esta, não avança
-        # (destroy é diferido → count mente; o boss morto tem hp<=0, então
-        # qualquer hp>0 restante é um irmão vivo)
-        hp_all = self._boss.active_view()["hp"][: self._boss.count]
-        others_alive = bool(np.any(hp_all > 0.0))
+    def _destroy_boss(self, world: "World", boss_index: int, brow, bv) -> None:
+        """Remove raiz + partes + emitters do boss (destruição diferida)."""
         ev = self._emitter.active_view()
         for k in range(self._emitter.count):
             if int(ev["root"][k]) == boss_index:
@@ -841,6 +838,16 @@ class BossPhaseSystem(ISystem):
             if int(pvw["root"][k]) == boss_index:
                 world.destroy_entity(int(pvw["self"][k]))
         world.destroy_entity(int(bv["self"][brow]))
+
+    def _rush_advance(self, world: "World", boss_index: int, brow, bv) -> None:
+        """Boss Rush: destrói o boss atual e spawna o próximo da sequência;
+        jogador ganha +1 vida (legado)."""
+        # twins: a outra raiz ainda viva? só remove esta, não avança
+        # (destroy é diferido → count mente; o boss morto tem hp<=0, então
+        # qualquer hp>0 restante é um irmão vivo)
+        hp_all = self._boss.active_view()["hp"][: self._boss.count]
+        others_alive = bool(np.any(hp_all > 0.0))
+        self._destroy_boss(world, boss_index, brow, bv)
         if others_alive:
             return
         mods = self._mods.active_view()
@@ -1980,6 +1987,7 @@ class HudSystem(ISystem):
         self._sprite = memory_manager.get_pool("sprite")
         self._boss = memory_manager.get_pool("boss")
         self._player = memory_manager.get_pool("player")
+        self._wave = memory_manager.get_pool("wave")
 
     def update(self, world: "World", delta_time: float) -> None:
         n = self._hud.count
@@ -2028,6 +2036,13 @@ class HudSystem(ISystem):
                 sv["tint_r"][srow] = 90 if full else 200
                 sv["tint_g"][srow] = 220 if full else 160
                 sv["tint_b"][srow] = 140 if full else 60
+            elif kind == 5:                          # progresso das ondas
+                frac = 0.0
+                if self._wave.count:
+                    frac = max(0, int(self._wave.active_view()["idx"][0]) + 1) \
+                        / max(1, len(self._data.waves))
+                tv["scale_x"][trow] = max(0.01, 200.0 * frac / 8.0)
+                tv["scale_y"][trow] = 6.0 / 8.0
 
 
 # ===========================================================================
@@ -2375,6 +2390,63 @@ class BossGimmickSystem(ISystem):
 
             else:
                 bv["invuln"][brow] = 0
+
+
+# ===========================================================================
+class WaveSystem(ISystem):
+    """Wave Survival (waves.json): spawna a composição da onda por
+    intervalo; onda limpa (sem lacaios nem boss) → próxima; ondas 10/20/30
+    são boss waves. Onda 30 vencida → recomeça (endless)."""
+
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+        self._data = data
+        self._mm = memory_manager
+        self._wave = memory_manager.get_pool("wave")
+        self._minion = memory_manager.get_pool("minion")
+        self._boss = memory_manager.get_pool("boss")
+        self._mods = memory_manager.get_pool("run_mods")
+        self._clock = memory_manager.get_pool("clock")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        if int(self._mods.active_view()["rush"][0]) != 3 or self._wave.count == 0:
+            return
+        delta_time *= float(self._clock.active_view()["world"][0])
+        wv = self._wave.active_view()
+
+        if self._boss.count > 0:                    # boss wave em andamento
+            return
+        if wv["pending"][0] > 0:                    # ainda spawnando
+            wv["t"][0] -= delta_time
+            if wv["t"][0] <= 0.0:
+                wave = self._data.waves[int(wv["idx"][0])]
+                wv["t"][0] = wave.interval
+                wv["pending"][0] -= 1
+                seed = int(wv["seed"][0]); wv["seed"][0] += 1
+                h1 = ((seed * 2654435761) % 997) / 997.0
+                frac_spawned = 1.0 - float(wv["pending"][0]) / max(1, wave.enemies)
+                if frac_spawned <= wave.kamikaze_ratio:   # perseguidores 1º
+                    spawn_minion(world, self._mm,
+                                 60.0 + h1 * (SCREEN_W - 120.0), -12.0,
+                                 MINION_KAMIKAZE, 2.0, 130.0)
+                else:                               # sentinelas estáticas
+                    h2 = ((seed * 40503 + 11) % 499) / 499.0
+                    spawn_minion(world, self._mm,
+                                 80.0 + h1 * (SCREEN_W - 160.0),
+                                 100.0 + h2 * 260.0,
+                                 MINION_SENTINEL, 3.0, 0.0)
+            return
+        if self._minion.count > 0:                  # limpe a onda primeiro
+            return
+
+        # onda limpa → avança (wrap: endless)
+        nxt = (int(wv["idx"][0]) + 1) % len(self._data.waves)
+        wv["idx"][0] = nxt
+        wave = self._data.waves[nxt]
+        if wave.boss:
+            spawn_boss(world, self._mm, self._data, wave.boss)
+        else:
+            wv["pending"][0] = wave.enemies
+            wv["t"][0] = 0.0
 
 
 # ===========================================================================

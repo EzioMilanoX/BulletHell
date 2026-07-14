@@ -11,6 +11,7 @@ Controles: WASD move · ESPAÇO atira (segurar/soltar tem mecânica por arma)
 
 Modos: --mode classic (boss escolhido em loop) · rush (7 bosses em
        sequência, +1 vida entre eles) · sins (os 8 pecados até o Selo)
+       · waves (Wave Survival: 30 ondas, bosses nas 10/20/30)
 """
 import argparse
 import json
@@ -59,7 +60,7 @@ def main() -> None:
                     help="lista separada por vírgula: predador,fantasma,"
                          "glass,claustro,abissal,horde,berserker")
     ap.add_argument("--mode", default="classic",
-                    choices=["classic", "rush", "sins"])
+                    choices=["classic", "rush", "sins", "waves"])
     args = ap.parse_args()
     muts = frozenset(m.strip() for m in args.mutators.split(",") if m.strip())
     loop, world = build_game(boss_name=args.boss, weapon_name=args.weapon,

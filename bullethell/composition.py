@@ -61,6 +61,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.PlayerControlSystem(mm, input_provider))
     world.register_system(gs.WeaponFireSystem(mm, input_provider, data))
     world.register_system(gs.BossPhaseSystem(mm, data))
+    world.register_system(gs.WaveSystem(mm, data))         # Wave Survival
     world.register_system(gs.WaypointSystem(mm, data))
     world.register_system(gs.BossMotionSystem(mm, data))   # partes/orbit/descend
     world.register_system(gs.BossGimmickSystem(mm, data))  # pecados: holofote/força/gate
@@ -87,17 +88,23 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     _spawn_hud(world, mm)
     _spawn_player(world, mm, data, weapon_name, skill_name,
                   glass=("glass" in mutators))
-    # modos: classic = boss escolhido em loop; rush/sins = sequência
-    rush_kind = {"classic": 0, "rush": 1, "sins": 2}.get(mode, 0)
+    # modos: classic = boss escolhido em loop; rush/sins = sequência;
+    # waves = Wave Survival (WaveSystem controla os spawns)
+    rush_kind = {"classic": 0, "rush": 1, "sins": 2, "waves": 3}.get(mode, 0)
     mods = mm.get_pool("run_mods")
     mods.active_view()["rush"][0] = rush_kind
     mods.active_view()["rush_idx"][0] = 0
     world.register_archetype("stats_entity", ("stats",))
     world.create_entity("stats_entity")
-    if rush_kind:
+    world.register_archetype("wave_entity", ("wave",))
+    wpacked = world.create_entity("wave_entity")
+    wrow = mm.get_pool("wave").dense_row_of(wpacked & 0xFFFFFFFF)
+    mm.get_pool("wave").active_view()["idx"][wrow] = -1   # 1ª onda no 1º frame
+    if rush_kind in (1, 2):
         _spawn_boss(world, mm, data, gs.RUSH_ORDERS[rush_kind][0])
-    else:
+    elif rush_kind == 0:
         _spawn_boss(world, mm, data, boss_name)
+    # waves: sem boss inicial — o WaveSystem começa a onda 1
     return world
 
 
@@ -136,6 +143,7 @@ def _spawn_hud(world: World, mm: MemoryManager) -> None:
         (2, 44.0, SCREEN_H - 18.0, (240, 240, 255)),
         (3, 66.0, SCREEN_H - 18.0, (240, 240, 255)),
         (4, SCREEN_W - 90.0, SCREEN_H - 18.0, (90, 220, 140)),  # skill CD
+        (5, SCREEN_W / 2, SCREEN_H - 12.0, (170, 110, 255)),    # ondas
     ]
     t = mm.get_pool("transform"); s = mm.get_pool("sprite"); h = mm.get_pool("hud")
     for kind, x, y, (r, g, b) in layout:
