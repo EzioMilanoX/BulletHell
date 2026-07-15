@@ -28,7 +28,7 @@ from bullethell.schemas import (
     CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
     LASER_H, LASER_V, MINION_BUBBLE, MINION_KAMIKAZE, MINION_MINE,
     MINION_SENTINEL, ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
-    TETHER_NONE,
+    SFX_BOOM, SFX_EMP, SFX_HIT, SFX_MINE, SFX_SHIELD, TETHER_NONE,
 )
 
 if TYPE_CHECKING:
@@ -134,6 +134,13 @@ def add_shake(mm: MemoryManager, amount: float) -> None:
     if ck.count:
         ck.active_view()["shake"][0] = min(
             18.0, float(ck.active_view()["shake"][0]) + amount)
+
+
+def add_sfx(mm: MemoryManager, bit: int) -> None:
+    """Marca um evento sonoro no bitmask do frame (a cena toca e limpa)."""
+    ck = mm.get_pool("clock")
+    if ck.count:
+        ck.active_view()["sfx"][0] |= bit
 
 
 def spawn_particles(world: "World", mm: MemoryManager, x: float, y: float,
@@ -476,6 +483,7 @@ class SkillSystem(ISystem):
                 spawn_particles(world, self._mm, px, py, (100, 200, 255),
                                 20, speed=340.0, ttl=0.5, seed=int(px))
                 add_shake(self._mm, 6.0)
+                add_sfx(self._mm, SFX_EMP)
                 if plus:                            # EMP+: buff, sem stun
                     pv["dmg_mult"][prow] = 1.0 + n * sd.buff_per
                     pv["dmg_t"][prow] = sd.buff_dur
@@ -893,6 +901,7 @@ class BossPhaseSystem(ISystem):
                                         (255, 200, 80), 26, speed=260.0,
                                         ttl=0.7, seed=i)
                         add_shake(self._mm, 12.0)
+                        add_sfx(self._mm, SFX_BOOM)
                     mode = int(self._mods.active_view()["rush"][0])
                     if mode in (1, 2):             # Boss Rush / SINS
                         self._rush_advance(world, i, brow, bv)
@@ -1788,6 +1797,7 @@ class PlayerHitSystem(ISystem):
             pv["invuln_t"][prow] = 0.5
             spawn_particles(world, self._mm, px, py, (120, 255, 160), 10,
                             seed=int(px))
+            add_sfx(self._mm, SFX_SHIELD)
             sd = self._data.skills.get(int(pv["skill_id"][prow]))
             # SHIELD+ bloco perfeito: anel de balas + reembolso de CD
             if sd is not None and sd.name == "shield+" \
@@ -1805,6 +1815,7 @@ class PlayerHitSystem(ISystem):
         spawn_particles(world, self._mm, px, py, (240, 240, 255), 14,
                         speed=220.0, seed=int(px + py))
         add_shake(self._mm, 8.0)
+        add_sfx(self._mm, SFX_HIT)
 
     def update(self, world: "World", delta_time: float) -> None:
         if self._eb.count == 0:
@@ -2352,6 +2363,26 @@ class BossGimmickSystem(ISystem):
         self._clock = memory_manager.get_pool("clock")
         self._mods = memory_manager.get_pool("run_mods")
         self._stats = memory_manager.get_pool("stats")
+        self._hud = memory_manager.get_pool("hud")
+        self._sprite = memory_manager.get_pool("sprite")
+
+    def _update_beam(self, spot_x: float, player_inside: bool,
+                     visible: bool) -> None:
+        """Posiciona o feixe visual do holofote (elemento HUD kind 6)."""
+        hv = self._hud.active_view()
+        idxs = self._hud.active_entity_indices()
+        for k in range(self._hud.count):
+            if int(hv["kind"][k]) != 6:
+                continue
+            eidx = int(idxs[k])
+            trow = self._transform.dense_row_of(eidx)
+            srow = self._sprite.dense_row_of(eidx)
+            tv = self._transform.active_view()
+            sv = self._sprite.active_view()
+            tv["position_x"][trow] = spot_x
+            sv["tint_a"][srow] = (0 if not visible
+                                  else 90 if player_inside else 42)
+            return
 
     def _hit_player(self, pv, prow) -> None:
         """Hit de contato de gimmick (corpo da Ira), escudo/glass-aware."""
@@ -2382,6 +2413,7 @@ class BossGimmickSystem(ISystem):
         pv = self._player.active_view()
         bv = self._boss.active_view()
         wpv = self._waypoint.active_view()
+        spotlight_on = False
         for raw in self._boss.active_entity_indices():
             bi = int(raw)
             brow = self._boss.dense_row_of(bi)
@@ -2404,7 +2436,10 @@ class BossGimmickSystem(ISystem):
                 bv["aux_angle"][brow] = spot
                 bv["aux2"][brow] = direction
                 # vulnerável só com o jogador dentro do feixe
-                bv["invuln"][brow] = 1 if abs(px - spot) > SPOT_HALF else 0
+                inside = abs(px - spot) <= SPOT_HALF
+                bv["invuln"][brow] = 0 if inside else 1
+                self._update_beam(spot, inside, True)
+                spotlight_on = True
 
             elif gm == "gate_minions":
                 bv["invuln"][brow] = 1 if self._minion.count > 0 else 0
@@ -2501,6 +2536,8 @@ class BossGimmickSystem(ISystem):
 
             else:
                 bv["invuln"][brow] = 0
+        if not spotlight_on:                        # apaga o feixe
+            self._update_beam(0.0, False, False)
 
 
 # ===========================================================================
@@ -2657,6 +2694,7 @@ class MinionCombatSystem(ISystem):
         """Moeda/mina: anel de balas ao explodir (Avareza 8, Pecado 16)."""
         spawn_particles(world, self._mm, x, y, (255, 215, 0), 10, seed=int(x))
         add_shake(self._mm, 4.0)
+        add_sfx(self._mm, SFX_MINE)
         for j in range(max(1, count)):
             a = j * (TWO_PI / max(1, count))
             spawn_enemy_bullet(world, self._mm, x, y,

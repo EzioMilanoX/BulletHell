@@ -159,6 +159,7 @@ def _spawn_hud(world: World, mm: MemoryManager) -> None:
         (3, 66.0, SCREEN_H - 18.0, (240, 240, 255)),
         (4, SCREEN_W - 90.0, SCREEN_H - 18.0, (90, 220, 140)),  # skill CD
         (5, SCREEN_W / 2, SCREEN_H - 12.0, (170, 110, 255)),    # ondas
+        (6, SCREEN_W / 2, SCREEN_H / 2, (245, 197, 24)),        # holofote
     ]
     t = mm.get_pool("transform"); s = mm.get_pool("sprite"); h = mm.get_pool("hud")
     for kind, x, y, (r, g, b) in layout:
@@ -167,11 +168,15 @@ def _spawn_hud(world: World, mm: MemoryManager) -> None:
         row = t.dense_row_of(idx); tv = t.active_view()
         tv["position_x"][row] = x
         tv["position_y"][row] = y
-        tv["scale_x"][row] = tv["scale_y"][row] = 1.25   # vidas 10px
+        if kind == 6:                                    # feixe da Soberba
+            tv["scale_x"][row] = 88.0 / 8.0
+            tv["scale_y"][row] = SCREEN_H / 8.0
+        else:
+            tv["scale_x"][row] = tv["scale_y"][row] = 1.25   # vidas 10px
         row = s.dense_row_of(idx); sv = s.active_view()
         sv["tint_r"][row], sv["tint_g"][row], sv["tint_b"][row] = r, g, b
-        sv["tint_a"][row] = 255
-        sv["layer_z"][row] = 30
+        sv["tint_a"][row] = 0 if kind == 6 else 255
+        sv["layer_z"][row] = 3 if kind == 6 else 30
         row = h.dense_row_of(idx); hv = h.active_view()
         hv["kind"][row] = kind
 

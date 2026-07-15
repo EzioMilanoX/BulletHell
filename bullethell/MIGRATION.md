@@ -182,11 +182,19 @@ Portado (fases 1–2):
         Luxúria translúcida de verdade (alpha)
       - Atalho da área de trabalho abre no menu; save de totais por sessão
 
-Fase 12 (futuro):
-- [ ] Conquistas/maestria visíveis (a base de save já existe)
-- [ ] Telegraphs visuais dedicados (laser piscando, holofote da Soberba
-      desenhado — pool `fx` do ROADMAP M1.3)
-- [ ] Texturas/sprites e SFX (ROADMAP M3/M4 da engine)
+- [x] **Fase 12**: holofote da Soberba VISÍVEL (feixe dourado translúcido,
+      mais claro com o jogador dentro — elemento HUD kind 6 posicionado
+      pelo BossGimmickSystem); **13 conquistas** persistentes com tela
+      CONQUISTAS no menu e "★ NOVA CONQUISTA" na vitória; **SFX
+      procedurais** (engine 3502b3f: register_tone square/noise/sweep/zap
+      via NumPy — zero assets) para hit/explosão/EMP/escudo/mina +
+      navegação de menu, roteados dos sistemas via bitmask clock.sfx
+
+Fase 13 (futuro):
+- [ ] Maestria com gating de desbloqueio (skills/armas/bosses bloqueados
+      até conquistar, como no legado)
+- [ ] Música procedural ou faixas (play_track já existe na engine)
+- [ ] Texturas/sprites (ROADMAP M3 da engine)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

@@ -25,7 +25,27 @@ from bullethell.schemas import SCREEN_H, SCREEN_W
 # Estados / catálogos dos menus
 # ---------------------------------------------------------------------------
 (MENU_MAIN, MENU_MODE, MENU_DIFF, MENU_BOSS, MENU_SKILL, MENU_WEAPON,
- MENU_MUT, PLAYING, WIN, GAMEOVER) = range(10)
+ MENU_MUT, PLAYING, WIN, GAMEOVER, MENU_ACH) = range(11)
+
+# Conquistas persistidas em save_ecs.json (id, nome, como desbloquear)
+ACHIEVEMENTS = [
+    ("first_blood", "PRIMEIRO SANGUE", "derrote o seu primeiro boss"),
+    ("veterano", "VETERANO", "vença uma run no NORMAL"),
+    ("mestre", "MESTRE", "vença uma run no DIFÍCIL"),
+    ("perfeccionista", "PERFECCIONISTA", "vença sem perder nenhuma vida"),
+    ("esquivador", "ESQUIVADOR", "acumule 100 grazes no total"),
+    ("intocavel", "INTOCÁVEL", "vença sem habilidade equipada"),
+    ("imparavel", "IMPARÁVEL", "complete o BOSS RUSH"),
+    ("redencao", "REDENÇÃO", "complete o SINS RUSH"),
+    ("sobrevivente", "SOBREVIVENTE", "vença o WAVE SURVIVAL"),
+    ("vidro", "CORAÇÃO DE VIDRO", "vença com o CANHÃO DE VIDRO"),
+    ("alem_limite", "ALÉM DO LIMITE", "vença com 3+ mutadores ativos"),
+    ("o_fim", "O FIM", "derrote o ÔMEGA"),
+    ("setimo_selo", "O SÉTIMO SELO", "sobreviva ao PECADO ORIGINAL"),
+]
+
+# clock.sfx → som registrado (bit, sound_id)
+SFX_MAP = [(1, "hit"), (2, "boom"), (4, "emp"), (8, "shield"), (16, "mine")]
 
 MODES = [("classic", "CLÁSSICO", "1 boss escolhido, até a vitória"),
          ("rush", "BOSS RUSH", "7 bosses em sequência, +1 vida entre eles"),
@@ -38,11 +58,11 @@ DIFFS = [("facil", "FÁCIL", "HP e velocidade reduzidos"),
 
 BOSSES = [("classic", "CLÁSSICO"), ("swarm", "ENXAME"), ("wall", "PAREDÃO"),
           ("timemage", "MAGO DO TEMPO"), ("twins", "GÊMEOS"),
-          ("summoner", "INVOCADOR"), ("omega", "ÔMEGA ★"),
-          ("pride", "SOBERBA ★"), ("sloth", "PREGUIÇA ★"),
-          ("envy", "INVEJA ★"), ("gluttony", "GULA ★"),
-          ("greed", "AVAREZA ★"), ("lust", "LUXÚRIA ★"),
-          ("wrath", "IRA ★"), ("sin", "PECADO ORIGINAL ★★")]
+          ("summoner", "INVOCADOR"), ("omega", "ÔMEGA *"),
+          ("pride", "SOBERBA *"), ("sloth", "PREGUIÇA *"),
+          ("envy", "INVEJA *"), ("gluttony", "GULA *"),
+          ("greed", "AVAREZA *"), ("lust", "LUXÚRIA *"),
+          ("wrath", "IRA *"), ("sin", "PECADO ORIGINAL **")]
 
 SKILLS = [("none", "NENHUMA", "confie apenas nos reflexos"),
           ("dash", "DASH", "SHIFT: 6× velocidade por 0.18s"),
@@ -75,15 +95,15 @@ BOSS_INTROS = {
     "timemage": ("O MAGO DO TEMPO", "Suas balas chegam antes de partir."),
     "twins": ("OS GÊMEOS", "Yin pune o movimento. Yang pune a espera."),
     "summoner": ("O INVOCADOR", "Nunca lute sozinho. Ele não luta."),
-    "omega": ("ÔMEGA ★", "Quatro chefes em um. Não baixe a guarda."),
-    "pride": ("SOBERBA ★", "Só sob a luz dela você pode feri-la."),
-    "sloth": ("PREGUIÇA ★", "Acordá-la será o seu último erro."),
-    "envy": ("INVEJA ★", "Tudo o que é seu, ela copia. E devolve."),
-    "gluttony": ("GULA ★", "A gravidade é a boca dela."),
-    "greed": ("AVAREZA ★", "Cada corredor tem um preço."),
-    "lust": ("LUXÚRIA ★", "Não confie nos seus próprios passos."),
-    "wrath": ("IRA ★", "Quando o sangue ferve, o chão treme."),
-    "sin": ("PECADO ORIGINAL ★★", "Sete pecados. Um selo. Trinta segundos."),
+    "omega": ("ÔMEGA *", "Quatro chefes em um. Não baixe a guarda."),
+    "pride": ("SOBERBA *", "Só sob a luz dela você pode feri-la."),
+    "sloth": ("PREGUIÇA *", "Acordá-la será o seu último erro."),
+    "envy": ("INVEJA *", "Tudo o que é seu, ela copia. E devolve."),
+    "gluttony": ("GULA *", "A gravidade é a boca dela."),
+    "greed": ("AVAREZA *", "Cada corredor tem um preço."),
+    "lust": ("LUXÚRIA *", "Não confie nos seus próprios passos."),
+    "wrath": ("IRA *", "Quando o sangue ferve, o chão treme."),
+    "sin": ("PECADO ORIGINAL **", "Sete pecados. Um selo. Trinta segundos."),
 }
 
 WIN_GOALS = {"classic": 1, "rush": len(RUSH_ORDERS[1]),
@@ -101,7 +121,7 @@ class GameApp:
     para poder intercalar menus e gameplay)."""
 
     def __init__(self, renderer, input_provider, audio_engine,
-                 data: GameData) -> None:
+                 data: GameData, save_data: dict | None = None) -> None:
         self._r = renderer
         self._input = input_provider
         self._audio = audio_engine
@@ -118,7 +138,22 @@ class GameApp:
         self.run_t = 0.0
         self.end_stats = (0, 0, 0)
         self.totals = {"kills": 0, "deaths": 0, "graze": 0, "runs": 0}
+        self.save = save_data or {}
+        self.achieved: set = set(self.save.get("achievements", []))
+        self.new_achievements: list = []
         self._running = True
+        if self._audio is not None:                  # SFX procedurais (M4)
+            self._audio.register_tone("hit", "noise", 220.0, 0.16)
+            self._audio.register_tone("boom", "sweep", 190.0, 0.45)
+            self._audio.register_tone("emp", "zap", 260.0, 0.35)
+            self._audio.register_tone("shield", "square", 660.0, 0.10)
+            self._audio.register_tone("mine", "noise", 330.0, 0.22)
+            self._audio.register_tone("ui_move", "square", 520.0, 0.04)
+            self._audio.register_tone("ui_ok", "square", 780.0, 0.08)
+
+    def _play(self, sound_id: str, volume: float = 0.5) -> None:
+        if self._audio is not None:
+            self._audio.play_one_shot(sound_id, volume)
 
     # ------------------------------------------------------------------
     def run(self) -> None:
@@ -141,9 +176,11 @@ class GameApp:
         if s == PLAYING:
             self._tick_playing(dt)
         elif s == MENU_MAIN:
-            self._menu(["JOGAR", "SAIR"], "BULLET HELL",
+            self._menu(["JOGAR", "CONQUISTAS", "SAIR"], "BULLET HELL",
                        subtitle="OuroborosEngine · port ECS",
                        on_confirm=self._main_confirm)
+        elif s == MENU_ACH:
+            self._achievements_screen()
         elif s == MENU_MODE:
             self._menu([m[1] for m in MODES], "MODO DE JOGO",
                        descs=[m[2] for m in MODES],
@@ -199,8 +236,10 @@ class GameApp:
         n = len(items)
         if inp.is_action_pressed("move_up"):
             self.cursor = (self.cursor - 1) % n
+            self._play("ui_move", 0.25)
         if inp.is_action_pressed("move_down"):
             self.cursor = (self.cursor + 1) % n
+            self._play("ui_move", 0.25)
         if back_to is not None and (inp.is_action_pressed("back")
                                     or inp.is_action_pressed("move_left")):
             self.state = back_to
@@ -208,6 +247,7 @@ class GameApp:
             return
         if on_confirm and (inp.is_action_pressed("confirm")
                            or inp.is_action_pressed("move_right")):
+            self._play("ui_ok", 0.35)
             on_confirm(self.cursor)
             return
         self.cursor = min(self.cursor, n - 1)
@@ -238,8 +278,35 @@ class GameApp:
     def _main_confirm(self, k: int) -> None:
         if k == 0:
             self.state, self.cursor = MENU_MODE, 0
+        elif k == 1:
+            self.state, self.cursor = MENU_ACH, 0
         else:
             self._running = False
+
+    def _achievements_screen(self) -> None:
+        inp = self._input
+        if inp.is_action_pressed("back") or inp.is_action_pressed("confirm") \
+                or inp.is_action_pressed("move_left"):
+            self.state, self.cursor = MENU_MAIN, 0
+            return
+        r = self._r
+        r.draw_text(SCREEN_W / 2, 56, "CONQUISTAS", 40, GOLD, anchor="center")
+        done = sum(1 for aid, _, _ in ACHIEVEMENTS if aid in self.achieved)
+        r.draw_text(SCREEN_W / 2, 100,
+                    f"{done} / {len(ACHIEVEMENTS)} desbloqueadas",
+                    16, MUTED, anchor="center")
+        top = 150
+        for k, (aid, name, desc) in enumerate(ACHIEVEMENTS):
+            y = top + k * 40
+            got = aid in self.achieved
+            mark = "[x]" if got else "[ ]"
+            r.draw_text(SCREEN_W / 2 - 330, y, mark, 18,
+                        GOLD if got else MUTED)
+            r.draw_text(SCREEN_W / 2 - 270, y, name, 18,
+                        TXT if got else MUTED)
+            r.draw_text(SCREEN_W / 2 + 40, y + 2, desc, 14, MUTED)
+        r.draw_text(SCREEN_W / 2, SCREEN_H - 44, "A/ESC voltar", 14, MUTED,
+                    anchor="center")
 
     def _mode_confirm(self, k: int) -> None:
         self.sel["mode"] = MODES[k][0]
@@ -299,6 +366,7 @@ class GameApp:
         w = self.world
         self.run_t += dt
         w.step(dt)
+        self._pump_sfx()
         self._apply_shake(dt)
         self._render_world()
         self._render_hud()
@@ -307,30 +375,91 @@ class GameApp:
             self._render_intro()
 
         if self._input.is_action_pressed("back"):   # ESC abandona a run
-            self._finish_run()
+            self._finish_run("abandon")
             self.state, self.cursor = MENU_MAIN, 0
             return
         pl = w.get_pool("player")
         if pl.count and int(pl.active_view()["lives"][0]) < 0:
-            self._finish_run()
+            self._finish_run("lose")
             self.state = GAMEOVER
             return
         kills = int(w.get_pool("stats").active_view()["kills"][0])
         if kills >= WIN_GOALS[self.sel["mode"]]:
-            self._finish_run()
+            self._finish_run("win")
             self.state = WIN
 
-    def _finish_run(self) -> None:
+    def _pump_sfx(self) -> None:
+        """Toca os eventos sonoros marcados pelos sistemas e limpa a máscara."""
+        ck = self.world.get_pool("clock")
+        if not ck.count:
+            return
+        cv = ck.active_view()
+        bits = int(cv["sfx"][0])
+        if bits:
+            for bit, sound_id in SFX_MAP:
+                if bits & bit:
+                    self._play(sound_id, 0.45)
+            cv["sfx"][0] = 0
+
+    def _finish_run(self, outcome: str) -> None:
         w = self.world
         st = w.get_pool("stats").active_view()
         pl = w.get_pool("player")
         graze = int(pl.active_view()["graze"][0]) if pl.count else 0
+        lives = int(pl.active_view()["lives"][0]) if pl.count else -1
         self.end_stats = (int(st["kills"][0]), int(st["deaths"][0]), graze)
         self.totals["kills"] += self.end_stats[0]
         self.totals["deaths"] += self.end_stats[1]
         self.totals["graze"] += graze
         self.totals["runs"] += 1
         self._r.set_camera_offset(0.0, 0.0)
+        self._check_achievements(outcome, lives, graze)
+
+    def _check_achievements(self, outcome: str, lives: int, graze: int) -> None:
+        """Avalia as conquistas ao fim da run (persistidas ao sair)."""
+        self.new_achievements = []
+
+        def grant(aid: str) -> None:
+            if aid not in self.achieved:
+                self.achieved.add(aid)
+                name = next(n for a, n, _ in ACHIEVEMENTS if a == aid)
+                self.new_achievements.append(name)
+
+        if self.end_stats[0] >= 1:
+            grant("first_blood")
+        total_graze = int(self.save.get("total_graze", 0)) + self.totals["graze"]
+        if total_graze >= 100:
+            grant("esquivador")
+        if outcome != "win":
+            return
+        mode, diff = self.sel["mode"], self.sel["diff"]
+        muts = self.sel["muts"]
+        if diff in ("normal", "dificil"):
+            grant("veterano")
+        if diff == "dificil":
+            grant("mestre")
+        full = 0 if "glass" in muts else 3
+        if lives >= full:
+            grant("perfeccionista")
+        if self.sel["skill"] == "none":
+            grant("intocavel")
+        if mode == "rush":
+            grant("imparavel")
+        if mode == "sins":
+            grant("redencao")
+            grant("setimo_selo")
+        if mode == "waves":
+            grant("sobrevivente")
+        if "glass" in muts:
+            grant("vidro")
+        if len(muts) >= 3:
+            grant("alem_limite")
+        if mode == "classic" and self.sel["boss"] == "omega":
+            grant("o_fim")
+        if mode == "classic" and self.sel["boss"] == "sin":
+            grant("setimo_selo")
+        if self.new_achievements:
+            self._play("ui_ok", 0.6)
 
     def _apply_shake(self, dt: float) -> None:
         ck = self.world.get_pool("clock")
@@ -427,7 +556,10 @@ class GameApp:
         r.draw_text(SCREEN_W / 2, 320,
                     f"bosses: {kills}   ·   grazes: {graze}   ·   "
                     f"tempo: {self.run_t:.0f}s", 20, TXT, anchor="center")
-        r.draw_text(SCREEN_W / 2, 420, "T  jogar de novo      R  menu",
+        for k, name in enumerate(self.new_achievements[:4]):
+            r.draw_text(SCREEN_W / 2, 370 + k * 28,
+                        f"* NOVA CONQUISTA: {name}", 17, GOLD, anchor="center")
+        r.draw_text(SCREEN_W / 2, 500, "T  jogar de novo      R  menu",
                     18, MUTED, anchor="center")
         if self._input.is_action_pressed("retry"):
             self.start_game()

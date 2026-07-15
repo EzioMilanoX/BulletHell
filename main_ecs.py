@@ -23,24 +23,31 @@ import bullethell  # noqa: F401  — garante a engine no sys.path
 SAVE_PATH = Path(__file__).parent / "save_ecs.json"
 
 
-def _persist_totals(totals: dict) -> None:
-    """I/O de save SÓ aqui, após o loop encerrar (Constituição §1)."""
-    if totals["runs"] == 0:
-        return
-    save = {"runs": 0, "total_kills": 0, "total_deaths": 0, "total_graze": 0}
+def _load_save() -> dict:
+    """Carrega o save no boot (fora do loop de gameplay)."""
+    save = {"runs": 0, "total_kills": 0, "total_deaths": 0,
+            "total_graze": 0, "achievements": []}
     if SAVE_PATH.exists():
         try:
             save.update(json.loads(SAVE_PATH.read_text(encoding="utf-8")))
         except Exception:
             pass
+    return save
+
+
+def _persist(save: dict, totals: dict, achieved: set) -> None:
+    """I/O de save SÓ aqui, após o loop encerrar (Constituição §1)."""
     save["runs"] += totals["runs"]
     save["total_kills"] += totals["kills"]
     save["total_deaths"] += totals["deaths"]
     save["total_graze"] += totals["graze"]
+    save["achievements"] = sorted(achieved)
     SAVE_PATH.write_text(json.dumps(save, indent=2), encoding="utf-8")
-    print(f"sessão: {totals['kills']} kills em {totals['runs']} runs — "
-          f"totais: {save['total_kills']} kills / {save['total_deaths']} mortes"
-          f" / {save['total_graze']} grazes em {save['runs']} runs")
+    if totals["runs"]:
+        print(f"sessão: {totals['kills']} kills em {totals['runs']} runs — "
+              f"totais: {save['total_kills']} kills / "
+              f"{save['total_deaths']} mortes / {save['total_graze']} grazes"
+              f" · conquistas: {len(save['achievements'])}")
 
 
 def main() -> None:
@@ -70,11 +77,13 @@ def main() -> None:
     from bullethell.schemas import SCREEN_H, SCREEN_W
 
     data = load_all()
+    save = _load_save()
     renderer = PygameRenderer()
     renderer.initialize(SCREEN_W, SCREEN_H, "BULLET HELL — OuroborosEngine")
     input_provider = PygameInputProvider()
     input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
-    app = GameApp(renderer, input_provider, PygameAudioEngine(), data)
+    app = GameApp(renderer, input_provider, PygameAudioEngine(), data,
+                  save_data=save)
 
     app.sel["mode"] = args.mode
     app.sel["diff"] = args.diff
@@ -90,7 +99,7 @@ def main() -> None:
     try:
         app.run()
     finally:
-        _persist_totals(app.totals)
+        _persist(save, app.totals, app.achieved)
         renderer.shutdown()
 
 

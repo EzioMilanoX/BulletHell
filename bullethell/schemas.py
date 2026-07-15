@@ -50,7 +50,11 @@ CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
     ("bullets", np.float32),     # DILATAÇÃO congela só as balas inimigas
     ("invert",  np.uint8),       # Luxúria fase 1: controles invertidos
     ("shake",   np.float32),     # screen shake acumulado (decai na cena)
+    ("sfx",     np.uint32),      # bitmask de eventos sonoros do frame
 ])
+
+# clock.sfx — bits de eventos (a cena toca e limpa)
+SFX_HIT, SFX_BOOM, SFX_EMP, SFX_SHIELD, SFX_MINE = 1, 2, 4, 8, 16
 
 PARTICLE_DTYPE = np.dtype([      # partículas de juice (hits/explosões)
     ("self", np.uint64),
