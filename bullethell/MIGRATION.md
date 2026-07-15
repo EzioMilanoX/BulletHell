@@ -164,11 +164,29 @@ Portado (fases 1–2):
       barra de progresso roxa no HUD
 - [x] Smoke headless 59/59 (rush: swarm no lugar do classic; waves: onda 3
       alcançada limpando lacaios)
+- [x] **Interfaces do legado completas** (Fase 11, com o M1/M2 do ROADMAP
+      implementados na engine — commit b6801f9):
+      - Menus (scenes.py/GameApp): MODO → DIFICULDADE → BOSS → HABILIDADE
+        → ARMA → MUTADORES (multi-select), com descrições, variante+ por
+        ESPAÇO, navegação W/S + D/ENTER + A/ESC — o fluxo do legado
+      - Dificuldades FÁCIL/NORMAL/DIFÍCIL (multiplicadores compostos com
+        HORDE/BERSERKER)
+      - Modo arcade: morte vira GAMEOVER (sem respawn), vitória por
+        objetivo do modo (1 boss / 7 rush / 8 sins / 3 boss-waves);
+        telas de WIN/GAMEOVER com stats, T reinicia, R menu, ESC abandona
+      - Intro de boss (nome + frase, fade), HUD textual (modo·dif, nome e
+        HP numérico do boss, ONDA X/30, VIDAS, skill equipada)
+      - Efeitos: partículas (pool `particle` + kernel com fade/gravidade;
+        hits, explosões, morte de boss, EMP, escudo), screen shake
+        (clock.shake + set_camera_offset), balas circulares, névoa da
+        Luxúria translúcida de verdade (alpha)
+      - Atalho da área de trabalho abre no menu; save de totais por sessão
 
-Fase 10 (bloqueada pela engine — roadmap dela, não do jogo):
-- [ ] Menus/seleção, HUD textual, conquistas visíveis (texto no renderer)
-- [ ] Visual do holofote/telegraphs (camada de efeitos)
-- [ ] Partículas/juice (pipeline de texturas)
+Fase 12 (futuro):
+- [ ] Conquistas/maestria visíveis (a base de save já existe)
+- [ ] Telegraphs visuais dedicados (laser piscando, holofote da Soberba
+      desenhado — pool `fx` do ROADMAP M1.3)
+- [ ] Texturas/sprites e SFX (ROADMAP M3/M4 da engine)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

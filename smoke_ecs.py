@@ -72,8 +72,42 @@ def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
     }
 
 
+def menu_smoke() -> bool:
+    """Navega o fluxo completo de menus com null backends até PLAYING."""
+    from ouroboros.interfaces.null.null_renderer import NullRenderer
+    from ouroboros.interfaces.null.null_input_provider import NullInputProvider
+    from bullethell.loaders import load_all
+    from bullethell.scenes import GameApp, PLAYING
+
+    inp = NullInputProvider()
+    app = GameApp(NullRenderer(), inp, None, load_all())
+
+    def press(action: str) -> None:
+        inp.set_action_held(action, True)
+        inp.poll(); app.tick(1 / 60)
+        inp.set_action_held(action, False)
+        inp.poll(); app.tick(1 / 60)
+
+    press("confirm")      # JOGAR → modo
+    press("confirm")      # CLÁSSICO → dificuldade
+    press("confirm")      # NORMAL → boss
+    press("confirm")      # CLÁSSICO → habilidade
+    press("move_down")    # NENHUMA → DASH
+    press("confirm")      # DASH → arma
+    press("confirm")      # PADRÃO → mutadores
+    press("move_up")      # wrap → ► COMEÇAR
+    press("confirm")      # inicia a partida
+    for _ in range(120):
+        inp.poll(); app.tick(1 / 60)
+    return app.state == PLAYING and app.world is not None
+
+
 if __name__ == "__main__":
     ok = True
+    m_ok = menu_smoke()
+    print(f"[{'OK ' if m_ok else 'FAIL'}] menu headless -> PLAYING")
+    if not m_ok:
+        ok = False
     for boss, weapon, approach in [
             ("classic", "padrao", False), ("classic", "padrao+", False),
             ("classic", "spread", False), ("classic", "spread+", True),

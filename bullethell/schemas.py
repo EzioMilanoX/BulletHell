@@ -49,6 +49,13 @@ CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
     ("world",   np.float32),     # FOCUS desacelera boss+padrões+balas
     ("bullets", np.float32),     # DILATAÇÃO congela só as balas inimigas
     ("invert",  np.uint8),       # Luxúria fase 1: controles invertidos
+    ("shake",   np.float32),     # screen shake acumulado (decai na cena)
+])
+
+PARTICLE_DTYPE = np.dtype([      # partículas de juice (hits/explosões)
+    ("self", np.uint64),
+    ("ttl",  np.float32),
+    ("ttl0", np.float32),        # para o fade (alpha = ttl/ttl0)
 ])
 
 RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
@@ -61,6 +68,7 @@ RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
     ("spd_mult", np.float32),    # HORDE ×0.85 / BERSERKER ×1.35
     ("rush",     np.uint8),      # 0=clássico, 1=Boss Rush, 2=SINS Rush
     ("rush_idx", np.uint8),      # posição atual na sequência
+    ("arcade",   np.uint8),      # 1 = morte é GAMEOVER (menus), 0 = respawn
 ])
 
 STATS_DTYPE = np.dtype([         # estatísticas da run (persistidas ao sair)
@@ -214,6 +222,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "run_mods":     RUN_MODS_DTYPE,
     "stats":        STATS_DTYPE,
     "wave":         WAVE_DTYPE,
+    "particle":     PARTICLE_DTYPE,
     "hud":          HUD_DTYPE,
     "minion":       MINION_DTYPE,
     "hazard":       HAZARD_DTYPE,
@@ -240,8 +249,8 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
     "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "wave": 1,
-    "hud": 8, "minion": 64, "hazard": 8, "boss": 4, "part": 8,
-    "laser": 16, "waypoint": 4, "emitter": 32,
+    "particle": 1024, "hud": 8, "minion": 64, "hazard": 8, "boss": 4,
+    "part": 8, "laser": 16, "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

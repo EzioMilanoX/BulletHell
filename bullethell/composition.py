@@ -22,9 +22,19 @@ from bullethell import game_systems as gs
 ENTITY_CAPACITY = 8192
 
 
+# Dificuldade → multiplicadores de HP/velocidade do boss (legado:
+# FÁCIL ×0.75/HP200, NORMAL ×1.0/HP300, DIFÍCIL ×1.3/HP400)
+DIFFICULTIES = {
+    "facil":   (0.70, 0.85),
+    "normal":  (1.00, 1.00),
+    "dificil": (1.33, 1.18),
+}
+
+
 def build_world(data: GameData, input_provider, boss_name: str = "classic",
                 weapon_name: str = "padrao", skill_name: str = "none",
-                mutators: frozenset = frozenset(), mode: str = "classic") -> World:
+                mutators: frozenset = frozenset(), mode: str = "classic",
+                difficulty: str = "normal", arcade: bool = False) -> World:
     """Monta o World completo do jogo (sem backends — quem escolhe
     renderer/input é o chamador: janela real ou null/headless)."""
     mm = MemoryManager(entity_capacity=ENTITY_CAPACITY)
@@ -47,6 +57,8 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_archetype("laser", ("transform", "sprite", "laser"))
     world.register_archetype("minion", ("transform", "velocity", "sprite", "minion"))
     world.register_archetype("hazard_entity", ("transform", "sprite", "hazard"))
+    world.register_archetype("particle_entity", ("transform", "velocity",
+                                                 "sprite", "particle"))
     world.register_archetype("emitter", ("emitter",))
     world.register_archetype("enemy_bullet", ("transform", "velocity", "sprite",
                                               "enemy_bullet"))
@@ -77,6 +89,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.FuseSystem(mm, input_provider, data))      # FLAK
     world.register_system(gs.ChakramSystem(mm, input_provider, data))   # CHAKRAM
     world.register_system(gs.AutoLaunchSystem(mm, data))   # SATÉLITE+
+    world.register_system(gs.ParticleSystem(mm))           # juice
     world.register_system(gs.MaintenanceSystem(mm))
     world.register_system(gs.GhostTintSystem(mm))          # mutador FANTASMA
     world.register_system(gs.PlayerHitSystem(mm, data))
@@ -84,7 +97,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.MinionCombatSystem(mm))       # lacaios do Invocador
     world.register_system(gs.HudSystem(mm, data))
 
-    _spawn_clock(world, mm, mutators)
+    _spawn_clock(world, mm, mutators, difficulty, arcade)
     _spawn_hud(world, mm)
     _spawn_player(world, mm, data, weapon_name, skill_name,
                   glass=("glass" in mutators))
@@ -108,7 +121,8 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     return world
 
 
-def _spawn_clock(world: World, mm: MemoryManager, mutators: frozenset) -> None:
+def _spawn_clock(world: World, mm: MemoryManager, mutators: frozenset,
+                 difficulty: str = "normal", arcade: bool = False) -> None:
     world.register_archetype("clock_entity", ("clock",))
     packed = world.create_entity("clock_entity")
     row = mm.get_pool("clock").dense_row_of(packed & 0xFFFFFFFF)
@@ -125,13 +139,14 @@ def _spawn_clock(world: World, mm: MemoryManager, mutators: frozenset) -> None:
     mv["glass"][row] = 1 if "glass" in mutators else 0
     mv["claustro"][row] = 1 if "claustro" in mutators else 0
     mv["abissal"][row] = 1 if "abissal" in mutators else 0
-    hp_m, spd_m = 1.0, 1.0
+    hp_m, spd_m = DIFFICULTIES.get(difficulty, (1.0, 1.0))
     if "horde" in mutators:
-        hp_m, spd_m = 1.5, 0.85
+        hp_m, spd_m = hp_m * 1.5, spd_m * 0.85
     if "berserker" in mutators:
         hp_m, spd_m = hp_m * 0.75, spd_m * 1.35
     mv["hp_mult"][row] = hp_m
     mv["spd_mult"][row] = spd_m
+    mv["arcade"][row] = 1 if arcade else 0
 
 
 def _spawn_hud(world: World, mm: MemoryManager) -> None:
@@ -208,7 +223,8 @@ def build_game(boss_name: str = "classic", weapon_name: str = "padrao",
 
 def build_headless(boss_name: str = "classic", weapon_name: str = "padrao",
                    skill_name: str = "none", mutators: frozenset = frozenset(),
-                   mode: str = "classic"):
+                   mode: str = "classic", difficulty: str = "normal",
+                   arcade: bool = False):
     """Composição para testes: null backends, controle manual do step.
     Retorna (world, input_provider, memory acessível via world.get_pool)."""
     from ouroboros.interfaces.null.null_input_provider import NullInputProvider
@@ -216,5 +232,5 @@ def build_headless(boss_name: str = "classic", weapon_name: str = "padrao",
     data = load_all()
     input_provider = NullInputProvider()
     world = build_world(data, input_provider, boss_name, weapon_name,
-                        skill_name, mutators, mode)
+                        skill_name, mutators, mode, difficulty, arcade)
     return world, input_provider

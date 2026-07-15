@@ -98,6 +98,7 @@ def spawn_enemy_bullet(world: "World", mm: MemoryManager, x: float, y: float,
     vv["linear_y"][vrow] = vy
     s = mm.get_pool("sprite")
     srow = s.dense_row_of(idx); sv = s.active_view()
+    sv["texture_id"][srow] = SHAPE_CIRCLE
     r, g, b = PALETTE.get(color, (255, 64, 90))
     sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
     sv["tint_a"][srow] = 255
@@ -122,6 +123,85 @@ def spawn_enemy_bullet(world: "World", mm: MemoryManager, x: float, y: float,
     ev["tgt_x"][erow] = ev["tgt_y"][erow] = 0.0
     ev["stage"][erow] = 0
     return packed
+
+
+SHAPE_RECT, SHAPE_CIRCLE = 0, 1   # ouroboros.interfaces.renderer
+
+
+def add_shake(mm: MemoryManager, amount: float) -> None:
+    """Acumula screen shake no clock (a cena decai e aplica o offset)."""
+    ck = mm.get_pool("clock")
+    if ck.count:
+        ck.active_view()["shake"][0] = min(
+            18.0, float(ck.active_view()["shake"][0]) + amount)
+
+
+def spawn_particles(world: "World", mm: MemoryManager, x: float, y: float,
+                    color, n: int, speed: float = 160.0,
+                    ttl: float = 0.45, seed: int = 0) -> None:
+    """Explosão radial de partículas (círculos que somem em fade)."""
+    pt = mm.get_pool("particle")
+    for j in range(n):
+        if pt.count >= pt.capacity - 1:
+            return
+        packed = world.create_entity("particle_entity")
+        idx = packed & 0xFFFFFFFF
+        a = ((seed * 2654435761 + j * 97561) % 6283) / 1000.0
+        spd = speed * (0.4 + ((seed * 40503 + j * 131) % 601) / 1000.0)
+        t = mm.get_pool("transform")
+        trow = t.dense_row_of(idx); tv = t.active_view()
+        tv["position_x"][trow] = x
+        tv["position_y"][trow] = y
+        tv["scale_x"][trow] = tv["scale_y"][trow] = 0.75
+        v = mm.get_pool("velocity")
+        vrow = v.dense_row_of(idx); vv = v.active_view()
+        vv["linear_x"][vrow] = math.cos(a) * spd
+        vv["linear_y"][vrow] = math.sin(a) * spd
+        s = mm.get_pool("sprite")
+        srow = s.dense_row_of(idx); sv = s.active_view()
+        sv["texture_id"][srow] = SHAPE_CIRCLE
+        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = color
+        sv["tint_a"][srow] = 255
+        sv["layer_z"][srow] = 18
+        prow = pt.dense_row_of(idx); pv = pt.active_view()
+        pv["self"][prow] = np.uint64(packed)
+        pv["ttl"][prow] = pv["ttl0"][prow] = ttl
+
+
+def handle_player_death(pv, prow, mods_view, stats_view) -> bool:
+    """Morte do jogador: conta em stats; no modo arcade (menus) retorna
+    True e deixa lives < 0 para a cena detectar o GAMEOVER; fora dele
+    (smoke/CLI) respawna como antes."""
+    stats_view["deaths"][0] += 1
+    if mods_view["arcade"][0]:
+        return True
+    pv["lives"][prow] = 0 if mods_view["glass"][0] else 3
+    return False
+
+
+class ParticleSystem(ISystem):
+    """Fade + gravidade leve + expiração das partículas (kernel NumPy)."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._pt = memory_manager.get_pool("particle")
+        self._velocity = memory_manager.get_pool("velocity")
+        self._sprite = memory_manager.get_pool("sprite")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._pt.count
+        if n == 0:
+            return
+        pv = self._pt.active_view()
+        pv["ttl"] -= delta_time
+        idxs = self._pt.active_entity_indices()
+        vrows = self._velocity.dense_rows_of(idxs)
+        self._velocity.active_view()["linear_y"][vrows] += 220.0 * delta_time
+        srows = self._sprite.dense_rows_of(idxs)
+        frac = np.clip(pv["ttl"] / np.maximum(pv["ttl0"], 1e-3), 0.0, 1.0)
+        self._sprite.active_view()["tint_a"][srows] = (frac * 255).astype(np.uint8)
+        dead = pv["ttl"] <= 0.0
+        for h in pv["self"][dead]:
+            world.destroy_entity(int(h))
 
 
 def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
@@ -219,6 +299,7 @@ def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
     vv["linear_y"][vrow] = speed if kind == MINION_KAMIKAZE else 0.0
     s = mm.get_pool("sprite")
     srow = s.dense_row_of(idx); sv = s.active_view()
+    sv["texture_id"][srow] = SHAPE_CIRCLE
     r, g, b = _MINION_COLORS.get(kind, (255, 120, 60))
     sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
     sv["tint_a"][srow] = 255
@@ -278,6 +359,7 @@ def spawn_player_bullet(world: "World", mm: MemoryManager, arch_name: str,
     vv["linear_y"][row] = vy
     s = mm.get_pool("sprite")
     row = s.dense_row_of(idx); sv = s.active_view()
+    sv["texture_id"][row] = SHAPE_CIRCLE
     sv["tint_r"][row], sv["tint_g"][row], sv["tint_b"][row] = color
     sv["tint_a"][row] = 255
     sv["layer_z"][row] = 5
@@ -391,6 +473,9 @@ class SkillSystem(ISystem):
                 pv["skill_cd"][prow] = sd.cd
                 n = _destroy_bullets_within(world, self._eb, self._transform,
                                             px, py, sd.radius)
+                spawn_particles(world, self._mm, px, py, (100, 200, 255),
+                                20, speed=340.0, ttl=0.5, seed=int(px))
+                add_shake(self._mm, 6.0)
                 if plus:                            # EMP+: buff, sem stun
                     pv["dmg_mult"][prow] = 1.0 + n * sd.buff_per
                     pv["dmg_t"][prow] = sd.buff_dur
@@ -799,6 +884,15 @@ class BossPhaseSystem(ISystem):
                 else:                              # derrotado
                     sv_ = self._stats.active_view()
                     sv_["kills"][0] += 1
+                    trow_ = self._mm.get_pool("transform").dense_row_of(i)
+                    if trow_ >= 0:                 # explosão de morte
+                        tvx = self._mm.get_pool("transform").active_view()
+                        spawn_particles(world, self._mm,
+                                        float(tvx["position_x"][trow_]),
+                                        float(tvx["position_y"][trow_]),
+                                        (255, 200, 80), 26, speed=260.0,
+                                        ttl=0.7, seed=i)
+                        add_shake(self._mm, 12.0)
                     mode = int(self._mods.active_view()["rush"][0])
                     if mode in (1, 2):             # Boss Rush / SINS
                         self._rush_advance(world, i, brow, bv)
@@ -1002,6 +1096,8 @@ class LaserSystem(ISystem):
         self._transform = memory_manager.get_pool("transform")
         self._player = memory_manager.get_pool("player")
         self._clock = memory_manager.get_pool("clock")
+        self._mods = memory_manager.get_pool("run_mods")
+        self._stats = memory_manager.get_pool("stats")
 
     def update(self, world: "World", delta_time: float) -> None:
         delta_time *= float(self._clock.active_view()["world"][0])   # FOCUS
@@ -1040,7 +1136,9 @@ class LaserSystem(ISystem):
                         pv["invuln_t"][prow] = PLAYER_INVULN
                         pv["lives"][prow] -= 1
                         if pv["lives"][prow] < 0:
-                            pv["lives"][prow] = 3
+                            handle_player_death(pv, prow,
+                                                self._mods.active_view(),
+                                                self._stats.active_view())
 
         dead = firing & (lv["fire_t"] <= 0.0)
         for h in lv["self"][dead]:
@@ -1309,8 +1407,9 @@ class EmitterSystem(ISystem):
             tv2["scale_x"][trow] = tv2["scale_y"][trow] = pat.speed / 4.0
             srow = self._sprite.dense_row_of(idx)
             sv = self._sprite.active_view()
-            sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 70, 25, 45
-            sv["tint_a"][srow] = 255
+            sv["texture_id"][srow] = SHAPE_CIRCLE
+            sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 200, 70, 130
+            sv["tint_a"][srow] = 80                 # névoa translúcida (M1!)
             sv["layer_z"][srow] = 2                 # atrás de tudo
             hrow = hz.dense_row_of(idx)
             hv = hz.active_view()
@@ -1368,6 +1467,7 @@ class EmitterSystem(ISystem):
         vv["linear_y"][vrow] = math.sin(theta) * pat.speed
         srow = self._sprite.dense_row_of(idx)
         sv = self._sprite.active_view()
+        sv["texture_id"][srow] = SHAPE_CIRCLE
         r, g, b = PALETTE.get(arch.color, (255, 64, 90))
         sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
         sv["tint_a"][srow] = 255
@@ -1541,6 +1641,7 @@ class MaintenanceSystem(ISystem):
             vvf["linear_y"][vrow] = math.sin(th) * spd
             srow = self._sprite.dense_row_of(idx)
             svf = self._sprite.active_view()
+            svf["texture_id"][srow] = SHAPE_CIRCLE
             r, g, b = PALETTE.get(int(color), (255, 64, 90))
             svf["tint_r"][srow], svf["tint_g"][srow], svf["tint_b"][srow] = r, g, b
             svf["tint_a"][srow] = 255
@@ -1680,16 +1781,13 @@ class PlayerHitSystem(ISystem):
         self._mods = memory_manager.get_pool("run_mods")
         self._stats = memory_manager.get_pool("stats")
 
-    def _reset_lives(self) -> int:
-        """CANHÃO DE VIDRO: 1 vida (0 = próximo hit mata). Conta a morte."""
-        self._stats.active_view()["deaths"][0] += 1
-        return 0 if self._mods.active_view()["glass"][0] else 3
-
     def _absorb_or_damage(self, world, pv, prow, px: float, py: float) -> None:
         """Aplica um hit no jogador respeitando o ESCUDO."""
         if pv["shield_up"][prow]:
             pv["shield_up"][prow] = 0
             pv["invuln_t"][prow] = 0.5
+            spawn_particles(world, self._mm, px, py, (120, 255, 160), 10,
+                            seed=int(px))
             sd = self._data.skills.get(int(pv["skill_id"][prow]))
             # SHIELD+ bloco perfeito: anel de balas + reembolso de CD
             if sd is not None and sd.name == "shield+" \
@@ -1704,6 +1802,9 @@ class PlayerHitSystem(ISystem):
             return
         pv["invuln_t"][prow] = PLAYER_INVULN
         pv["lives"][prow] -= 1
+        spawn_particles(world, self._mm, px, py, (240, 240, 255), 14,
+                        speed=220.0, seed=int(px + py))
+        add_shake(self._mm, 8.0)
 
     def update(self, world: "World", delta_time: float) -> None:
         if self._eb.count == 0:
@@ -1745,10 +1846,12 @@ class PlayerHitSystem(ISystem):
                 world.destroy_entity(int(h))
             if pv["invuln_t"][prow] <= 0.0:
                 self._absorb_or_damage(world, pv, prow, px, py)
-                if pv["lives"][prow] < 0:          # game over → reset da run
-                    pv["lives"][prow] = self._reset_lives()
-                    for h in eb["self"][: self._eb.count]:
-                        world.destroy_entity(int(h))
+                if pv["lives"][prow] < 0:          # game over
+                    if not handle_player_death(pv, prow,
+                                               self._mods.active_view(),
+                                               self._stats.active_view()):
+                        for h in eb["self"][: self._eb.count]:
+                            world.destroy_entity(int(h))   # respawn limpa
                     return
 
         graze = (eb["grazed"] == 0) & harmful & (d2 <= PLAYER_GRAZE_R ** 2) & (d2 > hit_r2)
@@ -1780,7 +1883,8 @@ class PlayerHitSystem(ISystem):
                 if (px - qx) ** 2 + (py - qy) ** 2 <= PLAYER_HIT_R ** 2:
                     self._absorb_or_damage(world, pv, prow, px, py)
                     if pv["lives"][prow] < 0:
-                        pv["lives"][prow] = self._reset_lives()
+                        handle_player_death(pv, prow, self._mods.active_view(),
+                                            self._stats.active_view())
                     break
 
 
@@ -1867,6 +1971,10 @@ class PlayerBulletVsBossSystem(ISystem):
             normal = impact & ~is_pierce
             if normal.any():
                 bv["hp"][brow] -= float(np.sum(cv["damage"][normal]))
+                for k in np.where(normal)[0][:4]:   # faíscas de impacto
+                    spawn_particles(world, self._mm, float(bxs[k]),
+                                    float(bys[k]), (255, 220, 150), 2,
+                                    speed=110.0, ttl=0.25, seed=int(bxs[k]))
                 srows = self._pb_shrap.dense_rows_of(pb_idx)
                 sv = self._pb_shrap.active_view() if self._pb_shrap.count else None
                 for k in np.where(normal)[0]:
@@ -2243,6 +2351,7 @@ class BossGimmickSystem(ISystem):
         self._waypoint = memory_manager.get_pool("waypoint")
         self._clock = memory_manager.get_pool("clock")
         self._mods = memory_manager.get_pool("run_mods")
+        self._stats = memory_manager.get_pool("stats")
 
     def _hit_player(self, pv, prow) -> None:
         """Hit de contato de gimmick (corpo da Ira), escudo/glass-aware."""
@@ -2254,8 +2363,10 @@ class BossGimmickSystem(ISystem):
             return
         pv["invuln_t"][prow] = PLAYER_INVULN
         pv["lives"][prow] -= 1
+        add_shake(self._mm, 8.0)
         if pv["lives"][prow] < 0:
-            pv["lives"][prow] = 0 if self._mods.active_view()["glass"][0] else 3
+            handle_player_death(pv, prow, self._mods.active_view(),
+                                self._stats.active_view())
 
     def update(self, world: "World", delta_time: float) -> None:
         ck = self._clock.active_view()
@@ -2540,9 +2651,12 @@ class MinionCombatSystem(ISystem):
         self._pb_dot = memory_manager.get_pool("pb_dot")
         self._pb_pierce = memory_manager.get_pool("pb_pierce")
         self._mods = memory_manager.get_pool("run_mods")
+        self._stats = memory_manager.get_pool("stats")
 
     def _explode_mine(self, world, x: float, y: float, count: int) -> None:
         """Moeda/mina: anel de balas ao explodir (Avareza 8, Pecado 16)."""
+        spawn_particles(world, self._mm, x, y, (255, 215, 0), 10, seed=int(x))
+        add_shake(self._mm, 4.0)
         for j in range(max(1, count)):
             a = j * (TWO_PI / max(1, count))
             spawn_enemy_bullet(world, self._mm, x, y,
@@ -2614,8 +2728,13 @@ class MinionCombatSystem(ISystem):
         hit = (mv["kind"] == MINION_KAMIKAZE) & \
               (d2 <= (MINION_RADIUS + PLAYER_HIT_R) ** 2)
         if hit.any():
-            for h in mv["self"][hit]:               # kamikaze explode
-                world.destroy_entity(int(h))
+            for k in np.where(hit)[0]:              # kamikaze explode
+                spawn_particles(world, self._mm,
+                                float(tv["position_x"][m_trows[k]]),
+                                float(tv["position_y"][m_trows[k]]),
+                                (255, 120, 60), 8, seed=int(m_trows[k]))
+                world.destroy_entity(int(mv["self"][k]))
+            add_shake(self._mm, 6.0)
             prow = self._player.dense_row_of(i)
             pv = self._player.active_view()
             if pv["invuln_t"][prow] <= 0.0:
@@ -2626,8 +2745,9 @@ class MinionCombatSystem(ISystem):
                     pv["invuln_t"][prow] = PLAYER_INVULN
                     pv["lives"][prow] -= 1
                     if pv["lives"][prow] < 0:
-                        pv["lives"][prow] = \
-                            0 if self._mods.active_view()["glass"][0] else 3
+                        handle_player_death(pv, prow,
+                                            self._mods.active_view(),
+                                            self._stats.active_view())
 
 
 # ===========================================================================

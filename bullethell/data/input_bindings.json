@@ -16,5 +16,9 @@
   "weapon_10": "KEY_0",
   "toggle_plus": "KEY_P",
   "skill": "KEY_LEFT SHIFT",
-  "toggle_skill_plus": "KEY_O"
+  "toggle_skill_plus": "KEY_O",
+  "confirm": "KEY_RETURN",
+  "back": "KEY_ESCAPE",
+  "retry": "KEY_T",
+  "to_menu": "KEY_R"
 }
