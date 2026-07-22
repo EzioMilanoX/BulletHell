@@ -133,7 +133,9 @@ class GameApp:
         self._data = data
         self.state = MENU_MAIN
         self.cursor = 0
-        self.sel = {"mode": "classic", "diff": "normal", "boss": "classic",
+        # dificuldade/skill inicial = a única sempre destravada (legado:
+        # main.py — estado inicial sel_diff=EASY, sel_skill=NONE)
+        self.sel = {"mode": "classic", "diff": "facil", "boss": "classic",
                     "skill": "none", "skill_plus": False,
                     "weapon": "padrao", "weapon_plus": False,
                     "muts": set()}
@@ -142,7 +144,8 @@ class GameApp:
         self.intro_boss = "classic"
         self.run_t = 0.0
         self.end_stats = (0, 0, 0)
-        self.totals = {"kills": 0, "deaths": 0, "graze": 0, "runs": 0}
+        self.totals = {"kills": 0, "deaths": 0, "graze": 0, "runs": 0,
+                       "parries": 0}
         self.save = save_data or {}
         self.achieved: set = set(self.save.get("achievements", []))
         self.new_achievements: list = []
@@ -193,21 +196,28 @@ class GameApp:
         elif s == MENU_DIFF:
             self._menu([d[1] for d in DIFFS], "DIFICULDADE",
                        descs=[d[2] for d in DIFFS],
-                       on_confirm=self._diff_confirm, back_to=MENU_MODE)
+                       on_confirm=self._diff_confirm, back_to=MENU_MODE,
+                       locked=[self._diff_locked(k) for k in range(len(DIFFS))])
         elif s == MENU_BOSS:
             self._menu([b[1] for b in BOSSES], "ESCOLHA O BOSS",
-                       on_confirm=self._boss_confirm, back_to=MENU_DIFF)
+                       on_confirm=self._boss_confirm, back_to=MENU_DIFF,
+                       locked=[self._boss_locked(b[0]) for b in BOSSES])
         elif s == MENU_SKILL:
             items = [n + (" +" if self.sel["skill_plus"] and k == self.cursor
                           and self._has_plus(SKILLS[k][0], self._data.skills)
                           else "") for k, (sk, n, _) in enumerate(SKILLS)]
+            skill_locked = [self._skill_locked(sk) for (sk, _, _) in SKILLS]
             self._menu(items, "HABILIDADE",
                        descs=[d for (_, _, d) in SKILLS],
                        on_confirm=self._skill_confirm,
                        back_to=MENU_BOSS if self.sel["mode"] == "classic"
                        else MENU_DIFF,
-                       hint_extra="ESPAÇO alterna a variante +")
-            if self._input.is_action_pressed("fire"):
+                       hint_extra="ESPAÇO alterna a variante +",
+                       locked=skill_locked)
+            if self._input.is_action_pressed("fire") and \
+                    not skill_locked[self.cursor] and \
+                    self._has_plus(SKILLS[self.cursor][0], self._data.skills) \
+                    and self._plus_unlocked("skill"):
                 self.sel["skill_plus"] = not self.sel["skill_plus"]
         elif s == MENU_WEAPON:
             items = [n + (" +" if self.sel["weapon_plus"] and k == self.cursor
@@ -216,7 +226,9 @@ class GameApp:
             self._menu(items, "ARMA",
                        on_confirm=self._weapon_confirm, back_to=MENU_SKILL,
                        hint_extra="ESPAÇO alterna a variante +")
-            if self._input.is_action_pressed("fire"):
+            if self._input.is_action_pressed("fire") and \
+                    self._has_plus(WEAPONS[self.cursor][0], self._data.weapons) \
+                    and self._plus_unlocked("weapon"):
                 self.sel["weapon_plus"] = not self.sel["weapon_plus"]
         elif s == MENU_MUT:
             items = [(("[x] " if m in self.sel["muts"] else "[ ] ") + n)
@@ -224,7 +236,9 @@ class GameApp:
             self._menu(items, "MUTADORES",
                        descs=[d for (_, _, d) in MUTATORS] + [
                            "cada mutador ativo aumenta o desafio"],
-                       on_confirm=self._mut_confirm, back_to=MENU_WEAPON)
+                       on_confirm=self._mut_confirm, back_to=MENU_WEAPON,
+                       locked=[self._mutator_locked(m)
+                              for (m, _, _) in MUTATORS] + [False])
         elif s in (WIN, GAMEOVER):
             self._end_screen(s)
 
@@ -235,23 +249,57 @@ class GameApp:
     def _has_plus(name: str, table) -> bool:
         return sid(name + "+") in table
 
+    def _plus_unlocked(self, category: str) -> bool:
+        """Gate das variantes '+' (PARITY_PLAN P0-1). Aproximação: liberam
+        todas de uma vez ao vencer DIFÍCIL, em vez das 17 mastery
+        individuais do legado (nem todas rastreáveis hoje — ver P1-7)."""
+        return "all" in self.save.get(f"{category}_plus_unlocked", [])
+
+    def _diff_locked(self, idx: int) -> bool:
+        if DIFFS[idx][0] == "abissal":     # só pelo SINS RUSH, não por tier
+            return not self.save.get("sins_rush_cleared", False)
+        return idx > int(self.save.get("highest_cleared_diff", 0))
+
+    def _skill_locked(self, name: str) -> bool:
+        return name not in self.save.get("unlocked_skills", ["none", "dash"])
+
+    def _mutator_locked(self, name: str) -> bool:
+        return name == "claustro" and \
+            "claustro" not in self.save.get("unlocked_mutators", [])
+
+    def _boss_locked(self, name: str) -> bool:
+        return name == "omega" and not self.save.get("omega_unlocked", False)
+
     def _menu(self, items, title, descs=None, subtitle="", on_confirm=None,
-              back_to=None, hint_extra="") -> None:
+              back_to=None, hint_extra="", locked=None) -> None:
         inp = self._input
         n = len(items)
+        locked = locked or [False] * n
+        if locked[self.cursor]:            # entrou numa tela com o cursor
+            for _ in range(n):             # travado (default de _xxx_confirm)
+                self.cursor = (self.cursor + 1) % n
+                if not locked[self.cursor]:
+                    break
         if inp.is_action_pressed("move_up"):
-            self.cursor = (self.cursor - 1) % n
+            for _ in range(n):
+                self.cursor = (self.cursor - 1) % n
+                if not locked[self.cursor]:
+                    break
             self._play("ui_move", 0.25)
         if inp.is_action_pressed("move_down"):
-            self.cursor = (self.cursor + 1) % n
+            for _ in range(n):
+                self.cursor = (self.cursor + 1) % n
+                if not locked[self.cursor]:
+                    break
             self._play("ui_move", 0.25)
         if back_to is not None and (inp.is_action_pressed("back")
                                     or inp.is_action_pressed("move_left")):
             self.state = back_to
             self.cursor = 0
             return
-        if on_confirm and (inp.is_action_pressed("confirm")
-                           or inp.is_action_pressed("move_right")):
+        if on_confirm and not locked[self.cursor] and (
+                inp.is_action_pressed("confirm")
+                or inp.is_action_pressed("move_right")):
             self._play("ui_ok", 0.35)
             on_confirm(self.cursor)
             return
@@ -269,8 +317,10 @@ class GameApp:
                 r.draw_ui_rect(SCREEN_W / 2 - 240, y - 5, 480, row_h - 6,
                                (124, 80, 255, 60))
                 r.draw_text(SCREEN_W / 2 - 224, y, "►", 20, GOLD)
-            r.draw_text(SCREEN_W / 2 - 190, y, label, 20,
-                        TXT if k == self.cursor else MUTED)
+            disp = label + ("  [BLOQUEADO]" if locked[k] else "")
+            color = (70, 70, 90, 255) if locked[k] else \
+                (TXT if k == self.cursor else MUTED)
+            r.draw_text(SCREEN_W / 2 - 190, y, disp, 20, color)
         if descs and 0 <= self.cursor < len(descs):
             r.draw_text(SCREEN_W / 2, SCREEN_H - 96, descs[self.cursor],
                         16, TXT, anchor="center")
@@ -318,25 +368,35 @@ class GameApp:
         self.state, self.cursor = MENU_DIFF, 1
 
     def _diff_confirm(self, k: int) -> None:
+        if self._diff_locked(k):
+            return
         self.sel["diff"] = DIFFS[k][0]
         self.state = MENU_BOSS if self.sel["mode"] == "classic" else MENU_SKILL
         self.cursor = 0
 
     def _boss_confirm(self, k: int) -> None:
+        if self._boss_locked(BOSSES[k][0]):
+            return
         self.sel["boss"] = BOSSES[k][0]
         self.state, self.cursor = MENU_SKILL, 0
 
     def _skill_confirm(self, k: int) -> None:
+        if self._skill_locked(SKILLS[k][0]):
+            return
         self.sel["skill"] = SKILLS[k][0]
+        self.sel["skill_plus"] = False    # nova skill: reseta o toggle +
         self.state, self.cursor = MENU_WEAPON, 0
 
     def _weapon_confirm(self, k: int) -> None:
         self.sel["weapon"] = WEAPONS[k][0]
+        self.sel["weapon_plus"] = False    # nova arma: reseta o toggle +
         self.state, self.cursor = MENU_MUT, 0
 
     def _mut_confirm(self, k: int) -> None:
         if k < len(MUTATORS):
             m = MUTATORS[k][0]
+            if self._mutator_locked(m):
+                return
             if m in self.sel["muts"]:
                 self.sel["muts"].discard(m)
             else:
@@ -348,11 +408,19 @@ class GameApp:
     # gameplay
     # ------------------------------------------------------------------
     def start_game(self) -> None:
+        # defesa (legado: main.py:2468-2470) — se a seleção ficou travada
+        # entre a hora que foi escolhida e agora (save recarregado, etc.)
+        if self._skill_locked(self.sel["skill"]):
+            self.sel["skill"] = "none"
+        if self._diff_locked([d[0] for d in DIFFS].index(self.sel["diff"])):
+            self.sel["diff"] = "facil"
         skill = self.sel["skill"]
-        if self.sel["skill_plus"] and self._has_plus(skill, self._data.skills):
+        if self.sel["skill_plus"] and self._has_plus(skill, self._data.skills) \
+                and self._plus_unlocked("skill"):
             skill += "+"
         weapon = self.sel["weapon"]
-        if self.sel["weapon_plus"] and self._has_plus(weapon, self._data.weapons):
+        if self.sel["weapon_plus"] and self._has_plus(weapon, self._data.weapons) \
+                and self._plus_unlocked("weapon"):
             weapon += "+"
         self.world = build_world(
             self._data, self._input, boss_name=self.sel["boss"],
@@ -416,9 +484,11 @@ class GameApp:
         self.totals["kills"] += self.end_stats[0]
         self.totals["deaths"] += self.end_stats[1]
         self.totals["graze"] += graze
+        self.totals["parries"] += int(st["parries"][0])
         self.totals["runs"] += 1
         self._r.set_camera_offset(0.0, 0.0)
         self._check_achievements(outcome, lives, graze)
+        self._apply_progression(outcome)
 
     def _check_achievements(self, outcome: str, lives: int, graze: int) -> None:
         """Avalia as conquistas ao fim da run (persistidas ao sair)."""
@@ -465,6 +535,47 @@ class GameApp:
             grant("setimo_selo")
         if self.new_achievements:
             self._play("ui_ok", 0.6)
+
+    def _apply_progression(self, outcome: str) -> None:
+        """Gating de progresso ao vencer (legado: SaveManager.on_win,
+        entities.py:5365-5409 — PARITY_PLAN P0-1). Onde o port ainda não
+        rastreia a mesma mastery do legado (equilíbrio perfeito, pacifista
+        de elite, as 17 masteries de skill+/arma+), usa uma condição
+        aproximada e documentada — ver PARITY_PLAN.md P1-6/P1-7."""
+        if outcome != "win":
+            return
+        diff_idx = [d[0] for d in DIFFS].index(self.sel["diff"])
+        hcd = max(int(self.save.get("highest_cleared_diff", 0)), diff_idx + 1)
+        self.save["highest_cleared_diff"] = hcd
+        if self.sel["mode"] == "sins":
+            self.save["sins_rush_cleared"] = True
+
+        unlocked = set(self.save.get("unlocked_skills", ["none", "dash"]))
+        if hcd >= 1:                                  # venceu FÁCIL
+            unlocked.add("parry")
+        if hcd >= 2:                                  # venceu NORMAL
+            unlocked.add("focus")
+        if "esquivador" in self.achieved:              # 100 grazes (exato)
+            unlocked.add("emp")
+        if "perfeccionista" in self.achieved:          # no-hit win (exato)
+            unlocked.add("blink")
+        if self.sel["diff"] == "dificil" and len(self.sel["muts"]) >= 1:
+            unlocked.add("overclock")                  # DIFÍCIL + mutador
+        if int(self.save.get("total_parries", 0)) + self.totals["parries"] >= 50:
+            unlocked.add("shield")                      # 50 parries totais
+        if self.sel["mode"] == "classic" and self.sel["boss"] == "twins":
+            unlocked.add("timedil")                      # aprox. de Gêmeos
+        self.save["unlocked_skills"] = sorted(unlocked)
+
+        if "alem_limite" in self.achieved:              # HARD c/ 3+ mutadores
+            self.save["omega_unlocked"] = True
+        if self.sel["mode"] == "classic" and self.sel["boss"] == "summoner":
+            muts = set(self.save.get("unlocked_mutators", []))
+            muts.add("claustro")                         # aprox. de Invocador
+            self.save["unlocked_mutators"] = sorted(muts)
+        if hcd >= 3:                    # venceu DIFÍCIL: libera as "+"
+            self.save["skill_plus_unlocked"] = ["all"]
+            self.save["weapon_plus_unlocked"] = ["all"]
 
     def _apply_shake(self, dt: float) -> None:
         ck = self.world.get_pool("clock")

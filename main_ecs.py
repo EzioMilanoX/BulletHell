@@ -24,9 +24,16 @@ SAVE_PATH = Path(__file__).parent / "save_ecs.json"
 
 
 def _load_save() -> dict:
-    """Carrega o save no boot (fora do loop de gameplay)."""
+    """Carrega o save no boot (fora do loop de gameplay). Campos de gating
+    (PARITY_PLAN.md P0-1): dificuldade/skills/mutador/boss/variantes '+'
+    começam bloqueados como no legado — só `unlocked_skills` já traz
+    NENHUMA+DASH, o resto se conquista jogando."""
     save = {"runs": 0, "total_kills": 0, "total_deaths": 0,
-            "total_graze": 0, "achievements": []}
+            "total_graze": 0, "total_parries": 0, "achievements": [],
+            "highest_cleared_diff": 0, "sins_rush_cleared": False,
+            "unlocked_skills": ["none", "dash"],
+            "unlocked_mutators": [], "omega_unlocked": False,
+            "skill_plus_unlocked": [], "weapon_plus_unlocked": []}
     if SAVE_PATH.exists():
         try:
             save.update(json.loads(SAVE_PATH.read_text(encoding="utf-8")))
@@ -41,6 +48,7 @@ def _persist(save: dict, totals: dict, achieved: set) -> None:
     save["total_kills"] += totals["kills"]
     save["total_deaths"] += totals["deaths"]
     save["total_graze"] += totals["graze"]
+    save["total_parries"] += totals.get("parries", 0)
     save["achievements"] = sorted(achieved)
     SAVE_PATH.write_text(json.dumps(save, indent=2), encoding="utf-8")
     if totals["runs"]:
@@ -57,7 +65,7 @@ def main() -> None:
     ap.add_argument("--mode", default="classic",
                     choices=["classic", "rush", "sins", "waves"])
     ap.add_argument("--diff", default="normal",
-                    choices=["facil", "normal", "dificil"])
+                    choices=["facil", "normal", "dificil", "expert", "abissal"])
     ap.add_argument("--boss", default="classic",
                     choices=["classic", "timemage", "wall", "swarm", "twins",
                              "summoner", "omega", "pride", "gluttony", "sloth",

@@ -78,8 +78,9 @@ RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
 ])
 
 STATS_DTYPE = np.dtype([         # estatísticas da run (persistidas ao sair)
-    ("kills",  np.uint32),
-    ("deaths", np.uint32),
+    ("kills",   np.uint32),
+    ("deaths",  np.uint32),
+    ("parries", np.uint32),      # balas refletidas (gate do ESCUDO: 50 total)
 ])
 
 WAVE_DTYPE = np.dtype([          # Wave Survival (1 linha)

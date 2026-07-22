@@ -410,6 +410,7 @@ class SkillSystem(ISystem):
         self._boss = memory_manager.get_pool("boss")
         self._clock = memory_manager.get_pool("clock")
         self._pb_homing = memory_manager.get_pool("pb_homing")
+        self._stats = memory_manager.get_pool("stats")
 
     def update(self, world: "World", delta_time: float) -> None:
         ck = self._clock.active_view()
@@ -553,6 +554,8 @@ class SkillSystem(ISystem):
         m = dx * dx + dy * dy <= sd.radius * sd.radius
         if not m.any():
             return
+        if self._stats.count:                        # gate do ESCUDO (50 total)
+            self._stats.active_view()["parries"][0] += int(m.sum())
         bx, by = px, py - 500.0                     # fallback: para cima
         if self._boss.count > 0:
             btrow = self._transform.dense_row_of(int(self._boss.active_entity_indices()[0]))
