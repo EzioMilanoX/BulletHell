@@ -3,21 +3,21 @@
   "patterns": [
 
     { "name": "classic/spread",
-      "_doc": "Leque mirado no jogador. n/cone crescem com a dificuldade (base: 5 balas, 48°). SPREAD_RATE=0.80, SPREAD_SPEED=185.",
-      "emit": "arc", "bullet": "std/normal",
-      "period": 0.80, "count": 5, "arc": 0.838, "aim": "player",
+      "_doc": "Leque mirado no jogador. DDA (Difficulty): n/cone escalam por tier de HP do boss (T1 5/35°, T2 6/45°, T3 7/56°) +1 bala em DIFÍCIL+. SPREAD_RATE=0.80, SPREAD_SPEED=185.",
+      "emit": "arc", "bullet": "std/normal", "dda": true,
+      "period": 0.80, "count": 5, "arc": 0.611, "aim": "player",
       "speed": 185.0 },
 
     { "name": "classic/ring",
-      "_doc": "Anel com vão de fuga rotativo (gira π/3 por disparo, centrado a 90° do jogador). RING_RATE=1.60.",
-      "emit": "ring", "bullet": "std/normal",
-      "period": 1.60, "count": 24, "speed": 150.0,
+      "_doc": "Anel com vão de fuga rotativo (gira π/3 por disparo, centrado a 90° do jogador). DDA: n/raio/velocidade escalam por tier (T1 26/132, T2 28/150, T3 32/170) +1 bala em DIFÍCIL+; vão = clamp(30/r, 18°, 55°). RING_RATE=1.60.",
+      "emit": "ring", "bullet": "std/normal", "dda": true,
+      "period": 1.60, "count": 26, "speed": 132.0,
       "gap": 0.9, "gap_step": 1.0472 },
 
     { "name": "classic/spiral",
-      "_doc": "Espiral contínua de 3 braços. SPIRAL_RATE=0.040 (25 tiros/s), SPIRAL_SPEED=72, braços girando 2.2 rad/s.",
-      "emit": "spiral", "bullet": "std/normal",
-      "period": 0.040, "arms": 3, "spin_speed": 2.2, "speed": 72.0 },
+      "_doc": "Espiral contínua. DDA: braços/velocidade angular escalam por tier (T1 6 braços·2.5rad/s, T2 6·3.75, T3 8·4.5). SPIRAL_RATE=0.040 (25 tiros/s), SPIRAL_SPEED=72.",
+      "emit": "spiral", "bullet": "std/normal", "dda": true,
+      "period": 0.040, "arms": 6, "spin_speed": 2.5, "speed": 72.0 },
 
     { "name": "classic/circular_saw",
       "_doc": "CIRCULAR: 3 braços que se formam em 2.5s (CIRC_FORM_TIME) girando 2.2 rad/s e voam a 195 px/s.",
@@ -54,14 +54,15 @@
       "speed": 240.0 },
 
     { "name": "swarm/crossfire",
-      "_doc": "As 3 unidades miram o jogador ao mesmo tempo (1 emitter por unidade, parent = entidade da unidade).",
-      "emit": "arc", "bullet": "std/normal",
-      "period": 0.9, "count": 3, "arc": 0.35, "aim": "player",
-      "speed": 200.0 },
+      "_doc": "As 3 unidades miram o jogador ao mesmo tempo (1 emitter por unidade, parent = entidade da unidade). DDA como o Clássico (spread_params).",
+      "emit": "arc", "bullet": "std/normal", "dda": true,
+      "period": 0.9, "count": 5, "arc": 0.611, "aim": "player",
+      "speed": 185.0 },
 
     { "name": "swarm/ring_volley",
-      "emit": "ring", "bullet": "std/normal",
-      "period": 1.8, "count": 16, "speed": 140.0,
+      "_doc": "Anel idêntico ao RING do Clássico (ring_params) — DDA.",
+      "emit": "ring", "bullet": "std/normal", "dda": true,
+      "period": 1.8, "count": 26, "speed": 132.0,
       "gap": 0.6, "gap_step": 0.7854 },
 
     { "name": "twins/yin_arcs",

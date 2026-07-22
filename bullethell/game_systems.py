@@ -10,6 +10,7 @@ projétil guarda o próprio handle na coluna "self" para permitir
 """
 from __future__ import annotations
 
+import dataclasses
 import math
 from typing import TYPE_CHECKING
 
@@ -255,6 +256,8 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
     bv["stun_t"][brow] = 0.0
     bv["aux_angle"][brow] = bv["aux2"][brow] = 0.0
     bv["invuln"][brow] = 0
+    bv["tier"][brow] = 1                          # DDA: recalculado no 1º frame
+    bv["sw_t"][brow] = bv["sw_acc"][brow] = 0.0    # Segundo Fôlego (EXPERT+)
 
     part_indices = []
     pt = mm.get_pool("part")
@@ -876,6 +879,8 @@ class BossPhaseSystem(ISystem):
         self._player = memory_manager.get_pool("player")
 
     def update(self, world: "World", delta_time: float) -> None:
+        mods = self._mods.active_view()
+        diff_ord = int(mods["diff_ord"][0])
         for raw in self._boss.active_entity_indices():
             i = int(raw)
             brow = self._boss.dense_row_of(i)
@@ -884,11 +889,33 @@ class BossPhaseSystem(ISystem):
                 bv["stun_t"][brow] -= delta_time
             bdef = self._data.bosses[int(bv["boss_id"][brow])]
             frac = float(bv["hp"][brow]) / float(bv["max_hp"][brow])
+            bv["tier"][brow] = 1 if frac > 0.66 else (2 if frac > 0.33 else 3)  # DDA
             phase = int(bv["phase_idx"][brow])
+
+            if bv["sw_t"][brow] > 0.0:              # Segundo Fôlego em andamento
+                bv["sw_t"][brow] -= delta_time
+                bv["sw_acc"][brow] += delta_time
+                if bv["sw_t"][brow] <= 0.0:
+                    bv["hp"][brow] = 0.0            # tempo esgotado: morre de vez
+                else:
+                    if bv["sw_acc"][brow] >= 0.45:
+                        bv["sw_acc"][brow] -= 0.45
+                        self._second_wind_burst(world, i, bv, brow, initial=False)
+                    continue                        # imortal enquanto durar
+
             if bv["hp"][brow] <= 0.0:
                 if phase < len(bdef.phases) - 1:   # ainda há fases (Pecado:
                     bv["hp"][brow] = 1.0           # floor até o Sétimo Selo)
                     frac = 1.0 / float(bv["max_hp"][brow])
+                elif diff_ord >= 3 and not mods["sw_used"][0]:   # EXPERT+/ABISSAL
+                    mods["sw_used"][0] = 1         # Segundo Fôlego: 1×/run
+                    bv["hp"][brow] = 1.0
+                    bv["invuln"][brow] = 1         # imune durante a sobrevida
+                    bv["sw_t"][brow] = 3.0
+                    bv["sw_acc"][brow] = 0.0
+                    self._second_wind_burst(world, i, bv, brow, initial=True)
+                    add_shake(self._mm, 14.0)
+                    continue
                 else:                              # derrotado
                     sv_ = self._stats.active_view()
                     sv_["kills"][0] += 1
@@ -902,7 +929,7 @@ class BossPhaseSystem(ISystem):
                                         ttl=0.7, seed=i)
                         add_shake(self._mm, 12.0)
                         add_sfx(self._mm, SFX_BOOM)
-                    mode = int(self._mods.active_view()["rush"][0])
+                    mode = int(mods["rush"][0])
                     if mode in (1, 2):             # Boss Rush / SINS
                         self._rush_advance(world, i, brow, bv)
                     elif mode == 3:                # Waves: só remove; o
@@ -921,6 +948,25 @@ class BossPhaseSystem(ISystem):
                 bv["aux_angle"][brow] = bv["aux2"][brow] = 0.0   # estado limpo
                 self._reset_waypoint_timer(i)      # timers de gimmick (20s/30s)
                 self._swap_emitters(world, i, bdef.phases[nxt])
+
+    def _second_wind_burst(self, world: "World", boss_index: int, bv, brow,
+                           initial: bool) -> None:
+        """Rajada em anel do Segundo Fôlego (EXPERT+): 32 balas iniciais a
+        230px/s; depois um anel de 18 a cada 0.45s girando com o timer."""
+        trow = self._mm.get_pool("transform").dense_row_of(boss_index)
+        if trow < 0:
+            return
+        tv = self._mm.get_pool("transform").active_view()
+        x = float(tv["position_x"][trow]); y = float(tv["position_y"][trow])
+        if initial:
+            n, base_speed, rot = 32, 230.0, 0.0
+        else:
+            n, base_speed, rot = 18, 190.0, float(bv["sw_t"][brow]) * 1.5
+        for j in range(n):
+            a = rot + j * (TWO_PI / n)
+            spd = base_speed if initial else base_speed + (j % 3) * 20.0
+            spawn_enemy_bullet(world, self._mm, x, y,
+                               math.cos(a) * spd, math.sin(a) * spd)
 
     def _reset_waypoint_timer(self, boss_index: int) -> None:
         wp = self._mm.get_pool("waypoint")
@@ -1154,6 +1200,17 @@ class LaserSystem(ISystem):
             world.destroy_entity(int(h))
 
 
+# DDA (Difficulty do legado, entities.py:618-665): escala count/arc/velocidade
+# dos padrões marcados `dda` (spread/ring/spiral do Clássico e do Enxame) pelo
+# tier de HP do boss (1: >66%, 2: >33%, 3: resto); +1 projétil em DIFÍCIL+.
+_DDA_SPREAD = {1: (5, math.radians(35.0)), 2: (6, math.radians(45.0)),
+               3: (7, math.radians(56.0))}
+_DDA_RING = {1: (26, 132.0), 2: (28, 150.0), 3: (32, 170.0)}
+_DDA_SPIRAL = {1: (6, 2.5), 2: (6, 3.75), 3: (8, 4.5)}
+_RING_TARGET_ARC = 30.0
+_RING_MIN_GAP, _RING_MAX_GAP = math.radians(18.0), math.radians(55.0)
+
+
 # ===========================================================================
 class EmitterSystem(ISystem):
     """Executa PatternDefs: spawna balas inimigas como ENTIDADES, escrevendo
@@ -1176,10 +1233,33 @@ class EmitterSystem(ISystem):
         self._mods = memory_manager.get_pool("run_mods")
         self._abissal = False
 
+    def _dda_pattern(self, pat: PatternDef, root_idx: int, bonus: int,
+                     ox: float, oy: float, px: float, py: float) -> PatternDef:
+        """Substitui count/arc/velocidade/braços pelo tier de HP do boss
+        raiz (DDA — Difficulty do legado). `root_idx` já é o entity index
+        puro (ver spawn_emitters), não um PackedEntityId."""
+        brow = self._boss.dense_row_of(root_idx)
+        tier = int(self._boss.active_view()["tier"][brow]) if brow >= 0 else 1
+        if tier not in (1, 2, 3):
+            tier = 1
+        if pat.emit == "arc":
+            n, arc = _DDA_SPREAD[tier]
+            return dataclasses.replace(pat, count=n + bonus, arc=arc)
+        if pat.emit == "ring":
+            n, speed = _DDA_RING[tier]
+            r = max(math.hypot(px - ox, py - oy), 40.0)
+            gap = min(max(_RING_TARGET_ARC / r, _RING_MIN_GAP), _RING_MAX_GAP)
+            return dataclasses.replace(pat, count=n + bonus, speed=speed, gap=gap)
+        if pat.emit == "spiral":
+            arms, spin = _DDA_SPIRAL[tier]
+            return dataclasses.replace(pat, arms=arms, spin_speed=spin)
+        return pat
+
     def update(self, world: "World", delta_time: float) -> None:
         delta_time *= float(self._clock.active_view()["world"][0])   # FOCUS
         mods = self._mods.active_view()
         self._abissal = bool(mods["abissal"][0])
+        dda_bonus = 1 if int(mods["diff_ord"][0]) >= 2 else 0
         pi, ptrow = _player_row(self._player, self._transform)
         tv = self._transform.active_view()
         px = float(tv["position_x"][ptrow]) if ptrow >= 0 else SCREEN_W / 2
@@ -1208,6 +1288,9 @@ class EmitterSystem(ISystem):
                 continue
             ox = float(tv["position_x"][prow]) + float(ev["off_x"][k])
             oy = float(tv["position_y"][prow]) + float(ev["off_y"][k])
+            if pat.dda:
+                pat = self._dda_pattern(pat, int(ev["root"][k]), dda_bonus,
+                                        ox, oy, px, py)
             while ev["t"][k] >= pat.period:
                 ev["t"][k] -= pat.period
                 self._emit(world, k, pat, ox, oy, px, py)
@@ -2094,6 +2177,11 @@ class GhostTintSystem(ISystem):
 
 
 # ===========================================================================
+# Cor da barra de HP por tier da DDA (legado: GREEN/YELLOW/RED_COL na borda,
+# main.py:980-981) — aqui usada no preenchimento, que já escala com o hp_frac.
+_TIER_COLOR = {1: (0, 220, 0), 2: (255, 220, 0), 3: (220, 20, 60)}
+
+
 class HudSystem(ISystem):
     """HUD de retângulos (o renderer placeholder não tem texto): barra de
     HP do boss no topo, quadrados de vida embaixo à esquerda, barra de
@@ -2119,9 +2207,11 @@ class HudSystem(ISystem):
 
         bvv = self._boss.active_view()
         hp_frac = 0.0
+        tier = 1
         if self._boss.count:
             hp_frac = float(np.sum(bvv["hp"][: self._boss.count])) / \
                       max(1.0, float(np.sum(bvv["max_hp"][: self._boss.count])))
+            tier = int(np.max(bvv["tier"][: self._boss.count]))  # pior tier vivo
 
         pi = self._player.active_entity_indices()
         lives, cd_frac = 0, 0.0
@@ -2143,6 +2233,8 @@ class HudSystem(ISystem):
             if kind == 0:                            # barra de HP do boss
                 tv["scale_x"][trow] = max(0.01, 400.0 * hp_frac / 8.0)
                 tv["scale_y"][trow] = 10.0 / 8.0
+                r, g, b = _TIER_COLOR.get(tier, (255, 70, 100))
+                sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
             elif kind in (1, 2, 3):                  # vidas
                 on = lives >= kind
                 sv["tint_r"][srow] = 240 if on else 40
@@ -2534,7 +2626,7 @@ class BossGimmickSystem(ISystem):
                 if elapsed >= 30.0:                 # sobreviveu → boss cai
                     bv["hp"][brow] = 0.0
 
-            else:
+            elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0
         if not spotlight_on:                        # apaga o feixe
             self._update_beam(0.0, False, False)

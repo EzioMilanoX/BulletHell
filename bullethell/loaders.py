@@ -60,6 +60,7 @@ class PatternDef:
     warmup: float
     hp: float             # summon: HP do lacaio invocado
     kind: int             # summon: MINION_* (0=kamikaze, 1=sentinela, 2=bolha)
+    dda: bool             # arc/ring/spiral: escala por tier da Difficulty (DDA)
 
 
 @dataclass(frozen=True, slots=True)
@@ -185,6 +186,7 @@ def load_patterns(path=DATA_DIR / "patterns.json") -> Dict[int, PatternDef]:
             spin_speed=e.get("spin_speed", 0.0), arms=e.get("arms", 1),
             track=e.get("track", ""), warmup=e.get("warmup", 0.0),
             hp=e.get("hp", 3.0), kind=e.get("kind", 0),
+            dda=bool(e.get("dda", False)),
         )
         out[sid(d.name)] = d
     return out

@@ -52,9 +52,15 @@ MODES = [("classic", "CLÁSSICO", "1 boss escolhido, até a vitória"),
          ("sins", "SINS RUSH", "os 8 pecados até o Sétimo Selo"),
          ("waves", "WAVE SURVIVAL", "30 ondas; bosses nas 10/20/30")]
 
-DIFFS = [("facil", "FÁCIL", "HP e velocidade reduzidos"),
+DIFFS = [("facil", "FÁCIL", "HP ×0.67 e velocidade ×0.75"),
          ("normal", "NORMAL", "a experiência padrão"),
-         ("dificil", "DIFÍCIL", "HP ×1.33 e velocidade ×1.18")]
+         ("dificil", "DIFÍCIL", "HP ×1.33 e velocidade ×1.30 · +1 projétil"),
+         ("expert", "EXPERT",
+          "HP ×1.60 e velocidade ×1.50 · Segundo Fôlego: o boss resiste"
+          " 3s com 1 HP ao morrer"),
+         ("abissal", "ABISSAL",
+          "HP ×1.87 e velocidade ×1.65 · balas fragmentam ao sair da tela"
+          " · requer vitória no SINS RUSH")]
 
 BOSSES = [("classic", "CLÁSSICO"), ("swarm", "ENXAME"), ("wall", "PAREDÃO"),
           ("timemage", "MAGO DO TEMPO"), ("twins", "GÊMEOS"),
@@ -84,7 +90,6 @@ MUTATORS = [("predador", "PREDADOR", "boss mira 0.5s à frente"),
             ("fantasma", "FANTASMA", "balas somem entre 200-400px do boss"),
             ("glass", "CANHÃO DE VIDRO", "1 vida, dano ×3"),
             ("claustro", "CLAUSTROFOBIA", "arena 14% menor por borda"),
-            ("abissal", "ABISSAL", "balas fragmentam ao sair da tela"),
             ("horde", "HORDA", "boss: +50% HP, −15% velocidade"),
             ("berserker", "BERSERKER", "boss: −25% HP, +35% velocidade")]
 
@@ -507,8 +512,10 @@ class GameApp:
             bv = bp.active_view()
             hp = float(np.sum(bv["hp"][: bp.count]))
             mx = float(np.sum(bv["max_hp"][: bp.count]))
+            tier = int(np.max(bv["tier"][: bp.count]))   # DDA — pior tier vivo
             name = self._boss_display(int(bv["boss_id"][0]))
-            r.draw_text(SCREEN_W / 2, 26, f"{name}   {hp:.0f} / {mx:.0f}",
+            r.draw_text(SCREEN_W / 2, 26,
+                        f"{name}   {hp:.0f} / {mx:.0f}   T{tier}",
                         16, TXT, anchor="center")
         if mode == "waves":
             wv = w.get_pool("wave").active_view()

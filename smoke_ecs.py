@@ -15,9 +15,10 @@ DT = 1 / 60
 
 def run(boss: str, weapon: str, frames: int = 900, approach: bool = False,
         skill: str = "none", mutators: frozenset = frozenset(),
-        mode: str = "classic") -> dict:
+        mode: str = "classic", difficulty: str = "normal") -> dict:
     world, inp = build_headless(boss_name=boss, weapon_name=weapon,
-                                skill_name=skill, mutators=mutators, mode=mode)
+                                skill_name=skill, mutators=mutators, mode=mode,
+                                difficulty=difficulty)
     eb = world.get_pool("enemy_bullet")
     pb = world.get_pool("pb_core")
     bp = world.get_pool("boss")
@@ -146,9 +147,9 @@ if __name__ == "__main__":
             ok = False
         print(f"[{status}] {r}")
 
-    # mutadores
+    # mutadores (ABISSAL agora é dificuldade, não mutador — ver abaixo)
     for muts in [("predador",), ("fantasma",), ("glass",), ("claustro",),
-                 ("abissal",), ("horde",), ("berserker",),
+                 ("horde",), ("berserker",),
                  ("predador", "fantasma", "glass")]:
         r = run("classic", "padrao", mutators=frozenset(muts))
         r["mutators"] = "+".join(muts)
@@ -156,6 +157,23 @@ if __name__ == "__main__":
         damaged = r["boss_damage"] > 0
         status = "OK " if (spawned and damaged) else "FAIL"
         if not (spawned and damaged):
+            ok = False
+        print(f"[{status}] {r}")
+
+    # dificuldades EXPERT/ABISSAL (DDA + Segundo Fôlego + Fragmentação):
+    # spread+ derrete o classic rápido o bastante p/ testar o ciclo completo
+    # de morte, incluindo o Segundo Fôlego "sobrevivendo" com 1 HP antes de
+    # cair de vez (kills>=1 só acontece depois do timer de 3s esgotar).
+    for diff in ("expert", "abissal"):
+        # HP maior (480/560) + DDA deixam o classic mais resistente — o
+        # 1º "quase morrer" já leva ~2300-2500 frames; +180 do próprio
+        # Segundo Fôlego exige uma folga generosa para fechar o ciclo.
+        r = run("classic", "spread+", frames=3600, approach=True,
+               difficulty=diff)
+        r["difficulty"] = diff
+        died = r["kills"] >= 1
+        status = "OK " if died else "FAIL"
+        if not died:
             ok = False
         print(f"[{status}] {r}")
 

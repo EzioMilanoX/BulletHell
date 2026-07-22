@@ -67,12 +67,14 @@ RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
     ("ghost",    np.uint8),      # balas invisíveis entre 200-400px do boss
     ("glass",    np.uint8),      # 1 vida, dano ×3
     ("claustro", np.uint8),      # arena encolhida 14% por borda
-    ("abissal",  np.uint8),      # balas fragmentam ao sair da tela
+    ("abissal",  np.uint8),      # balas fragmentam ao sair da tela (ABISSAL, agora dificuldade)
     ("hp_mult",  np.float32),    # HORDE ×1.5 / BERSERKER ×0.75
     ("spd_mult", np.float32),    # HORDE ×0.85 / BERSERKER ×1.35
     ("rush",     np.uint8),      # 0=clássico, 1=Boss Rush, 2=SINS Rush
     ("rush_idx", np.uint8),      # posição atual na sequência
     ("arcade",   np.uint8),      # 1 = morte é GAMEOVER (menus), 0 = respawn
+    ("diff_ord", np.uint8),      # 0..4 = FACIL..ABISSAL (DDA: bônus se >=2)
+    ("sw_used",  np.uint8),      # Segundo Fôlego (EXPERT+): 1 = já usado nesta run
 ])
 
 STATS_DTYPE = np.dtype([         # estatísticas da run (persistidas ao sair)
@@ -118,6 +120,9 @@ BOSS_DTYPE = np.dtype([
     ("aux_angle", np.float32),   # swarm: ângulo; teleport: timer; pride: spot_x
     ("aux2",      np.float32),   # pride: direção do holofote
     ("invuln",    np.uint8),     # gimmicks: holofote / gate de fantasmas
+    ("tier",      np.int8),      # DDA (Difficulty): 1/2/3 pelo HP ratio (>0.66/>0.33/resto)
+    ("sw_t",      np.float32),   # Segundo Fôlego (EXPERT+): >0 = sobrevivendo com 1 HP
+    ("sw_acc",    np.float32),   # Segundo Fôlego: acumulador da rajada periódica
 ])
 
 PART_DTYPE = np.dtype([          # hitbox-filha de boss composto

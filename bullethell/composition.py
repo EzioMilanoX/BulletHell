@@ -22,12 +22,18 @@ from bullethell import game_systems as gs
 ENTITY_CAPACITY = 8192
 
 
-# Dificuldade → multiplicadores de HP/velocidade do boss (legado:
-# FÁCIL ×0.75/HP200, NORMAL ×1.0/HP300, DIFÍCIL ×1.3/HP400)
+# Dificuldade → multiplicadores de HP/velocidade do boss, nas MESMAS razões
+# do legado (entities.py:565-569 — FÁCIL 0.75/200, NORMAL 1.0/300,
+# DIFÍCIL 1.3/400, EXPERT 1.5/480, ABISSAL 1.65/560 — normalizado por NORMAL).
+# Ordinal (0-4) = índice em DIFF_ORDER; usado pelo bônus da DDA (§ tier>=HARD)
+# e pelo gate de ABISSAL (só libera vencendo o SINS Rush).
+DIFF_ORDER = ["facil", "normal", "dificil", "expert", "abissal"]
 DIFFICULTIES = {
-    "facil":   (0.70, 0.85),
-    "normal":  (1.00, 1.00),
-    "dificil": (1.33, 1.18),
+    "facil":   (0.667, 0.75),
+    "normal":  (1.00,  1.00),
+    "dificil": (1.333, 1.30),
+    "expert":  (1.60,  1.50),
+    "abissal": (1.867, 1.65),
 }
 
 
@@ -138,7 +144,9 @@ def _spawn_clock(world: World, mm: MemoryManager, mutators: frozenset,
     mv["ghost"][row] = 1 if "fantasma" in mutators else 0
     mv["glass"][row] = 1 if "glass" in mutators else 0
     mv["claustro"][row] = 1 if "claustro" in mutators else 0
-    mv["abissal"][row] = 1 if "abissal" in mutators else 0
+    # ABISSAL agora é a 5ª dificuldade (legado: entities.py:640-642), não um
+    # mutador de checkbox — a Fragmentação liga junto com o tier de dificuldade.
+    mv["abissal"][row] = 1 if difficulty == "abissal" else 0
     hp_m, spd_m = DIFFICULTIES.get(difficulty, (1.0, 1.0))
     if "horde" in mutators:
         hp_m, spd_m = hp_m * 1.5, spd_m * 0.85
@@ -147,6 +155,9 @@ def _spawn_clock(world: World, mm: MemoryManager, mutators: frozenset,
     mv["hp_mult"][row] = hp_m
     mv["spd_mult"][row] = spd_m
     mv["arcade"][row] = 1 if arcade else 0
+    mv["diff_ord"][row] = (DIFF_ORDER.index(difficulty)
+                           if difficulty in DIFF_ORDER else 1)
+    mv["sw_used"][row] = 0                        # Segundo Fôlego: 1×/run
 
 
 def _spawn_hud(world: World, mm: MemoryManager) -> None:
