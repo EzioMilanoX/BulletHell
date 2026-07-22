@@ -16,7 +16,7 @@ import numpy as np
 from ouroboros.core.memory.component_pool import intersect_entity_indices
 
 from bullethell.composition import DIFFICULTIES, build_world
-from bullethell.game_systems import RUSH_ORDERS
+from bullethell.game_systems import PLAYER_HIT_R, RUSH_ORDERS
 from bullethell.ids import sid
 from bullethell.loaders import GameData
 from bullethell.schemas import SCREEN_H, SCREEN_W
@@ -25,7 +25,8 @@ from bullethell.schemas import SCREEN_H, SCREEN_W
 # Estados / catálogos dos menus
 # ---------------------------------------------------------------------------
 (MENU_MAIN, MENU_MODE, MENU_DIFF, MENU_BOSS, MENU_SKILL, MENU_WEAPON,
- MENU_MUT, PLAYING, WIN, GAMEOVER, MENU_ACH) = range(11)
+ MENU_MUT, PLAYING, WIN, GAMEOVER, MENU_ACH, MENU_RECORDS,
+ MENU_SETTINGS) = range(13)
 
 # Conquistas persistidas em save_ecs.json (id, nome, como desbloquear)
 ACHIEVEMENTS = [
@@ -47,51 +48,115 @@ ACHIEVEMENTS = [
 # clock.sfx → som registrado (bit, sound_id)
 SFX_MAP = [(1, "hit"), (2, "boom"), (4, "emp"), (8, "shield"), (16, "mine")]
 
-MODES = [("classic", "CLÁSSICO", "1 boss escolhido, até a vitória"),
-         ("rush", "BOSS RUSH", "7 bosses em sequência, +1 vida entre eles"),
-         ("sins", "SINS RUSH", "os 8 pecados até o Sétimo Selo"),
-         ("waves", "WAVE SURVIVAL", "30 ondas; bosses nas 10/20/30")]
+# Catálogos dos menus: (id, label, [linhas de descrição], cor de destaque).
+# As cores seguem a paleta do legado item a item (main.py: _DIFF_COLORS,
+# _BOSS_COLORS, _SKILL_COLORS, _WEAPON_COLORS, _MUTATOR_COLORS) — usadas na
+# barra do card, no título do painel direito e na seta do cursor.
+MAIN_ITEMS = [("play", "JOGAR", (80, 220, 80)),
+              ("ach", "CONQUISTAS", (255, 200, 40)),
+              ("records", "REGISTROS", (80, 200, 140)),
+              ("settings", "SISTEMA", (100, 160, 255)),
+              ("quit", "SAIR", (220, 50, 50))]
 
-DIFFS = [("facil", "FÁCIL", "HP ×0.67 e velocidade ×0.75"),
-         ("normal", "NORMAL", "a experiência padrão"),
-         ("dificil", "DIFÍCIL", "HP ×1.33 e velocidade ×1.30 · +1 projétil"),
+MODES = [("classic", "CLÁSSICO",
+         ("1 boss escolhido, até a vitória.",
+          "Modo original — focado, sem surpresas."), (200, 200, 200)),
+         ("rush", "BOSS RUSH",
+         ("7 bosses em sequência, +1 vida entre eles.",
+          "Sem aleatoriedade — domine cada padrão."), (255, 140, 30)),
+         ("sins", "SINS RUSH",
+         ("Os 8 pecados até o Sétimo Selo.",
+          "Vencer libera a dificuldade ABISSAL."), (180, 40, 255)),
+         ("waves", "WAVE SURVIVAL",
+         ("30 ondas; bosses nas ondas 10/20/30.",
+          "Sobreviva até o fim para vencer."), (80, 200, 100))]
+
+DIFFS = [("facil", "FÁCIL",
+         ("HP ×0.67 e velocidade ×0.75.",
+          "Para conhecer o jogo sem pressão."), (80, 220, 80)),
+         ("normal", "NORMAL",
+         ("A experiência padrão.",
+          "Todos os ataques, ritmo equilibrado."), (255, 220, 0)),
+         ("dificil", "DIFÍCIL",
+         ("HP ×1.33, velocidade ×1.30, +1 projétil.",
+          "Libera todas as variantes '+' ao vencer."), (220, 20, 60)),
          ("expert", "EXPERT",
-          "HP ×1.60 e velocidade ×1.50 · Segundo Fôlego: o boss resiste"
-          " 3s com 1 HP ao morrer"),
+         ("HP ×1.60, velocidade ×1.50.",
+          "★ Segundo Fôlego — o boss resiste 3s com 1 HP ao morrer."),
+         (255, 80, 200)),
          ("abissal", "ABISSAL",
-          "HP ×1.87 e velocidade ×1.65 · balas fragmentam ao sair da tela"
-          " · requer vitória no SINS RUSH")]
+         ("HP ×1.87, velocidade ×1.65.",
+          "Balas fragmentam ao sair da tela.",
+          "⚠ Requer vitória no SINS RUSH"), (120, 0, 255))]
 
-BOSSES = [("classic", "CLÁSSICO"), ("swarm", "ENXAME"), ("wall", "PAREDÃO"),
-          ("timemage", "MAGO DO TEMPO"), ("twins", "GÊMEOS"),
-          ("summoner", "INVOCADOR"), ("omega", "ÔMEGA *"),
-          ("pride", "SOBERBA *"), ("sloth", "PREGUIÇA *"),
-          ("envy", "INVEJA *"), ("gluttony", "GULA *"),
-          ("greed", "AVAREZA *"), ("lust", "LUXÚRIA *"),
-          ("wrath", "IRA *"), ("sin", "PECADO ORIGINAL **")]
+BOSSES = [("classic", "CLÁSSICO", (128, 0, 0)),
+          ("swarm", "ENXAME", (140, 60, 220)),
+          ("wall", "PAREDÃO", (60, 120, 220)),
+          ("timemage", "MAGO DO TEMPO", (80, 200, 220)),
+          ("twins", "GÊMEOS", (80, 120, 255)),
+          ("summoner", "INVOCADOR", (160, 40, 220)),
+          ("omega", "ÔMEGA *", (255, 60, 120)),
+          ("pride", "SOBERBA *", (255, 215, 0)),
+          ("sloth", "PREGUIÇA *", (130, 60, 200)),
+          ("envy", "INVEJA *", (0, 220, 80)),
+          ("gluttony", "GULA *", (180, 40, 40)),
+          ("greed", "AVAREZA *", (200, 160, 0)),
+          ("lust", "LUXÚRIA *", (220, 80, 160)),
+          ("wrath", "IRA *", (220, 50, 20)),
+          ("sin", "PECADO ORIGINAL **", (180, 0, 220))]
 
-SKILLS = [("none", "NENHUMA", "confie apenas nos reflexos"),
-          ("dash", "DASH", "SHIFT: 6× velocidade por 0.18s"),
-          ("parry", "PARRY", "SHIFT: reflete balas contra o boss"),
-          ("focus", "FOCO", "segure SHIFT: câmera lenta (energia)"),
-          ("emp", "EMP", "SHIFT: limpa 340px + stun 1s"),
-          ("blink", "BLINK", "SHIFT: teleporte de 190px"),
-          ("overclock", "OVERCLOCK", "SHIFT: cadência ×2.2 por 3s"),
-          ("shield", "ESCUDO", "SHIFT: absorve o próximo hit"),
-          ("timedil", "DILATAÇÃO", "SHIFT: congela balas por 2s")]
+SKILLS = [("none", "NENHUMA", ("Confie apenas nos reflexos.",), (64, 64, 64)),
+          ("dash", "DASH",
+          ("SHIFT — 6× velocidade por 0.18s.",), (80, 200, 255)),
+          ("parry", "PARRY",
+          ("SHIFT — reflete balas num raio de 17.5px.",), (0, 255, 200)),
+          ("focus", "FOCO",
+          ("Segure SHIFT — câmera lenta (drena energia).",), (255, 220, 60)),
+          ("emp", "EMP",
+          ("SHIFT — limpa balas em 340px + stun 1s no boss.",),
+          (255, 80, 200)),
+          ("blink", "BLINK",
+          ("SHIFT — teleporte instantâneo de 190px.",), (140, 80, 255)),
+          ("overclock", "OVERCLOCK",
+          ("SHIFT — cadência ×2.2 por 3s.",), (255, 140, 40)),
+          ("shield", "ESCUDO",
+          ("SHIFT — absorve o próximo hit (2.5s).",), (80, 255, 140)),
+          ("timedil", "DILATAÇÃO",
+          ("SHIFT — congela as balas inimigas por 2s.",), (160, 200, 255))]
 
-WEAPONS = [("padrao", "PADRÃO"), ("spread", "SPREAD"), ("agulha", "AGULHA"),
-           ("carregado", "CARREGADO"), ("burst", "BURST"),
-           ("teleguiado", "TELEGUIADO"), ("flak", "FLAK"),
-           ("chakram", "CHAKRAM"), ("plasma", "PLASMA"),
-           ("satelite", "SATÉLITE")]
+WEAPONS = [("padrao", "PADRÃO",
+           ("1 bala reta · 1.0× dano · CD 0.10s.",), (160, 160, 160)),
+           ("spread", "SPREAD",
+           ("3 balas em cone ±14° · 0.6× dano cada.",), (255, 165, 0)),
+           ("agulha", "AGULHA",
+           ("1 bala a 900px/s · 1.5× dano.",), (80, 255, 180)),
+           ("carregado", "CARREGADO",
+           ("Segure até 2.5s · dano 2.0×→8.0×.",), (255, 200, 60)),
+           ("burst", "BURST",
+           ("3 tiros em rajada · 1.0× dano cada.",), (255, 100, 100)),
+           ("teleguiado", "TELEGUIADO",
+           ("5 mísseis que curvam ao boss.",), (100, 255, 140)),
+           ("flak", "FLAK",
+           ("Projétil lento → 5 estilhaços em leque.",), (255, 160, 40)),
+           ("chakram", "CHAKRAM",
+           ("Disco que desacelera, inverte e retorna.",), (0, 220, 255)),
+           ("plasma", "PLASMA",
+           ("Feixe curto · 10 DPS contínuo por contato.",), (160, 60, 255)),
+           ("satelite", "SATÉLITE",
+           ("Até 4 gemas orbitando o jogador.",), (255, 220, 0))]
 
-MUTATORS = [("predador", "PREDADOR", "boss mira 0.5s à frente"),
-            ("fantasma", "FANTASMA", "balas somem entre 200-400px do boss"),
-            ("glass", "CANHÃO DE VIDRO", "1 vida, dano ×3"),
-            ("claustro", "CLAUSTROFOBIA", "arena 14% menor por borda"),
-            ("horde", "HORDA", "boss: +50% HP, −15% velocidade"),
-            ("berserker", "BERSERKER", "boss: −25% HP, +35% velocidade")]
+MUTATORS = [("predador", "PREDADOR",
+            ("Boss mira 0.5s à frente do jogador.",), (255, 60, 60)),
+            ("fantasma", "FANTASMA",
+            ("Balas somem entre 200-400px do boss.",), (140, 100, 255)),
+            ("glass", "CANHÃO DE VIDRO",
+            ("1 vida · dano ×3 ao boss.",), (255, 200, 40)),
+            ("claustro", "CLAUSTROFOBIA",
+            ("Arena reduzida 14% em cada borda.",), (80, 180, 80)),
+            ("horde", "HORDA",
+            ("Boss +50% HP, −15% velocidade.",), (200, 80, 30)),
+            ("berserker", "BERSERKER",
+            ("Boss −25% HP, +35% velocidade.",), (255, 80, 160))]
 
 BOSS_INTROS = {
     "classic": ("O CLÁSSICO", "Oito padrões. Nenhuma piedade."),
@@ -119,6 +184,16 @@ TXT = (221, 218, 245, 255)
 MUTED = (136, 136, 170, 255)
 GOLD = (245, 197, 24, 255)
 RED = (255, 60, 90, 255)
+
+# Layout dos menus de passo (DIFF/BOSS/SKILL/WEAPON/MUTADOR) — mesmas
+# posições do legado (main.py: _MLL_*/_MRP_*/_MC_*), a mesma resolução
+# 1280×720 (schemas.SCREEN_W/H) permite reusar os números exatos.
+MLL_X, MLL_W = 80, 338
+MRP_X, MRP_W = 450, 742
+MC_Y0, MC_Y1 = 150, 666
+STEP_COLS = [(80, 220, 80), (80, 180, 255), (255, 220, 0),
+            (220, 50, 60), (140, 80, 255)]
+STEP_NAMES = ["DIFICULDADE", "BOSS", "HABILIDADE", "ARMA", "MUTADORES"]
 
 
 class GameApp:
@@ -184,36 +259,47 @@ class GameApp:
         if s == PLAYING:
             self._tick_playing(dt)
         elif s == MENU_MAIN:
-            self._menu(["JOGAR", "CONQUISTAS", "SAIR"], "BULLET HELL",
-                       subtitle="OuroborosEngine · port ECS",
-                       on_confirm=self._main_confirm)
+            self._main_menu_screen()
         elif s == MENU_ACH:
             self._achievements_screen()
+        elif s == MENU_RECORDS:
+            self._records_screen()
+        elif s == MENU_SETTINGS:
+            self._settings_screen()
         elif s == MENU_MODE:
             self._menu([m[1] for m in MODES], "MODO DE JOGO",
+                       colors=[m[3] for m in MODES],
                        descs=[m[2] for m in MODES],
                        on_confirm=self._mode_confirm, back_to=MENU_MAIN)
         elif s == MENU_DIFF:
-            self._menu([d[1] for d in DIFFS], "DIFICULDADE",
+            self._menu([d[1] for d in DIFFS], "BULLET HELL",
+                       colors=[d[3] for d in DIFFS],
                        descs=[d[2] for d in DIFFS],
                        on_confirm=self._diff_confirm, back_to=MENU_MODE,
-                       locked=[self._diff_locked(k) for k in range(len(DIFFS))])
+                       locked=[self._diff_locked(k) for k in range(len(DIFFS))],
+                       step=1)
         elif s == MENU_BOSS:
-            self._menu([b[1] for b in BOSSES], "ESCOLHA O BOSS",
+            self._menu([b[1] for b in BOSSES], "BULLET HELL",
+                       colors=[b[2] for b in BOSSES],
+                       descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
+                             for b in BOSSES],
                        on_confirm=self._boss_confirm, back_to=MENU_DIFF,
-                       locked=[self._boss_locked(b[0]) for b in BOSSES])
+                       locked=[self._boss_locked(b[0]) for b in BOSSES],
+                       step=2, crumb=self._crumb()[:1])
         elif s == MENU_SKILL:
             items = [n + (" +" if self.sel["skill_plus"] and k == self.cursor
                           and self._has_plus(SKILLS[k][0], self._data.skills)
-                          else "") for k, (sk, n, _) in enumerate(SKILLS)]
-            skill_locked = [self._skill_locked(sk) for (sk, _, _) in SKILLS]
-            self._menu(items, "HABILIDADE",
-                       descs=[d for (_, _, d) in SKILLS],
+                          else "") for k, (sk, n, _, _) in enumerate(SKILLS)]
+            skill_locked = [self._skill_locked(sk) for (sk, _, _, _) in SKILLS]
+            self._menu(items, "BULLET HELL",
+                       colors=[s_[3] for s_ in SKILLS],
+                       descs=[d for (_, _, d, _) in SKILLS],
                        on_confirm=self._skill_confirm,
                        back_to=MENU_BOSS if self.sel["mode"] == "classic"
                        else MENU_DIFF,
                        hint_extra="ESPAÇO alterna a variante +",
-                       locked=skill_locked)
+                       locked=skill_locked, step=3,
+                       crumb=self._crumb()[:2])
             if self._input.is_action_pressed("fire") and \
                     not skill_locked[self.cursor] and \
                     self._has_plus(SKILLS[self.cursor][0], self._data.skills) \
@@ -222,23 +308,28 @@ class GameApp:
         elif s == MENU_WEAPON:
             items = [n + (" +" if self.sel["weapon_plus"] and k == self.cursor
                           and self._has_plus(WEAPONS[k][0], self._data.weapons)
-                          else "") for k, (w, n) in enumerate(WEAPONS)]
-            self._menu(items, "ARMA",
+                          else "") for k, (w, n, _, _) in enumerate(WEAPONS)]
+            self._menu(items, "BULLET HELL",
+                       colors=[w_[3] for w_ in WEAPONS],
+                       descs=[d for (_, _, d, _) in WEAPONS],
                        on_confirm=self._weapon_confirm, back_to=MENU_SKILL,
-                       hint_extra="ESPAÇO alterna a variante +")
+                       hint_extra="ESPAÇO alterna a variante +",
+                       step=4, crumb=self._crumb()[:3])
             if self._input.is_action_pressed("fire") and \
                     self._has_plus(WEAPONS[self.cursor][0], self._data.weapons) \
                     and self._plus_unlocked("weapon"):
                 self.sel["weapon_plus"] = not self.sel["weapon_plus"]
         elif s == MENU_MUT:
             items = [(("[x] " if m in self.sel["muts"] else "[ ] ") + n)
-                     for (m, n, _) in MUTATORS] + ["► COMEÇAR"]
-            self._menu(items, "MUTADORES",
-                       descs=[d for (_, _, d) in MUTATORS] + [
-                           "cada mutador ativo aumenta o desafio"],
+                     for (m, n, _, _) in MUTATORS] + ["► COMEÇAR"]
+            self._menu(items, "BULLET HELL",
+                       colors=[m_[3] for m_ in MUTATORS] + [GOLD[:3]],
+                       descs=[d for (_, _, d, _) in MUTATORS] + [
+                           ("Cada mutador ativo aumenta o desafio",)],
                        on_confirm=self._mut_confirm, back_to=MENU_WEAPON,
                        locked=[self._mutator_locked(m)
-                              for (m, _, _) in MUTATORS] + [False])
+                              for (m, _, _, _) in MUTATORS] + [False],
+                       step=5, crumb=self._crumb()[:4])
         elif s in (WIN, GAMEOVER):
             self._end_screen(s)
 
@@ -270,11 +361,58 @@ class GameApp:
     def _boss_locked(self, name: str) -> bool:
         return name == "omega" and not self.save.get("omega_unlocked", False)
 
-    def _menu(self, items, title, descs=None, subtitle="", on_confirm=None,
-              back_to=None, hint_extra="", locked=None) -> None:
+    def _crumb(self) -> tuple:
+        """Breadcrumb do assistente de seleção (legado: main.py `_mheader`).
+        Fora do modo clássico não há tela de boss — o nome do MODO ocupa o
+        lugar dela na trilha."""
+        diff_label = next(d[1] for d in DIFFS if d[0] == self.sel["diff"])
+        if self.sel["mode"] == "classic":
+            slot2 = next(b[1] for b in BOSSES if b[0] == self.sel["boss"])
+        else:
+            slot2 = next(m[1] for m in MODES if m[0] == self.sel["mode"])
+        skill_label = next(s[1] for s in SKILLS if s[0] == self.sel["skill"])
+        weapon_label = next(w[1] for w in WEAPONS if w[0] == self.sel["weapon"])
+        return (diff_label, slot2, skill_label, weapon_label)
+
+    def _header(self, title: str, step: int = 0, crumb: tuple = ()) -> None:
+        r = self._r
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 8, title, 36, TXT, anchor="center")
+        if step <= 0:
+            return
+        dot_r, gap = 5, 30
+        x0 = cx - gap * 2
+        for i in range(5):
+            cxi = x0 + i * gap
+            col = STEP_COLS[i]
+            if i < step - 1:
+                c = tuple(v // 2 for v in col)
+                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
+                              (*c, 255))
+            elif i == step - 1:
+                r.draw_ui_rect(cxi - dot_r - 3, 82 - dot_r - 3,
+                              (dot_r + 3) * 2, (dot_r + 3) * 2, (255, 255, 255, 255))
+                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
+                              (*col, 255))
+            else:
+                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
+                              (30, 30, 50, 255))
+        r.draw_text(cx, 96, STEP_NAMES[step - 1], 13, MUTED, anchor="center")
+        if crumb:
+            r.draw_text(cx, 116, "  ›  ".join(crumb), 13,
+                        (90, 90, 120, 255), anchor="center")
+        r.draw_ui_rect(72, 140, SCREEN_W - 144, 1, (26, 26, 46, 255))
+
+    def _menu(self, items, title, colors=None, descs=None, on_confirm=None,
+              back_to=None, hint_extra="", locked=None, step=0,
+              crumb=()) -> None:
+        """Card colorido à esquerda + painel de descrição à direita, igual
+        ao legado (main.py `_left_item`/`_right_panel`) — carrossel
+        centralizado no cursor quando a lista não cabe na área visível."""
         inp = self._input
         n = len(items)
         locked = locked or [False] * n
+        colors = colors or [ACCENT[:3]] * n
         if locked[self.cursor]:            # entrou numa tela com o cursor
             for _ in range(n):             # travado (default de _xxx_confirm)
                 self.cursor = (self.cursor + 1) % n
@@ -305,38 +443,185 @@ class GameApp:
             return
         self.cursor = min(self.cursor, n - 1)
 
+        self._header(title, step, crumb)
         r = self._r
-        r.draw_text(SCREEN_W / 2, 64, title, 42, ACCENT, anchor="center")
-        if subtitle:
-            r.draw_text(SCREEN_W / 2, 104, subtitle, 16, MUTED, anchor="center")
-        top = 170
-        row_h = 34 if n > 12 else 40
+        ih, gap = 58, 8
+        row_h = ih + gap
+        visible_h = MC_Y1 - MC_Y0
+        center_y = MC_Y0 + (visible_h - ih) / 2
         for k, label in enumerate(items):
-            y = top + k * row_h
-            if k == self.cursor:
-                r.draw_ui_rect(SCREEN_W / 2 - 240, y - 5, 480, row_h - 6,
-                               (124, 80, 255, 60))
-                r.draw_text(SCREEN_W / 2 - 224, y, "►", 20, GOLD)
+            y = center_y + (k - self.cursor) * row_h
+            if y + ih < MC_Y0 or y > MC_Y1:
+                continue
+            col = colors[k]
+            sel = k == self.cursor
+            bg = (22, 22, 40, 255) if sel else (13, 13, 22, 255)
+            r.draw_ui_rect(MLL_X, y, MLL_W, ih, bg)
+            bar = col if sel else tuple(c * 2 // 5 for c in col)
+            r.draw_ui_rect(MLL_X, y, 4, ih, (*bar, 255))
             disp = label + ("  [BLOQUEADO]" if locked[k] else "")
-            color = (70, 70, 90, 255) if locked[k] else \
-                (TXT if k == self.cursor else MUTED)
-            r.draw_text(SCREEN_W / 2 - 190, y, disp, 20, color)
-        if descs and 0 <= self.cursor < len(descs):
-            r.draw_text(SCREEN_W / 2, SCREEN_H - 96, descs[self.cursor],
-                        16, TXT, anchor="center")
+            name_c = (70, 70, 90, 255) if locked[k] else \
+                ((255, 255, 255, 255) if sel else MUTED)
+            r.draw_text(MLL_X + 18, y + ih / 2 - 9, disp, 15, name_c)
+            if sel:
+                r.draw_text(MLL_X + MLL_W + 6, y + ih / 2 - 8, "►", 16,
+                            (*col, 255))
+            r.draw_ui_rect(MLL_X, y + ih, MLL_W, 1, (20, 20, 36, 255))
+
+        sel_col = colors[self.cursor]
+        rx, ry, rw = MRP_X, MC_Y0, MRP_W
+        rh = MC_Y1 - MC_Y0
+        r.draw_ui_rect(rx, ry, rw, rh, (11, 11, 21, 255))
+        r.draw_ui_rect(rx, ry, rw, 3, (*sel_col, 255))
+        r.draw_text(rx + 28, ry + 20, items[self.cursor], 28, (*sel_col, 255))
+        r.draw_ui_rect(rx + 28, ry + 96, rw - 56, 1,
+                      (sel_col[0] // 3, sel_col[1] // 3, sel_col[2] // 3, 255))
+        if descs:
+            lines = descs[self.cursor]
+            if isinstance(lines, str):
+                lines = [lines]
+            for i, ln in enumerate(lines):
+                r.draw_text(rx + 28, ry + 114 + i * 28, ln, 15,
+                            (168, 168, 196, 255))
+
+        r.draw_ui_rect(0, 672, SCREEN_W, 48, (8, 8, 18, 255))
         hint = "W/S navegar  ·  D/ENTER confirmar  ·  A/ESC voltar"
         if hint_extra:
             hint += "  ·  " + hint_extra
-        r.draw_text(SCREEN_W / 2, SCREEN_H - 44, hint, 14, MUTED,
+        r.draw_text(SCREEN_W / 2, 688, hint, 13, (58, 58, 80, 255),
                     anchor="center")
 
+    def _main_menu_screen(self) -> None:
+        inp = self._input
+        n = len(MAIN_ITEMS)
+        if inp.is_action_pressed("move_up"):
+            self.cursor = (self.cursor - 1) % n
+            self._play("ui_move", 0.25)
+        if inp.is_action_pressed("move_down"):
+            self.cursor = (self.cursor + 1) % n
+            self._play("ui_move", 0.25)
+        if inp.is_action_pressed("confirm") or inp.is_action_pressed("move_right"):
+            self._play("ui_ok", 0.35)
+            self._main_confirm(self.cursor)
+            return
+
+        r = self._r
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 128, "BULLET HELL", 46, TXT, anchor="center")
+        r.draw_text(cx, 168, "OuroborosEngine · port ECS", 15, MUTED,
+                    anchor="center")
+        card_w, ih, gap = 360, 62, 12
+        top = 240
+        for k, (_, label, col) in enumerate(MAIN_ITEMS):
+            y = top + k * (ih + gap)
+            sel = k == self.cursor
+            bg = (22, 22, 40, 255) if sel else (12, 12, 20, 255)
+            r.draw_ui_rect(cx - card_w / 2, y, card_w, ih, bg)
+            bar = col if sel else tuple(c // 3 for c in col)
+            r.draw_ui_rect(cx - card_w / 2, y, 4, ih, (*bar, 255))
+            r.draw_text(cx - card_w / 2 + 22, y + ih / 2 - 9, label, 18,
+                        (255, 255, 255, 255) if sel else MUTED)
+            if sel:
+                r.draw_text(cx + card_w / 2 - 22, y + ih / 2 - 8, "►", 16,
+                            (*col, 255))
+        r.draw_text(cx, SCREEN_H - 44, "W/S navegar  ·  D/ENTER confirmar",
+                    14, MUTED, anchor="center")
+
     def _main_confirm(self, k: int) -> None:
-        if k == 0:
+        dest = MAIN_ITEMS[k][0]
+        if dest == "play":
             self.state, self.cursor = MENU_MODE, 0
-        elif k == 1:
+        elif dest == "ach":
             self.state, self.cursor = MENU_ACH, 0
+        elif dest == "records":
+            self.state, self.cursor = MENU_RECORDS, 0
+        elif dest == "settings":
+            self.state, self.cursor = MENU_SETTINGS, 0
         else:
             self._running = False
+
+    def _records_screen(self) -> None:
+        inp = self._input
+        if inp.is_action_pressed("back") or inp.is_action_pressed("confirm") \
+                or inp.is_action_pressed("move_left"):
+            self.state, self.cursor = MENU_MAIN, 0
+            return
+        r = self._r
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 80, "REGISTROS", 40, GOLD, anchor="center")
+        r.draw_ui_rect(180, 162, SCREEN_W - 360, 1, (50, 50, 20, 255))
+        total_deaths = int(self.save.get("total_deaths", 0)) + self.totals["deaths"]
+        total_parries = int(self.save.get("total_parries", 0)) + self.totals["parries"]
+        best = float(self.save.get("best_time_dificil", 0.0))
+        bm, bs = divmod(int(best), 60)
+        hcd = int(self.save.get("highest_cleared_diff", 0))
+        diff_label = DIFFS[min(hcd, len(DIFFS) - 1)][1] if hcd > 0 else "NENHUMA"
+        unlocked_skills = [s[1] for s in SKILLS if s[0] in
+                          self.save.get("unlocked_skills", ["none", "dash"])]
+        rows = [
+            ("Mortes totais", str(total_deaths)),
+            ("Melhor tempo (Difícil+)",
+             f"{bm:02d}:{bs:02d}" if best > 0 else "—"),
+            ("Balas refletidas (Parry)", str(total_parries)),
+            ("Dificuldade desbloqueada", diff_label),
+            ("Habilidades desbloqueadas", "  ".join(unlocked_skills)),
+        ]
+        top = 210
+        for k, (label, value) in enumerate(rows):
+            y = top + k * 52
+            r.draw_text(220, y, label, 16, (120, 120, 140, 255))
+            r.draw_text(SCREEN_W - 220, y, value, 16, TXT, anchor="topright")
+            r.draw_ui_rect(180, y + 32, SCREEN_W - 360, 1, (24, 24, 36, 255))
+        r.draw_text(cx, SCREEN_H - 44, "ESC   voltar ao menu principal", 14,
+                    (35, 35, 50, 255), anchor="center")
+
+    def _settings_screen(self) -> None:
+        """Só 2 dos 3 toggles do legado: Tela Cheia exigiria um método
+        novo no IRenderer da engine (fora do escopo deste port agora) —
+        melhor não expor um toggle que não faz nada de verdade."""
+        inp = self._input
+        settings = self.save.setdefault(
+            "settings", {"screen_shake": True, "show_hitbox": False})
+        items = [("screen_shake", "Screen Shake"),
+                 ("show_hitbox", "Mostrar Hitbox")]
+        n = len(items)
+        if inp.is_action_pressed("move_up"):
+            self.cursor = (self.cursor - 1) % n
+            self._play("ui_move", 0.25)
+        if inp.is_action_pressed("move_down"):
+            self.cursor = (self.cursor + 1) % n
+            self._play("ui_move", 0.25)
+        if inp.is_action_pressed("confirm") or inp.is_action_pressed("fire"):
+            key = items[self.cursor][0]
+            settings[key] = not settings.get(key, key != "show_hitbox")
+            self._play("ui_ok", 0.3)
+        if inp.is_action_pressed("back") or inp.is_action_pressed("move_left"):
+            self.state, self.cursor = MENU_MAIN, 0
+            return
+
+        r = self._r
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 80, "SISTEMA", 40, (100, 160, 255, 255),
+                    anchor="center")
+        r.draw_ui_rect(180, 162, SCREEN_W - 360, 1, (30, 50, 80, 255))
+        top, ih, gap = 210, 70, 12
+        for k, (key, label) in enumerate(items):
+            y = top + k * (ih + gap)
+            sel = k == self.cursor
+            on = bool(settings.get(key, key != "show_hitbox"))
+            bg = (20, 28, 44, 255) if sel else (12, 12, 20, 255)
+            r.draw_ui_rect(180, y, SCREEN_W - 360, ih, bg)
+            r.draw_ui_rect(180, y, 4, ih,
+                          (100, 160, 255, 255) if sel else (40, 60, 100, 255))
+            r.draw_text(210, y + ih / 2 - 9, label, 16,
+                        (255, 255, 255, 255) if sel else MUTED)
+            val_txt = "[ LIGADO ]" if on else "[ DESLIGADO ]"
+            val_col = (0, 220, 0, 255) if on else (220, 20, 60, 255)
+            r.draw_text(SCREEN_W - 220, y + ih / 2 - 9, val_txt, 16, val_col,
+                        anchor="topright")
+        r.draw_text(cx, SCREEN_H - 44,
+                    "W/S navegar  ·  ENTER/D toggle  ·  ESC voltar", 14,
+                    (35, 35, 50, 255), anchor="center")
 
     def _achievements_screen(self) -> None:
         inp = self._input
@@ -576,6 +861,10 @@ class GameApp:
         if hcd >= 3:                    # venceu DIFÍCIL: libera as "+"
             self.save["skill_plus_unlocked"] = ["all"]
             self.save["weapon_plus_unlocked"] = ["all"]
+        if diff_idx >= 2:                # tela RECORDS: melhor tempo Difícil+
+            best = float(self.save.get("best_time_dificil", 0.0))
+            if best <= 0.0 or self.run_t < best:
+                self.save["best_time_dificil"] = self.run_t
 
     def _apply_shake(self, dt: float) -> None:
         ck = self.world.get_pool("clock")
@@ -585,6 +874,8 @@ class GameApp:
         amt = float(cv["shake"][0])
         if amt > 0.0:
             cv["shake"][0] = max(0.0, amt - 26.0 * dt)
+        shake_on = self.save.get("settings", {}).get("screen_shake", True)
+        if amt > 0.0 and shake_on:
             j = int(self.run_t * 997)
             dx = (((j * 2654435761) % 200) / 100.0 - 1.0) * amt
             dy = (((j * 40503 + 7) % 200) / 100.0 - 1.0) * amt
@@ -640,9 +931,27 @@ class GameApp:
                         skill.upper() + ("+" if self.sel["skill_plus"] else ""),
                         14, MUTED, anchor="topright")
         r.draw_text(96, SCREEN_H - 26, "VIDAS", 13, MUTED)
+        if self.save.get("settings", {}).get("show_hitbox", False):
+            self._render_hitbox_debug()
+
+    def _render_hitbox_debug(self) -> None:
+        """Tela SISTEMA › Mostrar Hitbox: raio de colisão real do jogador
+        (legado: quadrado branco 5×5 sempre visível, main.py:875). Não
+        recria a grade da spatial hash nem os AABBs de boss do legado —
+        ver PARITY_PLAN.md."""
+        pl = self.world.get_pool("player")
+        pi = pl.active_entity_indices()
+        if not pi.size:
+            return
+        tp = self.world.get_pool("transform")
+        prow = tp.dense_row_of(int(pi[0]))
+        tv = tp.active_view()
+        px = float(tv["position_x"][prow]); py = float(tv["position_y"][prow])
+        hr = PLAYER_HIT_R
+        self._r.draw_ui_rect(px - hr, py - hr, hr * 2, hr * 2, (0, 255, 200, 110))
 
     def _boss_display(self, boss_id: int) -> str:
-        for name, label in BOSSES:
+        for name, label, _ in BOSSES:
             if sid(name) == boss_id:
                 return label
         for name in ("twin_yin", "twin_yang"):

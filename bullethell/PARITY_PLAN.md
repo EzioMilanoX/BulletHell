@@ -1,11 +1,11 @@
 # PARITY_PLAN.md — o que falta para o port ECS igualar (ou superar) o legado
 
 > **Progresso (Fase 13, ver MIGRATION.md):** P0-1 (gating), P0-2
-> (dificuldade em 5 tiers + DDA + Segundo Fôlego) e P0-3 (Clássico com os
-> 10 padrões) **já aplicados**. Os detalhes de cada um continuam abaixo
-> (specs exatas + aproximações assumidas) — leia como registro do que foi
-> decidido, não mais como pendência. Ainda faltam P0-4 (menu/telas),
-> P0-5 (replay) e os itens P1/P2/P3.
+> (dificuldade em 5 tiers + DDA + Segundo Fôlego), P0-3 (Clássico com os
+> 10 padrões) e P0-4 (menu redesenhado + RECORDS/SETTINGS) **já
+> aplicados**. Os detalhes de cada um continuam abaixo (specs exatas +
+> aproximações assumidas) — leia como registro do que foi decidido, não
+> mais como pendência. Ainda falta P0-5 (replay) e os itens P1/P2/P3.
 
 ## 0. Como isto foi produzido
 
@@ -166,7 +166,7 @@ alimentado, spec §9 do documento de jogador/meta).
   (tier 1/2/3 por HP) continua fixa em 0.66/0.33 no código,
   independente de quantas fases o boss declara.
 
-### P0-4. Menu: outra linguagem visual + telas inteiras faltando
+### P0-4. Menu: outra linguagem visual + telas inteiras faltando — ✅ resolvido (Fase 13d)
 
 - **Legado** (spec menus §0.5-0.9, §10, §12, §16): cards com barra
   vertical colorida à esquerda, cursor `▶` colorido, **5 step-dots** com
@@ -189,6 +189,27 @@ alimentado, spec §9 do documento de jogador/meta).
   atual só para essas duas, que no legado também são mais simples);
   portar o dev overlay como uma feature de baixo risco e alto valor de
   debug.
+
+  **O que foi feito (Fase 13d):** `_menu()` genérico agora desenha cards
+  com barra colorida à esquerda (cor por item, igual às tabelas do
+  legado — `_DIFF_COLORS`/`_BOSS_COLORS`/`_SKILL_COLORS`/etc.), painel
+  de descrição à direita com título colorido + linhas de texto, e
+  carrossel centralizado no cursor quando a lista não cabe na área
+  visível — tudo nas MESMAS posições de pixel do legado (`MLL_X/MRP_X/
+  MC_Y0/MC_Y1`, resolução idêntica 1280×720). As 5 telas do assistente
+  (dificuldade/boss/habilidade/arma/mutadores) ganharam o header com 5
+  step-dots + nome do passo + breadcrumb das escolhas anteriores. O
+  MAIN_MENU virou 5 itens (JOGAR/CONQUISTAS/REGISTROS/SISTEMA/SAIR,
+  igual ao legado) com layout de coluna única (sem painel direito,
+  como no legado). **REGISTROS** e **SISTEMA** existem agora: REGISTROS
+  mostra mortes/parries totais, melhor tempo em DIFÍCIL+, dificuldade e
+  skills desbloqueadas; SISTEMA só tem 2 dos 3 toggles do legado —
+  **Screen Shake** (real, gate em `_apply_shake`) e **Mostrar Hitbox**
+  (real, desenha o raio de colisão do jogador) — "Tela Cheia" ficou de
+  fora porque exigiria um método novo no `IRenderer` da engine
+  (`OuroborosEngine`), fora do escopo deste port por ora; achei melhor
+  não ter um toggle que não faz nada de verdade. O dev overlay (F9/F10/
+  sequência secreta) continua pendente — ver P0-5/P2.
 
 ### P0-5. Sistemas ausentes por completo: Replay e Segundo Fôlego
 

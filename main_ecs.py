@@ -33,7 +33,9 @@ def _load_save() -> dict:
             "highest_cleared_diff": 0, "sins_rush_cleared": False,
             "unlocked_skills": ["none", "dash"],
             "unlocked_mutators": [], "omega_unlocked": False,
-            "skill_plus_unlocked": [], "weapon_plus_unlocked": []}
+            "skill_plus_unlocked": [], "weapon_plus_unlocked": [],
+            "best_time_dificil": 0.0,
+            "settings": {"screen_shake": True, "show_hitbox": False}}
     if SAVE_PATH.exists():
         try:
             save.update(json.loads(SAVE_PATH.read_text(encoding="utf-8")))

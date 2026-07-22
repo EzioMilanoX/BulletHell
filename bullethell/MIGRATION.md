@@ -225,10 +225,24 @@ Portado (fases 1–2):
         BLASTER ganha o emit `edge_burst` (novo, ~15 linhas)
       - `smoke_gating.py` (novo): 28 asserts sobre o gating;
         `smoke_ecs.py`: cenários dedicados p/ EXPERT/ABISSAL — 61/61 OK
+      - **13d** — Menu redesenhado: `_menu()` genérico agora desenha
+        cards com barra colorida por item (cores do legado —
+        `_DIFF_COLORS`/`_BOSS_COLORS`/`_SKILL_COLORS`/etc.), painel de
+        descrição colorido à direita, e carrossel centralizado no
+        cursor — nas mesmas posições de pixel do legado (mesma
+        resolução 1280×720). As 5 telas do assistente ganham header com
+        step-dots + nome do passo + breadcrumb. MAIN_MENU passa a ter
+        os 5 itens do legado (JOGAR/CONQUISTAS/**REGISTROS**/
+        **SISTEMA**/SAIR) — as duas telas novas: REGISTROS (mortes,
+        parries, melhor tempo Difícil+, dificuldade/skills
+        desbloqueadas) e SISTEMA (Screen Shake e Mostrar Hitbox — reais
+        e funcionais; "Tela Cheia" ficou de fora por exigir um método
+        novo no `IRenderer` da engine, fora de escopo agora — sem
+        toggle fingindo funcionar). `smoke_menu.py` (novo): 18 asserts
+        cobrindo REGISTROS/SISTEMA/persistência dos toggles/fluxo
+        completo do assistente — 61+28+18 OK
 
-Fase 14 (futuro, ver PARITY_PLAN.md P0-4/P0-5/P1/P2):
-- [ ] Menu redesenhado (cards + step-dots + breadcrumb + 2 colunas, como
-      o legado) + telas RECORDS e SISTEMA/SETTINGS que ainda faltam
+Fase 14 (futuro, ver PARITY_PLAN.md P0-5/P1/P2):
 - [ ] Replay (`W — Ver replay` no game over)
 - [ ] Dev overlay/cheats (F9/F10/F3-F8, sequência secreta, hot-reload)
 - [ ] Sloth: corrigir HP dos fantasmas (6→20) e tirar os ataques que o
