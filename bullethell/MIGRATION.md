@@ -190,9 +190,50 @@ Portado (fases 1–2):
       via NumPy — zero assets) para hit/explosão/EMP/escudo/mina +
       navegação de menu, roteados dos sistemas via bitmask clock.sfx
 
-Fase 13 (futuro):
-- [ ] Maestria com gating de desbloqueio (skills/armas/bosses bloqueados
-      até conquistar, como no legado)
+- [x] **Fase 13**: estudo exaustivo de paridade legado×port
+      (`PARITY_PLAN.md`, specs `arquivo:linha` dos dois lados) revelou que
+      a experiência tinha divergido em 5 eixos estruturais, não só
+      detalhes — as 3 primeiras correções (P0) já aplicadas:
+      - **13a** — dificuldade em **5 tiers de verdade** (era 3
+        multiplicadores planos): EXPERT e ABISSAL viram dificuldades
+        (ABISSAL saiu da lista de mutadores); **DDA** (Difficulty do
+        legado) recalcula o `tier` do boss por HP a cada frame e escala
+        count/arc/velocidade do SPREAD/RING/SPIRAL do Clássico e do
+        CROSSFIRE/RING_VOLLEY do Enxame; **Segundo Fôlego** (EXPERT+):
+        boss sobrevive 3s com 1 HP e invulnerável antes de cair de vez,
+        1×/run; barra de HP muda de cor pelo tier (verde/amarelo/vermelho)
+      - **13b** — **gating de progressão** no save (`unlocked_skills`,
+        `highest_cleared_diff`, `omega_unlocked`, `sins_rush_cleared`,
+        `unlocked_mutators`, `skill_plus_unlocked`/`weapon_plus_unlocked`):
+        tudo começa travado como no legado (só NENHUMA+DASH livres); menu
+        genérico ganha navegação que pula item travado + badge
+        `[BLOQUEADO]`; vencer FÁCIL/NORMAL/DIFÍCIL destrava
+        NORMAL+PARRY/DIFÍCIL+FOCO/EXPERT+variantes "+"; conquistas
+        existentes (esquivador/perfeccionista/além do limite) destravam
+        EMP/BLINK/ÔMEGA — mapeamento exato com o legado onde a conquista
+        já existe; onde o legado usa mastery que o port não rastreia
+        (equilíbrio perfeito, pacifista de elite, as 17 masteries de
+        arma/skill), a condição é uma aproximação documentada (ver
+        PARITY_PLAN.md P1-6/P1-7)
+      - **13c** — Clássico completo: os 10 padrões do legado (faltavam
+        SHARD/FRACTURE/BLASTER; STOP&GO/BOOMERANG tinham ido parar
+        exclusivamente no boss "Mago do Tempo", que não existe no
+        legado) agora rodam nos 8 padrões-base + os 2 emprestados do
+        Mago do Tempo, distribuídos em 5 fases; SHARD/FRACTURE reusam a
+        máquina STOPGO já existente (crescem devagar e disparam,
+        aproximação documentada do redirecionamento exato do legado);
+        BLASTER ganha o emit `edge_burst` (novo, ~15 linhas)
+      - `smoke_gating.py` (novo): 28 asserts sobre o gating;
+        `smoke_ecs.py`: cenários dedicados p/ EXPERT/ABISSAL — 61/61 OK
+
+Fase 14 (futuro, ver PARITY_PLAN.md P0-4/P0-5/P1/P2):
+- [ ] Menu redesenhado (cards + step-dots + breadcrumb + 2 colunas, como
+      o legado) + telas RECORDS e SISTEMA/SETTINGS que ainda faltam
+- [ ] Replay (`W — Ver replay` no game over)
+- [ ] Dev overlay/cheats (F9/F10/F3-F8, sequência secreta, hot-reload)
+- [ ] Sloth: corrigir HP dos fantasmas (6→20) e tirar os ataques que o
+      legado não tem nas fases 0/1 (P1-2)
+- [ ] PARRY: raio 25→17.5px (P1-3)
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
 

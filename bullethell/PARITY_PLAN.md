@@ -1,5 +1,12 @@
 # PARITY_PLAN.md — o que falta para o port ECS igualar (ou superar) o legado
 
+> **Progresso (Fase 13, ver MIGRATION.md):** P0-1 (gating), P0-2
+> (dificuldade em 5 tiers + DDA + Segundo Fôlego) e P0-3 (Clássico com os
+> 10 padrões) **já aplicados**. Os detalhes de cada um continuam abaixo
+> (specs exatas + aproximações assumidas) — leia como registro do que foi
+> decidido, não mais como pendência. Ainda faltam P0-4 (menu/telas),
+> P0-5 (replay) e os itens P1/P2/P3.
+
 ## 0. Como isto foi produzido
 
 Estudo exaustivo do legado (`main.py` ~3700 linhas + `entities.py` ~5500
@@ -63,7 +70,7 @@ alimentado, spec §9 do documento de jogador/meta).
 
 ## 2. P0 — Quebram a experiência/estrutura central
 
-### P0-1. Meta-progressão / gating ausente por completo
+### P0-1. Meta-progressão / gating ausente por completo — ✅ resolvido (Fase 13b)
 
 - **Legado** (`entities.py:5035-5495`, `SaveManager`): persiste
   `highest_cleared_diff`, `unlocked_skills` (começa só `[NENHUMA, DASH]`),
@@ -88,7 +95,7 @@ alimentado, spec §9 do documento de jogador/meta).
   port; wire the 13 conquistas atuais (e expandir para as 32 do legado,
   ver P1-6) a recompensas reais.
 
-### P0-2. Dificuldade: estrutura de 5 tiers vs. 3 multiplicadores planos, sem DDA
+### P0-2. Dificuldade: estrutura de 5 tiers vs. 3 multiplicadores planos, sem DDA — ✅ resolvido (Fase 13a)
 
 - **Legado** (`entities.py:565-665`): 5 tiers com `speed_mult`/`boss_hp`
   próprios (TEST/EASY 0.75·200/NORMAL 1.0·300/HARD 1.3·400/EXPERT
@@ -115,7 +122,7 @@ alimentado, spec §9 do documento de jogador/meta).
   estáticos), Segundo Fôlego, e mover Fragmentação+Vingança de "mutador
   livre" para "efeito de ABISSAL" gated por `sins_rush_cleared`.
 
-### P0-3. Boss Clássico incompleto + boss inventado ("Mago do Tempo")
+### P0-3. Boss Clássico incompleto + boss inventado ("Mago do Tempo") — ✅ resolvido (Fase 13c, ver nota abaixo)
 
 - **Legado** (spec bosses-core §2, `entities.py:1790-2236`): CLÁSSICO tem
   **10 padrões**: SPREAD, RING, SPIRAL, SHARD, CIRCULAR, FRACTURE,
@@ -141,6 +148,23 @@ alimentado, spec §9 do documento de jogador/meta).
   boss "Mago do Tempo" — ou removê-lo (fiel ao legado) ou mantê-lo
   explicitamente como conteúdo *novo* do port, deixando isso claro na UI
   em vez de ele ocupar o lugar de padrões do Clássico que faltam.
+
+  **O que foi feito (Fase 13c):** "Mago do Tempo" foi **mantido** (é
+  conteúdo funcional, não vale jogar fora) e o Clássico passou a
+  referenciar os MESMOS padrões `timemage/stopgo_volley` e
+  `timemage/boomerang_burst` — os dois bosses agora compartilham esses
+  padrões em vez de o Clássico ficar sem eles. SHARD e FRACTURE foram
+  implementados como **aproximação**: em vez da geometria exata de
+  polilinhas do legado, reusam a máquina STOPGO já existente no port
+  (crescem devagar por 1.5s/1.8s como o legado, mas ao disparar
+  redirecionam para o *snapshot do jogador* em vez de "para baixo" fixo
+  ou "continuar na própria direção"). BLASTER ganhou um emit type novo
+  (`edge_burst`) que spawna dos 4 lados da tela mirando o jogador, sem a
+  queimadura de `HazardPool` periódica do legado (fica como P2/P3 se
+  quiser mais fidelidade). O Clássico agora tem 5 fases (era 3) para
+  encaixar os 10 padrões sem empilhar emitters demais por fase; a DDA
+  (tier 1/2/3 por HP) continua fixa em 0.66/0.33 no código,
+  independente de quantas fases o boss declara.
 
 ### P0-4. Menu: outra linguagem visual + telas inteiras faltando
 

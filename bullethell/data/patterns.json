@@ -30,6 +30,21 @@
       "emit": "laser", "bullet": "std/normal",
       "period": 3.0, "count": 3, "speed": 0 },
 
+    { "name": "classic/shard",
+      "_doc": "SHARD: 14 rachaduras crescem devagar por 1.5s e então disparam (CRACK_FORM_TIME/HOLD_SPEED — ver bullet classic/shard).",
+      "emit": "spiral", "bullet": "classic/shard",
+      "period": 0.10, "arms": 14, "spin_speed": 0.0, "speed": 6.0 },
+
+    { "name": "classic/fracture",
+      "_doc": "FRACTURE: 8 rachaduras crescem devagar por 1.8s e então disparam (FRAC_FORM_TIME/HOLD_SPEED — ver bullet classic/fracture).",
+      "emit": "spiral", "bullet": "classic/fracture",
+      "period": 0.09, "arms": 8, "spin_speed": 0.0, "speed": 3.0 },
+
+    { "name": "classic/blaster",
+      "_doc": "BLASTER: emissores nascem em bordas aleatórias da tela e disparam um leque de 9 balas em 9° a 420px/s (BLAST_*).",
+      "emit": "edge_burst", "bullet": "std/normal",
+      "period": 2.2, "count": 9, "arc": 0.157, "speed": 420.0 },
+
     { "name": "timemage/stopgo_volley",
       "_doc": "Leque de balas stop-and-go (comportamento no arquétipo).",
       "emit": "arc", "bullet": "tm/stopgo",

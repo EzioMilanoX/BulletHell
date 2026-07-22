@@ -69,6 +69,16 @@
 
     { "name": "sin/flower",
       "_doc": "Luxúria fase 2: flores grandes e lentas (poluição visual)",
-      "contact": "always", "color": 5, "radius": 7.0 }
+      "contact": "always", "color": 5, "radius": 7.0 },
+
+    { "name": "classic/shard",
+      "_doc": "SHARD do Clássico: cresce devagar (CRACK_HOLD_SPEED=6px/s) por 1.5s (CRACK_FORM_TIME) e então dispara — aproximação: em vez do redirecionamento fixo 'para baixo' do legado, relança ao snapshot do jogador (reusa a máquina STOPGO, sem código novo).",
+      "contact": "always", "color": 0, "radius": 4.0,
+      "behavior": "stopgo", "behavior_params": [1.5, 0.0, 200.0] },
+
+    { "name": "classic/fracture",
+      "_doc": "FRACTURE do Clássico: cresce devagar (FRAC_HOLD_SPEED=3px/s) por 1.8s (FRAC_FORM_TIME) e então dispara — aproximação: relança ao snapshot do jogador em vez de continuar na própria direção (reusa STOPGO).",
+      "contact": "always", "color": 6, "radius": 4.0,
+      "behavior": "stopgo", "behavior_params": [1.8, 0.0, 175.0] }
   ]
 }

@@ -1511,6 +1511,24 @@ class EmitterSystem(ISystem):
             hv["self"][hrow] = np.uint64(packed)
             hv["radius"][hrow] = pat.speed          # speed reusado como raio
             hv["t"][hrow] = pat.hp                  # hp reusado como duração
+        elif pat.emit == "edge_burst":               # Classico: BLASTER
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            side = seed & 3
+            h1 = ((seed * 2654435761) % 997) / 997.0
+            h2 = ((seed * 40503 + 7) % 499) / 499.0
+            if side == 0:
+                ex, ey = h1 * SCREEN_W, -8.0
+            elif side == 1:
+                ex, ey = h1 * SCREEN_W, SCREEN_H + 8.0
+            elif side == 2:
+                ex, ey = -8.0, h2 * SCREEN_H
+            else:
+                ex, ey = SCREEN_W + 8.0, h2 * SCREEN_H
+            aim = math.atan2(py - ey, px - ex)
+            n = pat.count
+            for j in range(n):
+                th = aim if n == 1 else aim - pat.arc / 2 + pat.arc * j / (n - 1)
+                self._spawn(world, pat, ex, ey, th, px, py)
         elif pat.emit == "laser":
             seed = int(ev["shot_count"][k])
             ev["shot_count"][k] += 1

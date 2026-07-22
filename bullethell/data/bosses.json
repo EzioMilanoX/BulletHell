@@ -2,19 +2,27 @@
   "_doc": "Bosses = HP + motion + rota de waypoints + partes (hitboxes-filhas; dano roteado à raiz) + fases. Cada fase lista os emitters ativos ('part': índice da parte de origem; ausente = raiz). Pattern overlapping = 2+ emitters na fase. hp_above: a fase vale enquanto hp/max > valor. 'twins' é composto: a composição spawna twin_yin + twin_yang.",
   "bosses": [
     { "name": "classic",
+      "_doc": "10 padrões do legado (SPREAD/RING/SPIRAL/SHARD/CIRCULAR/FRACTURE/BLASTER/LASER/STOP&GO/BOOMERANG) distribuídos em 5 fases — PARITY_PLAN P0-3. O tier da DDA (0.66/0.33) continua fixo no BossPhaseSystem, independente destas fases.",
       "hp": 300,
       "hitbox": [34, 34],
       "route": [[160, 90, 2.2], [480, 70, 2.2], [320, 140, 1.8]],
       "parts": [],
       "phases": [
-        { "hp_above": 0.66,
+        { "hp_above": 0.75,
           "emitters": [ { "pattern": "classic/spread" } ] },
-        { "hp_above": 0.33,
+        { "hp_above": 0.55,
           "emitters": [ { "pattern": "classic/ring" },
-                        { "pattern": "classic/spiral" } ] },
-        { "hp_above": 0.0,
+                        { "pattern": "classic/shard" } ] },
+        { "hp_above": 0.35,
+          "emitters": [ { "pattern": "classic/spiral" },
+                        { "pattern": "classic/fracture" } ] },
+        { "hp_above": 0.15,
           "emitters": [ { "pattern": "classic/circular_saw" },
-                        { "pattern": "classic/laser_wave" } ] }
+                        { "pattern": "classic/blaster" } ] },
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "classic/laser_wave" },
+                        { "pattern": "timemage/stopgo_volley" },
+                        { "pattern": "timemage/boomerang_burst" } ] }
       ] },
 
     { "name": "timemage",
