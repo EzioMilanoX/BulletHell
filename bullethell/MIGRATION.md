@@ -241,9 +241,21 @@ Portado (fases 1–2):
         toggle fingindo funcionar). `smoke_menu.py` (novo): 18 asserts
         cobrindo REGISTROS/SISTEMA/persistência dos toggles/fluxo
         completo do assistente — 61+28+18 OK
+      - **13e** — Replay (`W — Ver replay` no fim de jogo): o port não
+        usa RNG global em sistema nenhum (toda "aleatoriedade" é hash
+        determinístico por contador de emissor), então a simulação já é
+        100% determinística só pela sequência de inputs — sem precisar
+        replantar seed como o legado. `bullethell/replay.py` (novo):
+        `ReplayInputProvider` implementa o mesmo contrato de
+        `IInputProvider` lendo `(bitmask, dt)` gravados em vez do SO;
+        `W` na tela de fim reconstrói o `World` com a mesma config da
+        run e reproduz os frames; ESC ou o fim da gravação volta a
+        WIN/GAMEOVER conforme o HP do boss. `smoke_replay.py` (novo)
+        prova bit-a-bit que a trajetória de HP do boss é idêntica entre
+        a run original e o replay — **todos os P0 do PARITY_PLAN.md
+        aplicados** (61+28+18+7 OK nos 4 smoke tests)
 
-Fase 14 (futuro, ver PARITY_PLAN.md P0-5/P1/P2):
-- [ ] Replay (`W — Ver replay` no game over)
+Fase 14 (futuro, ver PARITY_PLAN.md P1/P2/P3):
 - [ ] Dev overlay/cheats (F9/F10/F3-F8, sequência secreta, hot-reload)
 - [ ] Sloth: corrigir HP dos fantasmas (6→20) e tirar os ataques que o
       legado não tem nas fases 0/1 (P1-2)

@@ -1,11 +1,9 @@
 # PARITY_PLAN.md — o que falta para o port ECS igualar (ou superar) o legado
 
-> **Progresso (Fase 13, ver MIGRATION.md):** P0-1 (gating), P0-2
-> (dificuldade em 5 tiers + DDA + Segundo Fôlego), P0-3 (Clássico com os
-> 10 padrões) e P0-4 (menu redesenhado + RECORDS/SETTINGS) **já
-> aplicados**. Os detalhes de cada um continuam abaixo (specs exatas +
-> aproximações assumidas) — leia como registro do que foi decidido, não
-> mais como pendência. Ainda falta P0-5 (replay) e os itens P1/P2/P3.
+> **Progresso (Fase 13, ver MIGRATION.md):** **Todos os P0 (P0-1 a
+> P0-5) já aplicados.** Os detalhes de cada um continuam abaixo (specs
+> exatas + aproximações assumidas) — leia como registro do que foi
+> decidido, não mais como pendência. Restam os itens P1/P2/P3.
 
 ## 0. Como isto foi produzido
 
@@ -211,7 +209,7 @@ alimentado, spec §9 do documento de jogador/meta).
   não ter um toggle que não faz nada de verdade. O dev overlay (F9/F10/
   sequência secreta) continua pendente — ver P0-5/P2.
 
-### P0-5. Sistemas ausentes por completo: Replay e Segundo Fôlego
+### P0-5. Sistemas ausentes por completo: Replay e Segundo Fôlego — ✅ resolvido (Fase 13a/13e)
 
 - Confirmado por grep: `replay`/`Replay`/`REPLAY` não aparece em nenhum
   arquivo de `bullethell/` — o `ReplayRecorder` do legado
@@ -220,6 +218,23 @@ alimentado, spec §9 do documento de jogador/meta).
 - Segundo Fôlego (EXPERT) e Balas de Vingança (ABISSAL) também não
   aparecem em nenhum sistema — cobertos em P0-2, listados aqui de novo
   porque são sistemas *inteiros* ausentes, não parâmetros errados.
+
+  **O que foi feito (Fase 13e — replay; Segundo Fôlego já em 13a):**
+  `bullethell/replay.py` (novo) — descoberta importante: **o port não
+  usa RNG global em sistema nenhum** (`grep -r "random\."
+  bullethell/game_systems.py` não acha nada; toda "aleatoriedade" é hash
+  determinístico por contador de emissor). Isso significa que, ao
+  contrário do legado (que precisa re-plantar uma seed,
+  `random.seed(seed)`), a simulação do port já é 100% determinística só
+  pela sequência de inputs — bastou gravar `(bitmask, dt)` por frame
+  (`GameApp.replay_frames`) e reproduzi-los por um
+  `ReplayInputProvider` que implementa o mesmo contrato de
+  `IInputProvider` lendo da gravação em vez do SO. `W` na tela de fim
+  reconstrói o `World` com a MESMA config da run (boss/arma/skill/
+  mutadores/dificuldade) e alimenta os frames gravados; ESC durante o
+  replay (ou o fim dos frames) volta para WIN/GAMEOVER conforme o HP do
+  boss, igual ao legado. `smoke_replay.py` (novo) prova bit-a-bit que a
+  trajetória de HP do boss é IDÊNTICA entre a run original e o replay.
 
 ---
 

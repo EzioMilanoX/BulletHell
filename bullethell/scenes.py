@@ -19,6 +19,7 @@ from bullethell.composition import DIFFICULTIES, build_world
 from bullethell.game_systems import PLAYER_HIT_R, RUSH_ORDERS
 from bullethell.ids import sid
 from bullethell.loaders import GameData
+from bullethell.replay import ReplayInputProvider, encode_frame
 from bullethell.schemas import SCREEN_H, SCREEN_W
 
 # ---------------------------------------------------------------------------
@@ -26,7 +27,7 @@ from bullethell.schemas import SCREEN_H, SCREEN_W
 # ---------------------------------------------------------------------------
 (MENU_MAIN, MENU_MODE, MENU_DIFF, MENU_BOSS, MENU_SKILL, MENU_WEAPON,
  MENU_MUT, PLAYING, WIN, GAMEOVER, MENU_ACH, MENU_RECORDS,
- MENU_SETTINGS) = range(13)
+ MENU_SETTINGS, REPLAYING) = range(14)
 
 # Conquistas persistidas em save_ecs.json (id, nome, como desbloquear)
 ACHIEVEMENTS = [
@@ -222,6 +223,9 @@ class GameApp:
         self.totals = {"kills": 0, "deaths": 0, "graze": 0, "runs": 0,
                        "parries": 0}
         self.save = save_data or {}
+        self.replay_frames: list = []   # [(bitmask, dt), ...] da run atual
+        self._last_cfg: dict | None = None
+        self._replay_input: ReplayInputProvider | None = None
         self.achieved: set = set(self.save.get("achievements", []))
         self.new_achievements: list = []
         self._running = True
@@ -258,6 +262,8 @@ class GameApp:
         s = self.state
         if s == PLAYING:
             self._tick_playing(dt)
+        elif s == REPLAYING:
+            self._tick_replaying()
         elif s == MENU_MAIN:
             self._main_menu_screen()
         elif s == MENU_ACH:
@@ -707,10 +713,11 @@ class GameApp:
         if self.sel["weapon_plus"] and self._has_plus(weapon, self._data.weapons) \
                 and self._plus_unlocked("weapon"):
             weapon += "+"
+        muts = frozenset(self.sel["muts"])
         self.world = build_world(
             self._data, self._input, boss_name=self.sel["boss"],
             weapon_name=weapon, skill_name=skill,
-            mutators=frozenset(self.sel["muts"]), mode=self.sel["mode"],
+            mutators=muts, mode=self.sel["mode"],
             difficulty=self.sel["diff"], arcade=True)
         mode = self.sel["mode"]
         self.intro_boss = (RUSH_ORDERS[1][0] if mode == "rush" else
@@ -718,10 +725,15 @@ class GameApp:
                            self.sel["boss"])
         self.intro_t = 0.0 if mode == "waves" else 2.4
         self.run_t = 0.0
+        self.replay_frames = []           # nova gravação (legado: W — replay)
+        self._last_cfg = {"boss": self.sel["boss"], "weapon": weapon,
+                          "skill": skill, "muts": muts, "mode": mode,
+                          "diff": self.sel["diff"]}
         self.state = PLAYING
 
     def _tick_playing(self, dt: float) -> None:
         w = self.world
+        self.replay_frames.append((encode_frame(self._input), dt))
         self.run_t += dt
         w.step(dt)
         self._pump_sfx()
@@ -745,6 +757,54 @@ class GameApp:
         if kills >= WIN_GOALS[self.sel["mode"]]:
             self._finish_run("win")
             self.state = WIN
+
+    # ------------------------------------------------------------------
+    # replay (legado: ReplayRecorder — ver bullethell/replay.py)
+    # ------------------------------------------------------------------
+    def _start_replay(self) -> None:
+        if not self.replay_frames or self._last_cfg is None:
+            return
+        cfg = self._last_cfg
+        self._replay_input = ReplayInputProvider(list(self.replay_frames))
+        self.world = build_world(
+            self._data, self._replay_input, boss_name=cfg["boss"],
+            weapon_name=cfg["weapon"], skill_name=cfg["skill"],
+            mutators=cfg["muts"], mode=cfg["mode"],
+            difficulty=cfg["diff"], arcade=True)
+        self.run_t = 0.0
+        self.intro_t = 0.0                # legado: replay não mostra intro
+        self.state = REPLAYING
+
+    def _tick_replaying(self) -> None:
+        ri = self._replay_input
+        ri.poll()
+        if not ri.has_more():
+            self._replay_end()
+            return
+        dt = ri.current_dt()
+        w = self.world
+        self.run_t += dt
+        w.step(dt)
+        self._pump_sfx()
+        self._apply_shake(dt)
+        self._render_world()
+        self._render_hud()
+        self._render_replay_tag()
+
+        if self._input.is_action_pressed("back"):   # ESC sai do replay
+            self._replay_end()
+
+    def _replay_end(self) -> None:
+        """Fim dos frames gravados (ou ESC): WIN se o boss morreu nesse
+        ponto, senão GAMEOVER — igual ao legado (main.py:2612-2614)."""
+        bp = self.world.get_pool("boss")
+        dead = (not bp.count) or \
+            float(np.sum(bp.active_view()["hp"][: bp.count])) <= 0.0
+        self.state = WIN if dead else GAMEOVER
+
+    def _render_replay_tag(self) -> None:
+        self._r.draw_text(SCREEN_W - 14, 14, "REPLAY", 14, RED,
+                          anchor="topright")
 
     def _pump_sfx(self) -> None:
         """Toca os eventos sonoros marcados pelos sistemas e limpa a máscara."""
@@ -986,10 +1046,15 @@ class GameApp:
         for k, name in enumerate(self.new_achievements[:4]):
             r.draw_text(SCREEN_W / 2, 370 + k * 28,
                         f"* NOVA CONQUISTA: {name}", 17, GOLD, anchor="center")
-        r.draw_text(SCREEN_W / 2, 500, "T  jogar de novo      R  menu",
-                    18, MUTED, anchor="center")
+        has_replay = bool(self.replay_frames)
+        hint = "T  jogar de novo      R  menu"
+        if has_replay:
+            hint = "T  jogar de novo      W  ver replay      R  menu"
+        r.draw_text(SCREEN_W / 2, 500, hint, 18, MUTED, anchor="center")
         if self._input.is_action_pressed("retry"):
             self.start_game()
+        elif has_replay and self._input.is_action_pressed("move_up"):
+            self._start_replay()
         elif self._input.is_action_pressed("to_menu") \
                 or self._input.is_action_pressed("back"):
             self.state, self.cursor = MENU_MAIN, 0
