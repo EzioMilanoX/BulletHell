@@ -59,6 +59,8 @@ WALL_DESCENT_SPEED = 150.0        # px/s
 WALL_MAX_Y = 216.0
 SUMMONER_TELEPORT_CD = 4.2        # s entre teleportes do Invocador
 MINION_RADIUS = 10.0              # semi-extensão do lacaio (20px)
+BUBBLE_EXPLODE_T = 8.0            # Preguiça: bolha estoura sozinha após 8s
+BUBBLE_BURST_N, BUBBLE_BURST_SPD = 12, 120.0   # anel ao estourar (fixo, sem speed_mult)
 # Soberba (Pride): holofote
 SPOT_HALF = 44.0                  # meia-largura do holofote (88px)
 SPOT_SWEEP = 95.0                 # px/s de varredura
@@ -319,6 +321,7 @@ def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
     mv["kind"][mrow] = kind
     mv["hp"][mrow] = hp
     mv["speed"][mrow] = speed
+    mv["timer"][mrow] = BUBBLE_EXPLODE_T if kind == MINION_BUBBLE else 0.0
     return packed
 LASER_TELEGRAPH, LASER_FIRE_DUR = 1.8, 0.65
 LASER_HALF = 6.0
@@ -2858,6 +2861,23 @@ class MinionCombatSystem(ISystem):
                     mv["hp"][k] -= float(np.sum(cv["damage"][sel]))
                     pv["t"][prows[sel]] = pv["cd"][prows[sel]]
                 if mv["hp"][k] <= 0.0:
+                    world.destroy_entity(int(mv["self"][k]))
+
+        # bolhas da Preguiça: estouram sozinhas num anel após 8s (mesmo
+        # sem o jogador tocá-las — ETYPE_BUBBLE, BUBBLE_EXPLODE_T)
+        bubbles = mv["kind"] == MINION_BUBBLE
+        if bubbles.any():
+            mv["timer"][bubbles] -= delta_time
+            expired = bubbles & (mv["timer"] <= 0.0)
+            if expired.any():
+                for k in np.where(expired)[0]:
+                    bx = float(tv["position_x"][m_trows[k]])
+                    by = float(tv["position_y"][m_trows[k]])
+                    for j in range(BUBBLE_BURST_N):
+                        a = j * (TWO_PI / BUBBLE_BURST_N)
+                        spawn_enemy_bullet(world, self._mm, bx, by,
+                                           math.cos(a) * BUBBLE_BURST_SPD,
+                                           math.sin(a) * BUBBLE_BURST_SPD)
                     world.destroy_entity(int(mv["self"][k]))
 
         # proximidade com o jogador: kamikaze explode em dano de contato;

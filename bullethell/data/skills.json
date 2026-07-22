@@ -9,8 +9,8 @@
       "plus": { "aux": 0.08 } },
 
     { "name": "parry",
-      "_doc": "Janela 0.13s: balas num raio de 25px são refletidas contra o boss (dano 1.0). PARRY+: viram mísseis homing de 1.5.",
-      "cd": 1.2, "duration": 0.13, "radius": 25.0, "power": 1.0,
+      "_doc": "Janela 0.13s: balas num raio de 17.5px (PLAYER_RADIUS+BULLET_RADIUS+12, entities.py:171) são refletidas contra o boss (dano 1.0). PARRY+: viram mísseis homing de 1.5.",
+      "cd": 1.2, "duration": 0.13, "radius": 17.5, "power": 1.0,
       "plus": { "power": 1.5 } },
 
     { "name": "focus",

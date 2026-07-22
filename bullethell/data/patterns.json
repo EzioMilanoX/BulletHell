@@ -139,9 +139,9 @@
       "period": 0.20, "speed": 170.0 },
 
     { "name": "sloth/bubbles",
-      "_doc": "Preguiça fase 0: bolhas-sentinela estáticas (kind=2) em posições hash.",
+      "_doc": "Preguiça fase 0: bolhas-sentinela estáticas (kind=2, HP=BUBBLE_HP=12) em posições hash; estouram sozinhas em anel após 8s (BUBBLE_EXPLODE_T, ver MinionCombatSystem).",
       "emit": "summon", "bullet": "std/normal",
-      "period": 3.5, "count": 1, "kind": 2, "hp": 2.0, "speed": 0.0 },
+      "period": 3.5, "count": 1, "kind": 2, "hp": 12.0, "speed": 0.0 },
 
     { "name": "sloth/awakening",
       "_doc": "Preguiça fase 2: 8 braços girando 18°/s a 185px/s (despertar brutal).",

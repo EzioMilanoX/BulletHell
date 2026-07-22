@@ -106,6 +106,12 @@ BOSSES = [("classic", "CLÁSSICO", (128, 0, 0)),
           ("wrath", "IRA *", (220, 50, 20)),
           ("sin", "PECADO ORIGINAL **", (180, 0, 220))]
 
+# Legado: SELECT_BOSS só lista CLASSIC_BOSS_IDS — os 8 pecados só são
+# jogáveis via SINS RUSH, "Mago do Tempo" (invenção do port) via BOSS RUSH.
+# Preservar a ordem de BOSSES já dá a ordem exata do legado (spec menus §6).
+CLASSIC_BOSS_NAMES = ("classic", "swarm", "wall", "twins", "summoner", "omega")
+CLASSIC_BOSSES = [b for b in BOSSES if b[0] in CLASSIC_BOSS_NAMES]
+
 SKILLS = [("none", "NENHUMA", ("Confie apenas nos reflexos.",), (64, 64, 64)),
           ("dash", "DASH",
           ("SHIFT — 6× velocidade por 0.18s.",), (80, 200, 255)),
@@ -285,12 +291,12 @@ class GameApp:
                        locked=[self._diff_locked(k) for k in range(len(DIFFS))],
                        step=1)
         elif s == MENU_BOSS:
-            self._menu([b[1] for b in BOSSES], "BULLET HELL",
-                       colors=[b[2] for b in BOSSES],
+            self._menu([b[1] for b in CLASSIC_BOSSES], "BULLET HELL",
+                       colors=[b[2] for b in CLASSIC_BOSSES],
                        descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
-                             for b in BOSSES],
+                             for b in CLASSIC_BOSSES],
                        on_confirm=self._boss_confirm, back_to=MENU_DIFF,
-                       locked=[self._boss_locked(b[0]) for b in BOSSES],
+                       locked=[self._boss_locked(b[0]) for b in CLASSIC_BOSSES],
                        step=2, crumb=self._crumb()[:1])
         elif s == MENU_SKILL:
             items = [n + (" +" if self.sel["skill_plus"] and k == self.cursor
@@ -666,9 +672,9 @@ class GameApp:
         self.cursor = 0
 
     def _boss_confirm(self, k: int) -> None:
-        if self._boss_locked(BOSSES[k][0]):
+        if self._boss_locked(CLASSIC_BOSSES[k][0]):
             return
-        self.sel["boss"] = BOSSES[k][0]
+        self.sel["boss"] = CLASSIC_BOSSES[k][0]
         self.state, self.cursor = MENU_SKILL, 0
 
     def _skill_confirm(self, k: int) -> None:
@@ -976,8 +982,9 @@ class GameApp:
             mx = float(np.sum(bv["max_hp"][: bp.count]))
             tier = int(np.max(bv["tier"][: bp.count]))   # DDA — pior tier vivo
             name = self._boss_display(int(bv["boss_id"][0]))
+            pat_txt = self._active_pattern_text(bp)
             r.draw_text(SCREEN_W / 2, 26,
-                        f"{name}   {hp:.0f} / {mx:.0f}   T{tier}",
+                        f"{name}   {hp:.0f} / {mx:.0f}{pat_txt}   T{tier}",
                         16, TXT, anchor="center")
         if mode == "waves":
             wv = w.get_pool("wave").active_view()
@@ -1009,6 +1016,25 @@ class GameApp:
         px = float(tv["position_x"][prow]); py = float(tv["position_y"][prow])
         hr = PLAYER_HIT_R
         self._r.draw_ui_rect(px - hr, py - hr, hr * 2, hr * 2, (0, 255, 200, 110))
+
+    def _active_pattern_text(self, boss_pool) -> str:
+        """Nome do(s) padrão(ões) ativo(s) do boss para a barra de HP
+        (legado: `{PATTERN_NAME}` dentro do texto, main.py:986-989)."""
+        ep = self.world.get_pool("emitter")
+        if not ep.count:
+            return ""
+        boss_idxs = set(int(x) for x in boss_pool.active_entity_indices())
+        ev = ep.active_view()
+        names, seen = [], set()
+        for k in range(ep.count):                      # ≤32 emitters
+            if int(ev["root"][k]) not in boss_idxs:
+                continue
+            pat = self._data.patterns.get(int(ev["pattern_id"][k]))
+            if pat is None or pat.name in seen:
+                continue
+            seen.add(pat.name)
+            names.append(pat.name.rsplit("/", 1)[-1].upper().replace("_", " "))
+        return ("   " + "+".join(names[:2])) if names else ""
 
     def _boss_display(self, boss_id: int) -> str:
         for name, label, _ in BOSSES:

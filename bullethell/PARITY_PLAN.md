@@ -240,7 +240,7 @@ alimentado, spec §9 do documento de jogador/meta).
 
 ## 3. P1 — Gaps visíveis de paridade
 
-### P1-1. HUD: barra de HP sem cor por tier, sem nome de padrão, sem PREP
+### P1-1. HUD: barra de HP sem cor por tier, sem nome de padrão, sem PREP — ✅ resolvido (Fase 13a/13f)
 
 - **Legado** (spec HUD §1): fill `RED_COL`(>66%)/`ORANGE`(>33%)/`YELLOW`
   senão; borda na cor do tier DDA (`GREEN`/`YELLOW`/`RED_COL`); marcas
@@ -257,7 +257,14 @@ alimentado, spec §9 do documento de jogador/meta).
   ativo já está disponível via `emitter.pattern_id` — dá para resolver e
   mostrar sem esperar o DDA.
 
-### P1-2. Boss Sloth (Preguiça): fase de fantasmas não é passiva, HP dos fantasmas errado
+  **O que foi feito:** cor por tier + `T{tier}` já saíram na Fase 13a
+  junto com a DDA. O nome do padrão saiu na Fase 13f:
+  `_active_pattern_text()` lê os emitters cujo `root` é o boss atual e
+  mostra até 2 nomes derivados de `PatternDef.name` (ex.:
+  `classic/circular_saw` → "CIRCULAR SAW"). `[PREP]` continua de fora —
+  não existe telegraph de boss no port (ver observação em P0-3).
+
+### P1-2. Boss Sloth (Preguiça): fase de fantasmas não é passiva, HP dos fantasmas errado — ✅ resolvido (Fase 13f)
 
 - **Legado** (spec bosses-sins §2): fase 0 só deriva+bolhas (sem ataque
   ofensivo do boss); fase 1 (`dark_mode`) o boss fica **invulnerável e
@@ -273,7 +280,18 @@ alimentado, spec §9 do documento de jogador/meta).
   sem `emitters`), remover `summoner/volley` da fase 0, e corrigir o HP
   dos fantasmas para 20.0 em `minions`.
 
-### P1-3. Skill PARRY: raio de deflexão maior que o legado
+  **O que foi feito:** as duas remoções + o HP 20.0 saíram como
+  planejado. Corrigir isso **expôs um gap real**: sem o
+  `summoner/volley` "emprestado" mascarando o problema, ficou claro que
+  as bolhas da fase 0 (`ETYPE_BUBBLE`) nunca implementavam o estouro em
+  anel do legado (`BUBBLE_EXPLODE_T=8s` → `BUBBLE_BURST_N=12` balas) —
+  era só um alvo estático. Adicionado: campo `minion.timer` (novo),
+  inicializado em `spawn_minion` só para bolhas, decrementado em
+  `MinionCombatSystem` — ao expirar, estoura um anel de 12 balas a
+  120px/s (fixo, sem `speed_mult`, igual ao legado) e destrói a bolha.
+  HP da bolha corrigido de 2.0 para 12.0 (`BUBBLE_HP`).
+
+### P1-3. Skill PARRY: raio de deflexão maior que o legado — ✅ resolvido (Fase 13f)
 
 - **Legado**: `PARRY_RANGE = PLAYER_RADIUS + BULLET_RADIUS + 12.0 = 17.5`
   px (`entities.py:171`, confirmado visualmente no anel ciano do
@@ -282,7 +300,10 @@ alimentado, spec §9 do documento de jogador/meta).
   legado, torna o parry sensivelmente mais fácil de acertar.
 - **Ação:** trocar para `17.5`.
 
-### P1-4. Boss roster do modo Clássico expõe todos os 15 bosses, legado só expõe 6
+  **O que foi feito:** `skills.json` atualizado para `17.5`; a descrição
+  do menu de skills (Fase 13d) já tinha sido escrita com o valor certo.
+
+### P1-4. Boss roster do modo Clássico expõe todos os 15 bosses, legado só expõe 6 — ✅ resolvido (Fase 13f)
 
 - **Legado** (spec menus §6): `SELECT_BOSS` só lista
   `CLASSIC_BOSS_IDS = [CLÁSSICO, ENXAME, PAREDÃO, GÊMEOS, INVOCADOR,
@@ -296,7 +317,15 @@ alimentado, spec §9 do documento de jogador/meta).
   roster de 6 do legado e manter os pecados exclusivos do SINS Rush (ou
   documentar a divergência como intencional).
 
-### P1-5. Mutadores: ABISSAL misturado com os mutadores de verdade
+  **O que foi feito:** optou-se pela fidelidade — `CLASSIC_BOSSES`
+  (novo, `scenes.py`) filtra `BOSSES` para exatamente os 6 nomes do
+  legado, na mesma ordem (preservar a ordem de `BOSSES` já dá a ordem
+  certa: CLÁSSICO/ENXAME/PAREDÃO/GÊMEOS/INVOCADOR/ÔMEGA). Os 8 pecados
+  continuam jogáveis via SINS RUSH e o "Mago do Tempo" via BOSS RUSH —
+  nenhum boss ficou inacessível, só a tela de seleção do modo Clássico
+  ficou fiel ao roster original.
+
+### P1-5. Mutadores: ABISSAL misturado com os mutadores de verdade — ✅ resolvido (Fase 13a)
 
 Coberto em P0-2, mas vale registrar aqui como item de UI: a lista
 `MUTATORS` (`scenes.py:83-89`) tem 7 itens (o legado tem 6:
@@ -363,11 +392,12 @@ o "abissal" que deveria ser dificuldade, não mutador.
   na própria spec do legado, `main.py:2942-2959` vs. `main.py:1255`) — o
   port está fiel ao *texto* do legado, não ao *código*; decisão de
   produto, não bug do port.
-- Paleta de cores de balas (`PALETTE` em `schemas.py:266-277`) usa tons
-  aproximados, não os RGB exatos do legado por tipo (ex.: `ORANGE
-  (255,165,0)` do legado vs. `(255,64,90)` "normal" do port) — puramente
-  cosmético, fácil de alinhar can por can quando o resto estiver mais
-  avançado.
+- ~~Paleta de cores de balas (`PALETTE` em `schemas.py:266-277`) usa tons
+  aproximados, não os RGB exatos do legado por tipo~~ — ✅ resolvido
+  (Fase 13f): os 10 tons agora são os RGB exatos do legado por tipo
+  (`ORANGE (255,165,0)` para normal, etc.), com os tipos "compostos" do
+  legado (gravity/phaser/spinner, que lá são multi-camada) resolvidos
+  para o tom mais representativo de cada um.
 - Textos de flavor/intro (`BOSS_INTROS` em `scenes.py:91-107`) foram
   reescritos livremente em vez de citar o `_BOSS_INTRO` literal do
   legado (`main.py:1066-1079`) — considerar usar os textos exatos onde

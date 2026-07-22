@@ -148,18 +148,17 @@
       ] },
 
     { "name": "sloth",
-      "_doc": "★ Preguiça: fase 0 deriva spawnando bolhas; fase 1 invulnerável até os 3 fantasmas morrerem (gate_minions); fase 2 despertar brutal.",
+      "_doc": "★ Preguiça: fase 0 só deriva+bolhas (sem ataque ofensivo, igual ao legado); fase 1 muda (invulnerável, sem emitters) até os 3 fantasmas (HP 20, ENEMY_SENTINEL_HP) morrerem (gate_minions); fase 2 despertar brutal.",
       "hp": 340,
       "hitbox": [20, 20],
       "route": [[420, 80, 2.8], [860, 120, 2.8], [640, 60, 2.4]],
       "parts": [],
       "phases": [
         { "hp_above": 0.66,
-          "emitters": [ { "pattern": "sloth/bubbles" },
-                        { "pattern": "summoner/volley" } ] },
+          "emitters": [ { "pattern": "sloth/bubbles" } ] },
         { "hp_above": 0.33, "gimmick": "gate_minions",
-          "minions": [3, 1, 6.0, 0.0],
-          "emitters": [ { "pattern": "swarm/ring_volley" } ] },
+          "minions": [3, 1, 20.0, 0.0],
+          "emitters": [] },
         { "hp_above": 0.0,
           "emitters": [ { "pattern": "sloth/awakening" } ] }
       ] },

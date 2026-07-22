@@ -254,6 +254,17 @@ Portado (fases 1–2):
         prova bit-a-bit que a trajetória de HP do boss é idêntica entre
         a run original e o replay — **todos os P0 do PARITY_PLAN.md
         aplicados** (61+28+18+7 OK nos 4 smoke tests)
+      - **13f** — Limpeza dos P1 do PARITY_PLAN.md: nome do padrão ativo
+        na barra de HP (`_active_pattern_text`, lê `emitter.pattern_id`);
+        Sloth com fase 0 só bolhas (sem `summoner/volley` emprestado) e
+        fase 1 muda de verdade (sem `swarm/ring_volley`) — o que expôs
+        um gap real (as bolhas nunca estouravam sozinhas): novo campo
+        `minion.timer` + lógica em `MinionCombatSystem` implementam o
+        `BUBBLE_EXPLODE_T`/`BUBBLE_BURST_N` do legado; raio do PARRY
+        25→17.5px; `MENU_BOSS` no modo Clássico restrito aos 6 bosses do
+        legado (`CLASSIC_BOSSES`) — pecados só via SINS RUSH, Mago do
+        Tempo só via BOSS RUSH; paleta de balas com os RGB exatos do
+        legado por tipo. 61+28+18+7 OK
 
 Fase 14 (futuro, ver PARITY_PLAN.md P1/P2/P3):
 - [ ] Dev overlay/cheats (F9/F10/F3-F8, sequência secreta, hot-reload)

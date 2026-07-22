@@ -103,6 +103,7 @@ MINION_DTYPE = np.dtype([        # lacaios: kamikaze (Invocador), sentinelas/
     ("kind",  np.uint8),         # (Avareza/Pecado — explodem por proximidade;
     ("hp",    np.float32),       #  para MINE, `speed` = nº de balas do anel)
     ("speed", np.float32),
+    ("timer", np.float32),       # BUBBLE: countdown até estourar (BUBBLE_EXPLODE_T)
 ])
 
 HAZARD_DTYPE = np.dtype([        # zonas de névoa SLOW (Luxúria)
@@ -268,16 +269,18 @@ GAME_POOL_CAPACITY: Dict[str, int] = {
     "pb_shrap": 256,
 }
 
-# Paleta placeholder (color_id do arquétipo → tint RGB do sprite)
+# Paleta (color_id do arquétipo → tint RGB do sprite) — RGB exatos do
+# legado por tipo de bala (PARITY_PLAN.md P3; main.py:721-814, BG_COLOR
+# entities.py:547), não mais tons aproximados.
 PALETTE = {
-    0: (255, 64, 90),    # normal (vermelho)
-    1: (80, 160, 255),   # yin azul
-    2: (255, 150, 50),   # yang laranja
+    0: (255, 165, 0),    # normal (legado: ORANGE)
+    1: (80, 200, 255),   # yin azul
+    2: (255, 100, 30),   # yang laranja
     3: (200, 80, 255),   # homing roxa
-    4: (0, 220, 220),    # tether ciano
-    5: (120, 90, 160),   # gravity well
-    6: (90, 220, 180),   # phaser
-    7: (255, 120, 200),  # spinner
+    4: (255, 80, 100),   # tether
+    5: (180, 50, 255),   # gravity well
+    6: (255, 100, 220),  # phaser (sólida)
+    7: (200, 150, 20),   # spinner
     8: (255, 220, 0),    # ricochete amarela
-    9: (26, 22, 30),     # oculta (agulhas da Luxúria — some no fundo)
+    9: (16, 14, 22),     # oculta (agulhas da Luxúria — próxima do BG_COLOR)
 }
