@@ -265,12 +265,24 @@ Portado (fases 1–2):
         legado (`CLASSIC_BOSSES`) — pecados só via SINS RUSH, Mago do
         Tempo só via BOSS RUSH; paleta de balas com os RGB exatos do
         legado por tipo. 61+28+18+7 OK
+      - **13g** — Conquistas de 13 para **20** reais (id/nome/descrição/
+        recompensa): as 15 não-mastery do legado
+        (`ACHIEVEMENTS_DEF`, main.py:1896-1986 — 5 delas secretas,
+        mostrando `"???"` até desbloquear) + 5 bônus de conclusão de
+        modo que o port já tinha. Barra de progresso real para
+        ESQUIVADOR/ESPADACHIM/SENHOR DO PARRY. Tela CONQUISTAS ganha
+        cursor + carrossel (20 itens não cabem mais numa lista
+        estática) e mostra recompensa/progresso do item selecionado.
+        As 17 masteries de skill+/arma+ do legado ficam de fora por
+        decisão deliberada — uma conquista que nunca pode ser ganha é
+        pior que não listá-la (ver PARITY_PLAN.md P1-7, ainda aberto).
+        61+43+18+7 OK (smoke_gating.py: 28→43 asserts, com as 15 novas
+        sobre as condições de conquista)
 
-Fase 14 (futuro, ver PARITY_PLAN.md P1/P2/P3):
+Fase 14 (futuro, ver PARITY_PLAN.md P1-7/P2/P3):
+- [ ] Masteries de arma/skill do legado (17 desafios — exigem
+      instrumentar contagens específicas em vários sistemas)
 - [ ] Dev overlay/cheats (F9/F10/F3-F8, sequência secreta, hot-reload)
-- [ ] Sloth: corrigir HP dos fantasmas (6→20) e tirar os ataques que o
-      legado não tem nas fases 0/1 (P1-2)
-- [ ] PARRY: raio 25→17.5px (P1-3)
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
 

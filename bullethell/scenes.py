@@ -29,21 +29,58 @@ from bullethell.schemas import SCREEN_H, SCREEN_W
  MENU_MUT, PLAYING, WIN, GAMEOVER, MENU_ACH, MENU_RECORDS,
  MENU_SETTINGS, REPLAYING) = range(14)
 
-# Conquistas persistidas em save_ecs.json (id, nome, como desbloquear)
+# Conquistas persistidas em save_ecs.json: (id, nome, descrição, recompensa,
+# secreta, progresso). `progresso` = (chave, alvo) para as com barra —
+# chave lida de `save["total_graze"/"total_parries"] + totals[...]` (run
+# atual incluída). As 15 primeiras são as não-mastery do legado
+# (ACHIEVEMENTS_DEF, main.py:1896-1986 — mesmos nomes/recompensas onde
+# aplicável); as 5 últimas são conclusões de modo que o port já tinha e o
+# legado não lista como conquista dedicada — mantidas como bônus.
+# As 17 masteries de skill+/arma+ do legado (sp_*/wp_*) ficam de fora por
+# ora: exigiriam instrumentação nova em vários sistemas (ver PARITY_PLAN
+# P1-7) e uma conquista que nunca pode ser ganha é pior que não listá-la.
 ACHIEVEMENTS = [
-    ("first_blood", "PRIMEIRO SANGUE", "derrote o seu primeiro boss"),
-    ("veterano", "VETERANO", "vença uma run no NORMAL"),
-    ("mestre", "MESTRE", "vença uma run no DIFÍCIL"),
-    ("perfeccionista", "PERFECCIONISTA", "vença sem perder nenhuma vida"),
-    ("esquivador", "ESQUIVADOR", "acumule 100 grazes no total"),
-    ("intocavel", "INTOCÁVEL", "vença sem habilidade equipada"),
-    ("imparavel", "IMPARÁVEL", "complete o BOSS RUSH"),
-    ("redencao", "REDENÇÃO", "complete o SINS RUSH"),
-    ("sobrevivente", "SOBREVIVENTE", "vença o WAVE SURVIVAL"),
-    ("vidro", "CORAÇÃO DE VIDRO", "vença com o CANHÃO DE VIDRO"),
-    ("alem_limite", "ALÉM DO LIMITE", "vença com 3+ mutadores ativos"),
-    ("o_fim", "O FIM", "derrote o ÔMEGA"),
-    ("setimo_selo", "O SÉTIMO SELO", "sobreviva ao PECADO ORIGINAL"),
+    ("easy_win", "INICIANTE", "Complete a dificuldade Fácil.",
+     "Habilidade: PARRY", False, None),
+    ("normal_win", "VETERANO", "Complete a dificuldade Normal.",
+     "Habilidade: FOCO", False, None),
+    ("hard_win", "MESTRE", "Complete a dificuldade Difícil.", "—", False, None),
+    ("grazes_100", "ESQUIVADOR", "Acumule 100 grazes no total.",
+     "Habilidade: EMP", False, ("graze", 100)),
+    ("parries_50", "ESPADACHIM", "Deflita 50 balas com o Parry.",
+     "Habilidade: ESCUDO", False, ("parries", 50)),
+    ("no_hit_win", "PERFECCIONISTA", "Vença sem perder nenhuma vida.",
+     "Habilidade: BLINK", False, None),
+    ("mutator_hard", "RISCO MÁXIMO",
+     "Vença Difícil com 1+ mutador ativo.", "Habilidade: OVERCLOCK",
+     False, None),
+    ("omega_unlock", "IMPARÁVEL",
+     "Vença Difícil com 3+ mutadores simultâneos.", "Boss: ÔMEGA ★",
+     False, None),
+    ("equilibrio_perfeito", "EQUILÍBRIO PERFEITO",
+     "Derrote os Gêmeos.", "Habilidade: DILATAÇÃO", False, None),
+    ("pacifista_elite", "PACIFISTA DE ELITE",
+     "Derrote o Invocador.", "Mutador: CLAUSTROFOBIA", False, None),
+    ("parries_200", "SENHOR DO PARRY", "Deflita 200 balas no total.",
+     "—", True, ("parries", 200)),
+    ("speed_hard", "SPEED RUNNER",
+     "Vença Difícil em menos de 3 minutos.", "—", True, None),
+    ("all_mutators", "ALÉM DO LIMITE", "Vença com 3+ mutadores ativos.",
+     "—", True, None),
+    ("no_skill", "INTOCÁVEL", "Vença com habilidade NENHUMA.", "—",
+     True, None),
+    ("omega_hard", "O FIM", "Derrote o ÔMEGA na dificuldade Difícil.",
+     "—", True, None),
+    ("first_blood", "PRIMEIRO SANGUE", "Derrote o seu primeiro boss.",
+     "—", False, None),
+    ("boss_rush_win", "CONQUISTADOR", "Complete o BOSS RUSH.", "—",
+     False, None),
+    ("sins_rush_win", "REDENÇÃO", "Complete o SINS RUSH.", "—",
+     False, None),
+    ("waves_win", "SOBREVIVENTE", "Vença o WAVE SURVIVAL.", "—",
+     False, None),
+    ("glass_win", "CORAÇÃO DE VIDRO", "Vença com o CANHÃO DE VIDRO.",
+     "—", False, None),
 ]
 
 # clock.sfx → som registrado (bit, sound_id)
@@ -635,30 +672,79 @@ class GameApp:
                     "W/S navegar  ·  ENTER/D toggle  ·  ESC voltar", 14,
                     (35, 35, 50, 255), anchor="center")
 
+    def _achievement_progress(self, key: str) -> int:
+        """Valor atual do contador de progresso (save persistido + total
+        já acumulado nesta sessão, incluindo a run em andamento)."""
+        base = int(self.save.get(f"total_{key}", 0))
+        return base + int(self.totals.get(key, 0))
+
     def _achievements_screen(self) -> None:
         inp = self._input
-        if inp.is_action_pressed("back") or inp.is_action_pressed("confirm") \
-                or inp.is_action_pressed("move_left"):
+        n = len(ACHIEVEMENTS)
+        if inp.is_action_pressed("move_up"):
+            self.cursor = (self.cursor - 1) % n
+            self._play("ui_move", 0.25)
+        if inp.is_action_pressed("move_down"):
+            self.cursor = (self.cursor + 1) % n
+            self._play("ui_move", 0.25)
+        if inp.is_action_pressed("back") or inp.is_action_pressed("move_left"):
             self.state, self.cursor = MENU_MAIN, 0
             return
+        self.cursor = min(self.cursor, n - 1)
+
         r = self._r
         r.draw_text(SCREEN_W / 2, 56, "CONQUISTAS", 40, GOLD, anchor="center")
-        done = sum(1 for aid, _, _ in ACHIEVEMENTS if aid in self.achieved)
-        r.draw_text(SCREEN_W / 2, 100,
-                    f"{done} / {len(ACHIEVEMENTS)} desbloqueadas",
+        done = sum(1 for a in ACHIEVEMENTS if a[0] in self.achieved)
+        r.draw_text(SCREEN_W / 2, 100, f"{done} / {n} desbloqueadas",
                     16, MUTED, anchor="center")
-        top = 150
-        for k, (aid, name, desc) in enumerate(ACHIEVEMENTS):
-            y = top + k * 40
+
+        top, bottom, ih, gap = 140, 560, 26, 2
+        row_h = ih + gap
+        center_y = top + ((bottom - top) - ih) / 2
+        for k, (aid, name, desc, reward, secret, progress) in enumerate(ACHIEVEMENTS):
+            y = center_y + (k - self.cursor) * row_h
+            if y + ih < top or y > bottom:
+                continue
             got = aid in self.achieved
-            mark = "[x]" if got else "[ ]"
-            r.draw_text(SCREEN_W / 2 - 330, y, mark, 18,
+            hidden = secret and not got
+            sel = k == self.cursor
+            if sel:
+                r.draw_ui_rect(SCREEN_W / 2 - 340, y - 2, 680, ih,
+                              (124, 80, 255, 40))
+            mark = "[x]" if got else ("[?]" if hidden else "[ ]")
+            r.draw_text(SCREEN_W / 2 - 330, y, mark, 16,
                         GOLD if got else MUTED)
-            r.draw_text(SCREEN_W / 2 - 270, y, name, 18,
-                        TXT if got else MUTED)
-            r.draw_text(SCREEN_W / 2 + 40, y + 2, desc, 14, MUTED)
-        r.draw_text(SCREEN_W / 2, SCREEN_H - 44, "A/ESC voltar", 14, MUTED,
-                    anchor="center")
+            disp_name = "???" if hidden else name
+            r.draw_text(SCREEN_W / 2 - 280, y, disp_name, 16,
+                        GOLD if got else (TXT if sel else MUTED))
+            disp_desc = "Conquista secreta." if hidden else desc
+            r.draw_text(SCREEN_W / 2 + 10, y + 1, disp_desc, 13, MUTED)
+
+        aid, name, desc, reward, secret, progress = ACHIEVEMENTS[self.cursor]
+        got = aid in self.achieved
+        hidden = secret and not got
+        y0 = 590
+        r.draw_ui_rect(SCREEN_W / 2 - 340, y0, 680, 100, (11, 11, 21, 255))
+        r.draw_text(SCREEN_W / 2 - 320, y0 + 10,
+                    "???" if hidden else name, 18, GOLD if got else TXT)
+        r.draw_text(SCREEN_W / 2 - 320, y0 + 34,
+                    "Descubra as condições jogando." if hidden else desc,
+                    13, (168, 168, 196, 255))
+        if got:
+            status = "[ DESBLOQUEADO ]"
+        elif progress and not hidden:
+            cur = min(progress[1], self._achievement_progress(progress[0]))
+            status = f"Progresso: {cur}/{progress[1]}"
+        else:
+            status = "[ BLOQUEADO ]" if not hidden else ""
+        r.draw_text(SCREEN_W / 2 - 320, y0 + 56, status, 13,
+                    (0, 220, 0, 255) if got else MUTED)
+        if not hidden and reward != "—":
+            r.draw_text(SCREEN_W / 2 - 320, y0 + 76, f"Recompensa: {reward}",
+                        13, (168, 168, 196, 255))
+
+        r.draw_text(SCREEN_W / 2, SCREEN_H - 20, "W/S navegar  ·  A/ESC voltar",
+                    14, MUTED, anchor="center")
 
     def _mode_confirm(self, k: int) -> None:
         self.sel["mode"] = MODES[k][0]
@@ -842,48 +928,63 @@ class GameApp:
         self._apply_progression(outcome)
 
     def _check_achievements(self, outcome: str, lives: int, graze: int) -> None:
-        """Avalia as conquistas ao fim da run (persistidas ao sair)."""
+        """Avalia as conquistas ao fim da run (persistidas ao sair). IDs e
+        recompensas batem com o legado onde aplicável (ACHIEVEMENTS_DEF,
+        main.py:1896-1986) — ver a tabela `ACHIEVEMENTS` para a lista
+        completa e quais são aproximações documentadas."""
         self.new_achievements = []
 
         def grant(aid: str) -> None:
             if aid not in self.achieved:
                 self.achieved.add(aid)
-                name = next(n for a, n, _ in ACHIEVEMENTS if a == aid)
+                name = next(n for a, n, _, _, _, _ in ACHIEVEMENTS if a == aid)
                 self.new_achievements.append(name)
 
         if self.end_stats[0] >= 1:
             grant("first_blood")
-        total_graze = int(self.save.get("total_graze", 0)) + self.totals["graze"]
-        if total_graze >= 100:
-            grant("esquivador")
+        if self._achievement_progress("graze") >= 100:
+            grant("grazes_100")
+        if self._achievement_progress("parries") >= 50:
+            grant("parries_50")
+        if self._achievement_progress("parries") >= 200:
+            grant("parries_200")
         if outcome != "win":
             return
-        mode, diff = self.sel["mode"], self.sel["diff"]
+        mode, diff, boss = self.sel["mode"], self.sel["diff"], self.sel["boss"]
         muts = self.sel["muts"]
-        if diff in ("normal", "dificil"):
-            grant("veterano")
+        if diff == "facil":
+            grant("easy_win")
+        if diff == "normal":
+            grant("normal_win")
         if diff == "dificil":
-            grant("mestre")
+            grant("hard_win")
+            if len(muts) >= 1:
+                grant("mutator_hard")
+            if len(muts) >= 3:
+                grant("omega_unlock")
+            if self.run_t < 180.0:
+                grant("speed_hard")
         full = 0 if "glass" in muts else 3
         if lives >= full:
-            grant("perfeccionista")
+            grant("no_hit_win")
         if self.sel["skill"] == "none":
-            grant("intocavel")
+            grant("no_skill")
+        if mode == "classic" and boss == "twins":
+            grant("equilibrio_perfeito")           # aproximação — ver P1-6
+        if mode == "classic" and boss == "summoner":
+            grant("pacifista_elite")               # aproximação — ver P1-6
+        if mode == "classic" and boss == "omega" and diff == "dificil":
+            grant("omega_hard")
         if mode == "rush":
-            grant("imparavel")
+            grant("boss_rush_win")
         if mode == "sins":
-            grant("redencao")
-            grant("setimo_selo")
+            grant("sins_rush_win")
         if mode == "waves":
-            grant("sobrevivente")
+            grant("waves_win")
         if "glass" in muts:
-            grant("vidro")
+            grant("glass_win")
         if len(muts) >= 3:
-            grant("alem_limite")
-        if mode == "classic" and self.sel["boss"] == "omega":
-            grant("o_fim")
-        if mode == "classic" and self.sel["boss"] == "sin":
-            grant("setimo_selo")
+            grant("all_mutators")
         if self.new_achievements:
             self._play("ui_ok", 0.6)
 
@@ -906,19 +1007,19 @@ class GameApp:
             unlocked.add("parry")
         if hcd >= 2:                                  # venceu NORMAL
             unlocked.add("focus")
-        if "esquivador" in self.achieved:              # 100 grazes (exato)
+        if "grazes_100" in self.achieved:              # 100 grazes (exato)
             unlocked.add("emp")
-        if "perfeccionista" in self.achieved:          # no-hit win (exato)
+        if "no_hit_win" in self.achieved:              # no-hit win (exato)
             unlocked.add("blink")
         if self.sel["diff"] == "dificil" and len(self.sel["muts"]) >= 1:
             unlocked.add("overclock")                  # DIFÍCIL + mutador
-        if int(self.save.get("total_parries", 0)) + self.totals["parries"] >= 50:
+        if self._achievement_progress("parries") >= 50:
             unlocked.add("shield")                      # 50 parries totais
         if self.sel["mode"] == "classic" and self.sel["boss"] == "twins":
             unlocked.add("timedil")                      # aprox. de Gêmeos
         self.save["unlocked_skills"] = sorted(unlocked)
 
-        if "alem_limite" in self.achieved:              # HARD c/ 3+ mutadores
+        if "omega_unlock" in self.achieved:             # HARD c/ 3+ mutadores
             self.save["omega_unlocked"] = True
         if self.sel["mode"] == "classic" and self.sel["boss"] == "summoner":
             muts = set(self.save.get("unlocked_mutators", []))

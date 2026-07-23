@@ -1,9 +1,10 @@
 # PARITY_PLAN.md — o que falta para o port ECS igualar (ou superar) o legado
 
 > **Progresso (Fase 13, ver MIGRATION.md):** **Todos os P0 (P0-1 a
-> P0-5) já aplicados.** Os detalhes de cada um continuam abaixo (specs
-> exatas + aproximações assumidas) — leia como registro do que foi
-> decidido, não mais como pendência. Restam os itens P1/P2/P3.
+> P0-5) já aplicados**, e os P1 pontuais (P1-1 a P1-6) também. Os
+> detalhes de cada um continuam abaixo (specs exatas + aproximações
+> assumidas) — leia como registro do que foi decidido, não mais como
+> pendência. Restam P1-7 (masteries de arma/skill) e os itens P2/P3.
 
 ## 0. Como isto foi produzido
 
@@ -332,7 +333,7 @@ Coberto em P0-2, mas vale registrar aqui como item de UI: a lista
 PREDADOR/FANTASMA/CANHÃO DE VIDRO/HORDA/BERSERKER/CLAUSTROFOBIA) — o 7º é
 o "abissal" que deveria ser dificuldade, não mutador.
 
-### P1-6. Conquistas: 13 de 32, sem secretas, sem barra de progresso, sem recompensas reais
+### P1-6. Conquistas: 13 de 32, sem secretas, sem barra de progresso, sem recompensas reais — ✅ parcialmente resolvido (Fase 13g)
 
 - **Legado** (spec menus §11.1): 32 conquistas, várias com contador e
   barra de progresso (`grazes_100`, `parries_50`, `parries_200`), 5
@@ -343,6 +344,26 @@ o "abissal" que deveria ser dificuldade, não mutador.
   há gating (P0-1), "recompensa" não significa nada hoje.
 - **Ação:** depende de P0-1. Depois de portar o `SaveManager`, expandir a
   lista e conectar cada conquista à sua recompensa real.
+
+  **O que foi feito (Fase 13g):** `ACHIEVEMENTS` foi de 13 para **20**
+  entradas com id/nome/descrição/recompensa reais: as **15 não-mastery**
+  do legado (`ACHIEVEMENTS_DEF`, main.py:1896-1986 — mesmos nomes onde
+  aplicável: INICIANTE/VETERANO/MESTRE/ESQUIVADOR/ESPADACHIM/
+  PERFECCIONISTA/RISCO MÁXIMO/IMPARÁVEL/EQUILÍBRIO PERFEITO/PACIFISTA DE
+  ELITE/SENHOR DO PARRY/SPEED RUNNER/ALÉM DO LIMITE/INTOCÁVEL/O FIM,
+  as 5 secretas mostrando `"???"` até desbloquear) **+ 5 bônus** que o
+  port já tinha para as conclusões de modo que o legado não trata como
+  conquista dedicada (PRIMEIRO SANGUE/CONQUISTADOR/REDENÇÃO/
+  SOBREVIVENTE/CORAÇÃO DE VIDRO). Barra de progresso real para
+  ESQUIVADOR/ESPADACHIM/SENHOR DO PARRY (lê `total_graze`/
+  `total_parries` acumulados). EQUILÍBRIO PERFEITO e PACIFISTA DE ELITE
+  usam a mesma aproximação já assumida em P0-1 (vencer os Gêmeos/
+  Invocador, sem medir o timing exato/contagem de lacaios do legado).
+  **As 17 masteries de skill+/arma+ (sp_*/wp_*) ficam de fora — decisão
+  deliberada**: uma conquista que nunca pode ser ganha é pior que não
+  listá-la (ver P1-7); a tela de CONQUISTAS agora tem cursor +
+  carrossel (20 itens não cabem mais numa lista estática) e mostra
+  recompensa/progresso do item selecionado.
 
 ### P1-7. Weapon mastery / skill mastery: sem equivalente
 

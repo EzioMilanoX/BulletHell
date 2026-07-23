@@ -10,7 +10,7 @@ import bullethell  # noqa: F401 — engine no sys.path
 from ouroboros.interfaces.null.null_renderer import NullRenderer
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 from bullethell.loaders import load_all
-from bullethell.scenes import BOSSES, DIFFS, GameApp, MUTATORS, SKILLS
+from bullethell.scenes import ACHIEVEMENTS, BOSSES, DIFFS, GameApp, MUTATORS, SKILLS
 
 DATA = load_all()
 
@@ -84,18 +84,18 @@ if __name__ == "__main__":
                a._diff_locked(4) is False)
 
     a = app_with({})
-    a.achieved = {"esquivador", "perfeccionista"}
+    a.achieved = {"grazes_100", "no_hit_win"}
     a._apply_progression("win")
-    ok &= check("conquista esquivador -> EMP destrava",
+    ok &= check("conquista grazes_100 -> EMP destrava",
                "emp" in a.save["unlocked_skills"])
-    ok &= check("conquista perfeccionista -> BLINK destrava",
+    ok &= check("conquista no_hit_win -> BLINK destrava",
                "blink" in a.save["unlocked_skills"])
 
     a = app_with({})
-    a.achieved = {"alem_limite"}
+    a.achieved = {"omega_unlock"}
     a.sel["mode"], a.sel["boss"] = "classic", "summoner"
     a._apply_progression("win")
-    ok &= check("conquista alem_limite -> boss OMEGA destrava",
+    ok &= check("conquista omega_unlock -> boss OMEGA destrava",
                a.save["omega_unlocked"] is True)
     ok &= check("vencer o Invocador -> mutador CLAUSTROFOBIA destrava",
                "claustro" in a.save["unlocked_mutators"])
@@ -106,5 +106,40 @@ if __name__ == "__main__":
                and any(s[0] == "shield" for s in SKILLS)
                and any(m[0] == "claustro" for m in MUTATORS)
                and any(b[0] == "omega" for b in BOSSES))
+
+    # --- conquistas (PARITY_PLAN P1-6: 20 reais, sem masteries falsas) ---
+    ids = [a[0] for a in ACHIEVEMENTS]
+    ok &= check("20 conquistas, todas com id único",
+               len(ids) == 20 and len(set(ids)) == len(ids))
+    ok &= check("5 são secretas (parries_200/speed_hard/all_mutators/"
+               "no_skill/omega_hard)",
+               sum(1 for a in ACHIEVEMENTS if a[4]) == 5)
+
+    a = app_with({})
+    a.end_stats = (1, 0, 0)
+    a.sel.update(mode="classic", diff="dificil", boss="omega",
+                skill="none", muts={"predador", "fantasma", "glass"})
+    a.totals["parries"] = a.totals["graze"] = 0
+    a.run_t = 90.0
+    a._check_achievements("win", lives=0, graze=0)
+    for aid in ("easy_win", "normal_win"):
+        ok &= check(f"NAO concede {aid} (rodada foi em dificil)",
+                   aid not in a.achieved)
+    for aid in ("hard_win", "mutator_hard", "omega_unlock", "speed_hard",
+               "no_skill", "omega_hard", "glass_win", "all_mutators",
+               "first_blood"):
+        ok &= check(f"concede {aid} nas condicoes certas", aid in a.achieved)
+
+    a = app_with({})
+    a.end_stats = (1, 0, 0)
+    a.sel.update(mode="rush", diff="facil", boss="classic", skill="dash",
+                muts=set())
+    a.totals["parries"] = a.totals["graze"] = 0
+    a.run_t = 999.0
+    a._check_achievements("win", lives=3, graze=0)
+    ok &= check("concede boss_rush_win + easy_win + no_hit_win",
+               {"boss_rush_win", "easy_win", "no_hit_win"} <= a.achieved)
+    ok &= check("NAO concede hard_win/speed_hard/no_skill (condicoes erradas)",
+               not ({"hard_win", "speed_hard", "no_skill"} & a.achieved))
 
     raise SystemExit(0 if ok else 1)
