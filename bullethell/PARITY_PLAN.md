@@ -2,10 +2,12 @@
 
 > **Progresso (Fase 13, ver MIGRATION.md):** **Todos os P0 (P0-1 a
 > P0-5) e todos os P1 (P1-1 a P1-7) já aplicados**, mais o dev overlay/
-> cheats de P2. Os detalhes de cada um continuam abaixo (specs exatas +
-> aproximações assumidas) — leia como registro do que foi decidido, não
-> mais como pendência. Resta só o resíduo de baixo valor de P2/P3
-> (`balance.json` hot-reload, texto exato de "SELECT_RUSH_PLAYLIST").
+> cheats de P2, o `balance.json` hot-reload, o texto de "SELECT_RUSH_
+> PLAYLIST" e o escalonamento de HP do SINS RUSH. Os detalhes de cada
+> um continuam abaixo (specs exatas + aproximações assumidas) — leia
+> como registro do que foi decidido, não mais como pendência. Resta só
+> **Tela Cheia** (exigiria método novo no `IRenderer` da engine — fora
+> do escopo deste port) e itens cosméticos de P3 já documentados.
 
 ## 0. Como isto foi produzido
 
@@ -421,12 +423,25 @@ o "abissal" que deveria ser dificuldade, não mutador.
   P0-4). **Screen Shake**/**Mostrar Hitbox** também resolvidos (Fase
   13d); **Tela Cheia** segue de fora (exigiria método novo no
   `IRenderer` da engine).
-- **SELECT_RUSH_PLAYLIST**: o port não tem essa tela porque promoveu
-  `rush`/`sins` a modos de jogo separados em vez de sub-escolha dentro de
-  Boss Rush — funcionalmente equivalente, mas o texto/fluxo do legado
-  (`"BOSS RUSH CLÁSSICO"` vs `"OS 7 PECADOS"` como playlists) não é
-  replicado; considerar renomear os modos do port para bater com os
-  textos exatos do legado se a fidelidade textual importa.
+- ~~**SELECT_RUSH_PLAYLIST**~~ — ✅ resolvido (Fase 13j): o port não tem
+  essa tela porque promoveu `rush`/`sins` a modos de jogo separados em
+  vez de sub-escolha dentro de Boss Rush — funcionalmente equivalente,
+  então em vez de recriar a tela optou-se por alinhar o *texto* dos
+  dois modos ao vocabulário do legado. `MODES` (`scenes.py`) agora
+  descreve **BOSS RUSH** como "7 bosses em ordem fixa — do Clássico ao
+  Ômega, +1 vida entre eles... Sem aleatoriedade, HP sem escala" e
+  **SINS RUSH** como "7 pecados em ordem fixa + o Pecado Original ao
+  fim... HP escala ×1.15 por estágio... Vencer libera a dificuldade
+  ABISSAL" — mesma informação que as duas playlists do legado
+  comunicavam, sem recriar a tela extra de seleção.
+- ~~**SINS RUSH sem escalonamento de HP por estágio**~~ — ✅ resolvido
+  (Fase 13j): o legado aumenta o HP de cada boss em +15% por estágio
+  dentro do SINS RUSH (spec menus §11); o port aplicava só o
+  `hp_mult` da dificuldade, sem esse escalonamento extra. Adicionado
+  `SINS_RUSH_HP_SCALE = 1.15` (`game_systems.py`) multiplicado por
+  `rush_idx` em `spawn_boss()` quando `run_mods.rush == 2` (SINS).
+  `smoke_ecs.py` ganhou um teste dedicado: força a morte do 1º boss
+  da fila e confere que o 2º nasce com HP exatamente ×1.15 maior.
 - ~~**Dev overlay / cheats**~~ — ✅ resolvido (Fase 13h): sequência
   secreta `WWSSADAD` (lê os 4 `move_*` já vinculados a WASD, sem tocar
   no binding) liga/desliga `dev_mode`; com ele ligado, **F9** (unlock
@@ -442,11 +457,18 @@ o "abissal" que deveria ser dificuldade, não mutador.
   boss "saco de pancadas"/dificuldade TESTE equivalente, não haveria o
   que a tecla abrisse. `smoke_devmode.py` (novo) cobre os 7 cheats +
   a sequência secreta ligando/desligando — 16/16 OK.
-- **balance.json + hot-reload** — não existe no port; todo número vive
-  direto em `data/*.json` e precisa reiniciar para recarregar. Se
-  quiser, dá pra tratar o próprio `data/*.json` como o "balance" e
-  implementar hot-reload de arquivo, mas isso é conveniência de
-  desenvolvimento, não paridade de jogador.
+- ~~**balance.json + hot-reload**~~ — ✅ resolvido (Fase 13j): não há um
+  `balance.json` dedicado, mas o próprio `data/*.json` já cumpre esse
+  papel — todo número de gameplay já vive lá. Implementado hot-reload
+  por mtime: em `dev_mode`, `GameApp` confere a cada ~1s (acumulado em
+  `_reload_check_t`) se algum arquivo em `data/*.json` mudou desde o
+  boot (`_data_dir_mtime()`, `scenes.py`); se sim, recarrega via
+  `load_all()` e mostra o flash "BALANCE RELOADED". Só vale para a
+  **próxima partida** — não repatcha sistemas de uma run já em curso
+  (os pools/arquétipos já foram materializados no `World` atual).
+  `smoke_devmode.py` ganhou 4 novos asserts: sem `dev_mode` não
+  recarrega; com `dev_mode` ligado e mtime futuro, recarrega e mostra
+  o flash.
 
 ---
 

@@ -18,7 +18,7 @@ from ouroboros.core.memory.component_pool import intersect_entity_indices
 from bullethell.composition import DIFFICULTIES, build_world
 from bullethell.game_systems import PLAYER_HIT_R, RUSH_ORDERS
 from bullethell.ids import sid
-from bullethell.loaders import GameData
+from bullethell.loaders import DATA_DIR, GameData, load_all
 from bullethell.replay import ReplayInputProvider, encode_frame
 from bullethell.schemas import SCREEN_H, SCREEN_W
 
@@ -100,10 +100,12 @@ MODES = [("classic", "CLÁSSICO",
          ("1 boss escolhido, até a vitória.",
           "Modo original — focado, sem surpresas."), (200, 200, 200)),
          ("rush", "BOSS RUSH",
-         ("7 bosses em sequência, +1 vida entre eles.",
-          "Sem aleatoriedade — domine cada padrão."), (255, 140, 30)),
+         ("7 bosses em ordem fixa — do Clássico ao Ômega, +1 vida entre eles.",
+          "Sem aleatoriedade, HP sem escala — domine cada padrão."),
+         (255, 140, 30)),
          ("sins", "SINS RUSH",
-         ("Os 8 pecados até o Sétimo Selo.",
+         ("7 pecados em ordem fixa + o Pecado Original ao fim.",
+          "HP escala ×1.15 por estágio.",
           "Vencer libera a dificuldade ABISSAL."), (180, 40, 255)),
          ("waves", "WAVE SURVIVAL",
          ("30 ondas; bosses nas ondas 10/20/30.",
@@ -283,6 +285,11 @@ class GameApp:
         self._dev_seq: list = []
         self.dev_flash_t = 0.0
         self.dev_flash_msg = ""
+        # hot-reload de data/*.json (legado: balance.json, main.py:28-44 —
+        # só em dev_mode, checado a cada ~1s por mtime). Aplica-se à
+        # PRÓXIMA partida — não repatcha sistemas de uma run já em curso.
+        self._data_mtime = self._data_dir_mtime()
+        self._reload_check_t = 0.0
         if self._audio is not None:                  # SFX procedurais (M4)
             self._audio.register_tone("hit", "noise", 220.0, 0.16)
             self._audio.register_tone("boom", "sweep", 190.0, 0.45)
@@ -324,6 +331,15 @@ class GameApp:
             self.dev_flash_t, self.dev_flash_msg = 1.8, "SAVE APAGADO"
         if inp.is_action_pressed("cheat_godmode"):
             self.godmode = not self.godmode
+        self._reload_check_t += dt              # balance.json (data/*.json)
+        if self._reload_check_t >= 1.0:          # hot-reload, checado a ~1s
+            self._reload_check_t = 0.0
+            mtime = self._data_dir_mtime()
+            if mtime > self._data_mtime:
+                self._data_mtime = mtime
+                self._data = load_all()          # vale pra PRÓXIMA partida
+                self.dev_flash_t = 2.0
+                self.dev_flash_msg = "BALANCE RELOADED"
         if self.state != PLAYING or self.world is None:
             return
         bp = self.world.get_pool("boss")
@@ -338,6 +354,16 @@ class GameApp:
             bv["hp"][: bp.count] = bv["max_hp"][: bp.count] * 0.1
         if inp.is_action_pressed("cheat_phase"):
             self._cheat_advance_phase(bp)
+
+    @staticmethod
+    def _data_dir_mtime() -> float:
+        """Maior mtime entre `data/*.json` — usado pelo hot-reload do dev
+        mode (legado: balance.json, main.py:28-44)."""
+        try:
+            return max((p.stat().st_mtime for p in DATA_DIR.glob("*.json")),
+                       default=0.0)
+        except OSError:
+            return 0.0
 
     def _cheat_unlock_all(self) -> None:
         self.save["highest_cleared_diff"] = len(DIFFS) - 1

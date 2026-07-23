@@ -186,6 +186,29 @@ if __name__ == "__main__":
         ok = False
     print(f"[{status}] {r}")
 
+    # SINS RUSH: HP escala +15%/stage (legado, spec menus §11) — o
+    # 2º boss da fila deve ter mais HP máximo que o 1º só pelo estágio
+    from bullethell.composition import build_headless as _bh
+    from bullethell.game_systems import RUSH_ORDERS as _RO, SINS_RUSH_HP_SCALE as _SC
+    w_sins, inp_sins = _bh(mode="sins")
+    bp_sins = w_sins.get_pool("boss")
+    hp0 = float(bp_sins.active_view()["max_hp"][0])
+    # precisa estar na ÚLTIMA fase para hp<=0 valer como morte de verdade
+    # (senão BossPhaseSystem só pina em 1.0 e avança de fase)
+    from bullethell.loaders import load_all as _la
+    n_phases = len(_la().bosses[int(bp_sins.active_view()["boss_id"][0])].phases)
+    bp_sins.active_view()["phase_idx"][0] = n_phases - 1
+    bp_sins.active_view()["hp"][0] = 0.0        # força a morte do 1º boss
+    inp_sins.poll(); w_sins.step(DT)
+    hp1 = float(bp_sins.active_view()["max_hp"][0])
+    expected = hp0 * _SC
+    scaled = abs(hp1 - expected) < 1e-3
+    status = "OK " if scaled else "FAIL"
+    if not scaled:
+        ok = False
+    print(f"[{status}] SINS RUSH hp_scale: boss0={hp0:.0f} -> "
+         f"boss1={hp1:.0f} (esperado {expected:.0f}, ×{_SC} por estágio)")
+
     # Wave Survival: ondas de lacaios devem ser limpas e avançar
     r = run("classic", "spread", frames=2400, mode="waves")
     r["mode"] = "waves"

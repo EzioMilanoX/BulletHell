@@ -70,6 +70,7 @@ RUSH_ORDERS = {
     1: ("classic", "swarm", "wall", "timemage", "twins", "summoner", "omega"),
     2: ("pride", "sloth", "envy", "gluttony", "greed", "lust", "wrath", "sin"),
 }
+SINS_RUSH_HP_SCALE = 1.15   # legado: hp_scale_per_stage do SINS Rush (spec §11)
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -252,7 +253,10 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
     brow = b.dense_row_of(idx); bv = b.active_view()
     bv["self"][brow] = np.uint64(packed)
     bv["boss_id"][brow] = sid(boss_name)
-    hp_mult = float(mm.get_pool("run_mods").active_view()["hp_mult"][0])
+    mods = mm.get_pool("run_mods").active_view()
+    hp_mult = float(mods["hp_mult"][0])
+    if int(mods["rush"][0]) == 2:        # SINS RUSH: HP +15%/stage (legado)
+        hp_mult *= SINS_RUSH_HP_SCALE ** int(mods["rush_idx"][0])
     bv["hp"][brow] = bv["max_hp"][brow] = bdef.hp * hp_mult
     bv["phase_idx"][brow] = 0
     bv["stun_t"][brow] = 0.0

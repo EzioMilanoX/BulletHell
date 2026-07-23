@@ -313,12 +313,25 @@ Portado (fases 1–2):
         instrumentação, não só a regra de desbloqueio.
         **Todos os P0 e P1 do PARITY_PLAN.md aplicados.**
         6/6 smoke tests OK (smoke_ecs/gating/menu/replay/devmode/mastery)
+      - **13j** — Resíduo de P2/P3: **SINS RUSH** agora escala HP em
+        ×1.15 por estágio (`SINS_RUSH_HP_SCALE`, `game_systems.py`,
+        aplicado em `spawn_boss()` via `rush_idx` quando `run_mods.rush
+        == 2`) — igualando o legado (spec menus §11); texto de
+        **BOSS RUSH**/**SINS RUSH** em `MODES` (`scenes.py`) reescrito
+        para comunicar a mesma informação que a tela
+        `SELECT_RUSH_PLAYLIST` do legado (ordem fixa, sem HP-escala vs.
+        HP ×1.15/estágio, recompensa ABISSAL) sem recriar a tela extra;
+        hot-reload de `data/*.json` (o "`balance.json`" do port) — em
+        `dev_mode`, checa mtime a cada ~1s e recarrega via `load_all()`
+        para a próxima partida, com flash "BALANCE RELOADED"
+        (`_data_dir_mtime()`/`_update_dev_mode`, `scenes.py`).
+        `smoke_ecs.py` ganhou o teste de escala de HP do SINS RUSH;
+        `smoke_devmode.py` ganhou 4 asserts de hot-reload (20 no total).
+        6/6 smoke tests OK.
 
-Fase 14 (futuro, ver PARITY_PLAN.md P2/P3 — só resíduo de baixo valor):
-- [ ] `balance.json` + hot-reload (conveniência de dev, não paridade
-      de jogador)
-- [ ] Texto exato de "SELECT_RUSH_PLAYLIST" (o port já cobre a mesma
-      função com `rush`/`sins` como modos separados)
+Fase 14 (futuro — resíduo residual, ver PARITY_PLAN.md P2/P3):
+- [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
+      fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
 
