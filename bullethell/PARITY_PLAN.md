@@ -1,11 +1,11 @@
 # PARITY_PLAN.md — o que falta para o port ECS igualar (ou superar) o legado
 
 > **Progresso (Fase 13, ver MIGRATION.md):** **Todos os P0 (P0-1 a
-> P0-5) já aplicados**, os P1 pontuais (P1-1 a P1-6) e o dev overlay/
+> P0-5) e todos os P1 (P1-1 a P1-7) já aplicados**, mais o dev overlay/
 > cheats de P2. Os detalhes de cada um continuam abaixo (specs exatas +
 > aproximações assumidas) — leia como registro do que foi decidido, não
-> mais como pendência. Restam P1-7 (masteries de arma/skill) e o resto
-> de P2/P3 (RECORDS/SETTINGS textual, `balance.json` hot-reload).
+> mais como pendência. Resta só o resíduo de baixo valor de P2/P3
+> (`balance.json` hot-reload, texto exato de "SELECT_RUSH_PLAYLIST").
 
 ## 0. Como isto foi produzido
 
@@ -360,13 +360,14 @@ o "abissal" que deveria ser dificuldade, não mutador.
   `total_parries` acumulados). EQUILÍBRIO PERFEITO e PACIFISTA DE ELITE
   usam a mesma aproximação já assumida em P0-1 (vencer os Gêmeos/
   Invocador, sem medir o timing exato/contagem de lacaios do legado).
-  **As 17 masteries de skill+/arma+ (sp_*/wp_*) ficam de fora — decisão
-  deliberada**: uma conquista que nunca pode ser ganha é pior que não
-  listá-la (ver P1-7); a tela de CONQUISTAS agora tem cursor +
-  carrossel (20 itens não cabem mais numa lista estática) e mostra
-  recompensa/progresso do item selecionado.
+  As 32 conquistas de mastery (sp_*/wp_*) do legado não viraram
+  entradas na tela de CONQUISTAS (são "silenciosas", como já eram as
+  17 masteries no legado — ver P1-7 para o que de fato ficou
+  rastreado); a tela de CONQUISTAS ganhou cursor + carrossel (20 itens
+  não cabem mais numa lista estática) e mostra recompensa/progresso do
+  item selecionado.
 
-### P1-7. Weapon mastery / skill mastery: sem equivalente
+### P1-7. Weapon mastery / skill mastery: sem equivalente — ✅ resolvido (Fase 13i)
 
 - **Legado**: 7 desafios de skill+ e 10 de arma+ (spec player-meta §8) —
   vários **nem no legado são realmente rastreados** (bug documentado no
@@ -378,6 +379,39 @@ o "abissal" que deveria ser dificuldade, não mutador.
   rastreia (`default_hits`, `spread_close`, `plasma_contact`,
   `orbit_damage`) e simplificar as outras 6 para desbloqueio por
   conquista/vitória, que é estritamente melhor que "nunca destrava".
+
+  **O que foi feito:** pool `mastery` nova (11 campos) instrumentada
+  dentro dos próprios sistemas de gameplay (não é telemetria de fora —
+  é o mesmo código que já processa dano/graze/skill):
+  - **7 skills** (todas rastreadas de verdade, igual ao legado): DASH+
+    (graze durante `skill_t>0` com `dash+` equipada, em
+    `PlayerHitSystem`), PARRY+ (soma por janela de ativação, reseta a
+    cada nova ativação, em `SkillSystem._parry`), EMP+ (`n` de
+    `_destroy_bullets_within`, já existia — só faltava guardar o
+    máximo), OVERCLOCK+ (dano ao boss acumulado enquanto
+    `skill_t>0`, em `PlayerBulletVsBossSystem`), ESCUDO+ (bloco
+    perfeito já detectado em `_absorb_or_damage`, só faltava contar),
+    BLINK+ (amostra a linha do teleporte em t=0.25/0.5/0.75 contra o
+    AABB do boss/partes), DILATAÇÃO+ (checa bala a ≤5px no instante da
+    ativação).
+  - **4 armas reais do legado**: PADRÃO (sequência de acertos
+    consecutivos), SPREAD (acertos <40px do boss), PLASMA (contato
+    contínuo via o mesmo `dot_contact_this_frame` que já existia),
+    SATÉLITE (dano das gemas via `pb_orbit`). Como a arma nunca troca
+    no meio da run (não há bind de arma durante PLAYING), o
+    `player.weapon_id` já identifica com certeza — sem precisar marcar
+    cada bala individualmente.
+  - **6 armas nunca rastreadas nem no legado** (AGULHA/CARREGADO/
+    BURST/TELEGUIADO/FLAK/CHAKRAM): destravam vencendo com a arma
+    equipada — fallback simples, estritamente melhor que nunca
+    destravar, sem fingir uma mastery que nem o legado mede.
+  - `save["skill_plus_unlocked"]`/`weapon_plus_unlocked` deixaram de
+    ser o sentinela `["all"]` (Fase 13b) e viraram listas por item de
+    verdade; `_plus_unlocked(categoria, nome)` ganhou o parâmetro do
+    nome específico.
+  - `smoke_mastery.py` (novo): 11 asserts jogando de verdade (headless)
+    que provam a instrumentação em si, não só a regra de desbloqueio
+    (essa já era coberta por `smoke_gating.py`, que ganhou +5 asserts).
 
 ---
 

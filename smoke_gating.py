@@ -46,7 +46,8 @@ if __name__ == "__main__":
     ok &= check("save novo: mutador PREDADOR destravado",
                a._mutator_locked("predador") is False)
     ok &= check("save novo: variantes '+' travadas",
-               a._plus_unlocked("skill") is False)
+               a._plus_unlocked("skill", "dash") is False
+               and a._plus_unlocked("weapon", "padrao") is False)
 
     a = app_with({})
     a.sel["diff"] = "facil"
@@ -71,8 +72,26 @@ if __name__ == "__main__":
     a.sel["diff"] = "dificil"
     a._apply_progression("win")
     ok &= check("vencer DIFICIL -> EXPERT destrava", a._diff_locked(3) is False)
-    ok &= check("vencer DIFICIL -> variantes '+' destravam",
-               a._plus_unlocked("skill") and a._plus_unlocked("weapon"))
+    ok &= check("vencer DIFICIL sozinho NAO destrava variantes '+' "
+               "(agora exige a mastery de verdade, PARITY_PLAN P1-7)",
+               not a._plus_unlocked("skill", "dash")
+               and not a._plus_unlocked("weapon", "padrao"))
+
+    a = app_with({"highest_cleared_diff": 2})
+    a.sel.update(diff="dificil", weapon="flak")
+    a._apply_progression("win")
+    ok &= check("vencer com FLAK equipada destrava FLAK+ "
+               "(fallback — o legado nunca rastreia essa mastery)",
+               a._plus_unlocked("weapon", "flak"))
+
+    a = app_with({})
+    a.save["mastery_default_max"] = 150
+    a.save["mastery_dash_graze"] = 50
+    a._apply_progression("win")
+    ok &= check("mastery PADRAO (150 acertos consecutivos) destrava PADRAO+",
+               a._plus_unlocked("weapon", "padrao"))
+    ok &= check("mastery DASH (50 grazes durante i-frames) destrava DASH+",
+               a._plus_unlocked("skill", "dash"))
 
     a = app_with({"highest_cleared_diff": 3})
     ok &= check("ABISSAL não destrava só por tier (sem SINS RUSH)",

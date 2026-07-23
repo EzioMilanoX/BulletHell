@@ -345,8 +345,8 @@ class GameApp:
         self.save["unlocked_skills"] = [s[0] for s in SKILLS]
         self.save["unlocked_mutators"] = [m[0] for m in MUTATORS]
         self.save["omega_unlocked"] = True
-        self.save["skill_plus_unlocked"] = ["all"]
-        self.save["weapon_plus_unlocked"] = ["all"]
+        self.save["skill_plus_unlocked"] = [s[0] for s in SKILLS if s[0] != "none"]
+        self.save["weapon_plus_unlocked"] = [w[0] for w in WEAPONS]
 
     def _cheat_wipe_save(self) -> None:
         settings = self.save.get("settings",
@@ -467,7 +467,7 @@ class GameApp:
             if self._input.is_action_pressed("fire") and \
                     not skill_locked[self.cursor] and \
                     self._has_plus(SKILLS[self.cursor][0], self._data.skills) \
-                    and self._plus_unlocked("skill"):
+                    and self._plus_unlocked("skill", SKILLS[self.cursor][0]):
                 self.sel["skill_plus"] = not self.sel["skill_plus"]
         elif s == MENU_WEAPON:
             items = [n + (" +" if self.sel["weapon_plus"] and k == self.cursor
@@ -481,7 +481,7 @@ class GameApp:
                        step=4, crumb=self._crumb()[:3])
             if self._input.is_action_pressed("fire") and \
                     self._has_plus(WEAPONS[self.cursor][0], self._data.weapons) \
-                    and self._plus_unlocked("weapon"):
+                    and self._plus_unlocked("weapon", WEAPONS[self.cursor][0]):
                 self.sel["weapon_plus"] = not self.sel["weapon_plus"]
         elif s == MENU_MUT:
             items = [(("[x] " if m in self.sel["muts"] else "[ ] ") + n)
@@ -505,11 +505,11 @@ class GameApp:
     def _has_plus(name: str, table) -> bool:
         return sid(name + "+") in table
 
-    def _plus_unlocked(self, category: str) -> bool:
-        """Gate das variantes '+' (PARITY_PLAN P0-1). Aproximação: liberam
-        todas de uma vez ao vencer DIFÍCIL, em vez das 17 mastery
-        individuais do legado (nem todas rastreáveis hoje — ver P1-7)."""
-        return "all" in self.save.get(f"{category}_plus_unlocked", [])
+    def _plus_unlocked(self, category: str, name: str) -> bool:
+        """Gate das variantes '+' (PARITY_PLAN P1-7): cada skill/arma tem
+        sua própria mastery rastreada de verdade (ver `_apply_progression`/
+        `_pull_mastery`), igual ao legado."""
+        return name in self.save.get(f"{category}_plus_unlocked", [])
 
     def _diff_locked(self, idx: int) -> bool:
         if DIFFS[idx][0] == "abissal":     # só pelo SINS RUSH, não por tier
@@ -915,11 +915,11 @@ class GameApp:
             self.sel["diff"] = "facil"
         skill = self.sel["skill"]
         if self.sel["skill_plus"] and self._has_plus(skill, self._data.skills) \
-                and self._plus_unlocked("skill"):
+                and self._plus_unlocked("skill", skill):
             skill += "+"
         weapon = self.sel["weapon"]
         if self.sel["weapon_plus"] and self._has_plus(weapon, self._data.weapons) \
-                and self._plus_unlocked("weapon"):
+                and self._plus_unlocked("weapon", weapon):
             weapon += "+"
         muts = frozenset(self.sel["muts"])
         self.world = build_world(
@@ -1045,8 +1045,39 @@ class GameApp:
         self.totals["parries"] += int(st["parries"][0])
         self.totals["runs"] += 1
         self._r.set_camera_offset(0.0, 0.0)
+        self._pull_mastery()
         self._check_achievements(outcome, lives, graze)
         self._apply_progression(outcome)
+
+    def _pull_mastery(self) -> None:
+        """Junta os contadores de mastery da run (pool `mastery`) ao save
+        — soma para os cumulativos, máximo para os "melhor valor", OR
+        sticky para os booleanos (PARITY_PLAN P1-7)."""
+        mp = self.world.get_pool("mastery")
+        if not mp.count:
+            return
+        mv = mp.active_view()
+        s = self.save
+
+        def bump_max(key: str, value) -> None:
+            s[key] = max(float(s.get(key, 0.0)), float(value))
+
+        def bump_sum(key: str, value) -> None:
+            s[key] = s.get(key, 0) + value
+
+        bump_sum("mastery_dash_graze", int(mv["dash_graze"][0]))
+        bump_max("mastery_parry_burst_max", mv["parry_burst_max"][0])
+        bump_max("mastery_emp_max", mv["emp_max"][0])
+        bump_max("mastery_oc_dmg_max", mv["oc_dmg_max"][0])
+        bump_sum("mastery_shield_perfects", int(mv["shield_perfects"][0]))
+        s["mastery_blink_pass"] = bool(s.get("mastery_blink_pass", False)) \
+            or bool(mv["blink_pass"][0])
+        s["mastery_timedil_close"] = bool(s.get("mastery_timedil_close", False)) \
+            or bool(mv["timedil_close"][0])
+        bump_max("mastery_default_max", mv["default_max"][0])
+        bump_sum("mastery_spread_close", int(mv["spread_close"][0]))
+        bump_max("mastery_plasma_max", mv["plasma_max"][0])
+        bump_sum("mastery_orbit_damage", float(mv["orbit_damage"][0]))
 
     def _check_achievements(self, outcome: str, lives: int, graze: int) -> None:
         """Avalia as conquistas ao fim da run (persistidas ao sair). IDs e
@@ -1146,9 +1177,44 @@ class GameApp:
             muts = set(self.save.get("unlocked_mutators", []))
             muts.add("claustro")                         # aprox. de Invocador
             self.save["unlocked_mutators"] = sorted(muts)
-        if hcd >= 3:                    # venceu DIFÍCIL: libera as "+"
-            self.save["skill_plus_unlocked"] = ["all"]
-            self.save["weapon_plus_unlocked"] = ["all"]
+        # variantes '+' de SKILL — as 7 masteries do legado (entities.py:
+        # 129-133) são todas rastreadas de verdade (ver PlayerHitSystem/
+        # SkillSystem/PlayerBulletVsBossSystem + _pull_mastery)
+        skill_plus = set(self.save.get("skill_plus_unlocked", []))
+        if self.save.get("mastery_dash_graze", 0) >= 50:
+            skill_plus.add("dash")
+        if self.save.get("mastery_parry_burst_max", 0) >= 5:
+            skill_plus.add("parry")
+        if self.save.get("mastery_emp_max", 0) >= 200:
+            skill_plus.add("emp")
+        if self.save.get("mastery_oc_dmg_max", 0.0) >= 500.0:
+            skill_plus.add("overclock")
+        if self.save.get("mastery_shield_perfects", 0) >= 10:
+            skill_plus.add("shield")
+        if self.save.get("mastery_blink_pass", False):
+            skill_plus.add("blink")
+        if self.save.get("mastery_timedil_close", False):
+            skill_plus.add("timedil")
+        self.save["skill_plus_unlocked"] = sorted(skill_plus)
+
+        # variantes '+' de ARMA — 4 masteries que o legado realmente
+        # rastreia (default_hits/spread_close/plasma_contact/orbit_damage).
+        # As outras 6 nunca são rastreadas nem no legado (bug documentado,
+        # PARITY_PLAN P1-7) — aqui destravam vencendo com a arma equipada,
+        # estritamente melhor que nunca destravar.
+        weapon_plus = set(self.save.get("weapon_plus_unlocked", []))
+        if self.save.get("mastery_default_max", 0) >= 150:
+            weapon_plus.add("padrao")
+        if self.save.get("mastery_spread_close", 0) >= 50:
+            weapon_plus.add("spread")
+        if self.save.get("mastery_plasma_max", 0.0) >= 4.0:
+            weapon_plus.add("plasma")
+        if self.save.get("mastery_orbit_damage", 0.0) >= 400.0:
+            weapon_plus.add("satelite")
+        if self.sel["weapon"] in ("agulha", "carregado", "burst",
+                                  "teleguiado", "flak", "chakram"):
+            weapon_plus.add(self.sel["weapon"])
+        self.save["weapon_plus_unlocked"] = sorted(weapon_plus)
         if diff_idx >= 2:                # tela RECORDS: melhor tempo Difícil+
             best = float(self.save.get("best_time_dificil", 0.0))
             if best <= 0.0 or self.run_t < best:

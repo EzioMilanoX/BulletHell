@@ -47,7 +47,8 @@ if __name__ == "__main__":
     ok &= check("F9 destrava todas as skills",
                len(app.save["unlocked_skills"]) == 9)
     ok &= check("F9 destrava as variantes '+'",
-               app._plus_unlocked("skill") and app._plus_unlocked("weapon"))
+               app._plus_unlocked("skill", "dash")
+               and app._plus_unlocked("weapon", "plasma"))
 
     app.sel.update(diff="dificil", skill="emp", weapon="plasma",
                   muts={"predador"})

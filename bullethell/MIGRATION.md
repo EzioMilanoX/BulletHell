@@ -290,12 +290,35 @@ Portado (fases 1–2):
         o port não tem um boss "saco de pancadas" equivalente.
         `smoke_devmode.py` (novo): 16 asserts cobrindo os 7 cheats +
         a sequência secreta. 61+43+18+7+16 OK
+      - **13i** — Masteries de skill+/arma+ (PARITY_PLAN P1-7 — o último
+        P1 do plano): pool `mastery` nova (11 campos) instrumentada
+        DENTRO dos sistemas de gameplay (não telemetria à parte): as
+        **7 masteries de skill** do legado, todas rastreadas de
+        verdade — DASH+ (graze durante `skill_t>0` com i-frames),
+        PARRY+ (burst por janela de ativação), EMP+ (máximo de balas
+        destruídas numa ativação), OVERCLOCK+ (dano ao boss acumulado
+        na janela), ESCUDO+ (blocos perfeitos), BLINK+ (amostra a
+        linha do teleporte contra o AABB do boss), DILATAÇÃO+ (bala a
+        ≤5px no instante da ativação); as **4 masteries de arma** que
+        o legado realmente rastreia — PADRÃO (sequência de acertos),
+        SPREAD (acertos <40px), PLASMA (contato contínuo), SATÉLITE
+        (dano das gemas) — usando `player.weapon_id` como identificador
+        certeiro (a arma nunca troca no meio da run); as **6 armas que
+        nem o legado rastreia** (AGULHA/CARREGADO/BURST/TELEGUIADO/
+        FLAK/CHAKRAM) destravam vencendo com a arma equipada, fallback
+        simples e sempre alcançável. `skill_plus_unlocked`/
+        `weapon_plus_unlocked` deixam de ser o sentinela `["all"]` da
+        Fase 13b e viram listas por item. `smoke_mastery.py` (novo):
+        11 asserts jogando de verdade (headless) que provam a
+        instrumentação, não só a regra de desbloqueio.
+        **Todos os P0 e P1 do PARITY_PLAN.md aplicados.**
+        6/6 smoke tests OK (smoke_ecs/gating/menu/replay/devmode/mastery)
 
-Fase 14 (futuro, ver PARITY_PLAN.md P1-7/P2/P3):
-- [ ] Masteries de arma/skill do legado (17 desafios — exigem
-      instrumentar contagens específicas em vários sistemas)
+Fase 14 (futuro, ver PARITY_PLAN.md P2/P3 — só resíduo de baixo valor):
 - [ ] `balance.json` + hot-reload (conveniência de dev, não paridade
       de jogador)
+- [ ] Texto exato de "SELECT_RUSH_PLAYLIST" (o port já cobre a mesma
+      função com `rush`/`sins` como modos separados)
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
 

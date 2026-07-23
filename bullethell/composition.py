@@ -99,7 +99,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.MaintenanceSystem(mm))
     world.register_system(gs.GhostTintSystem(mm))          # mutador FANTASMA
     world.register_system(gs.PlayerHitSystem(mm, data))
-    world.register_system(gs.PlayerBulletVsBossSystem(mm))
+    world.register_system(gs.PlayerBulletVsBossSystem(mm, data))
     world.register_system(gs.MinionCombatSystem(mm))       # lacaios do Invocador
     world.register_system(gs.HudSystem(mm, data))
 
@@ -115,6 +115,8 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     mods.active_view()["rush_idx"][0] = 0
     world.register_archetype("stats_entity", ("stats",))
     world.create_entity("stats_entity")
+    world.register_archetype("mastery_entity", ("mastery",))
+    world.create_entity("mastery_entity")
     world.register_archetype("wave_entity", ("wave",))
     wpacked = world.create_entity("wave_entity")
     wrow = mm.get_pool("wave").dense_row_of(wpacked & 0xFFFFFFFF)

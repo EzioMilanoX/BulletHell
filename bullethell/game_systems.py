@@ -414,6 +414,9 @@ class SkillSystem(ISystem):
         self._clock = memory_manager.get_pool("clock")
         self._pb_homing = memory_manager.get_pool("pb_homing")
         self._stats = memory_manager.get_pool("stats")
+        self._mastery = memory_manager.get_pool("mastery")
+        self._hitbox = memory_manager.get_pool("hitbox")
+        self._part = memory_manager.get_pool("part")
 
     def update(self, world: "World", delta_time: float) -> None:
         ck = self._clock.active_view()
@@ -470,8 +473,15 @@ class SkillSystem(ISystem):
             if pressed and ready:
                 pv["skill_t"][prow] = sd.duration
                 pv["skill_cd"][prow] = sd.cd
+                if self._mastery.count:                 # PARRY+: nova janela
+                    self._mastery.active_view()["parry_burst"][0] = 0
             if pv["skill_t"][prow] > 0.0:
-                self._parry(world, sd, plus, px, py)
+                n = self._parry(world, sd, plus, px, py)
+                if n and self._mastery.count:
+                    mv = self._mastery.active_view()
+                    mv["parry_burst"][0] += n
+                    mv["parry_burst_max"][0] = max(mv["parry_burst_max"][0],
+                                                   mv["parry_burst"][0])
 
         elif base == "focus":
             en = float(pv["focus_en"][prow])
@@ -491,6 +501,9 @@ class SkillSystem(ISystem):
                                 20, speed=340.0, ttl=0.5, seed=int(px))
                 add_shake(self._mm, 6.0)
                 add_sfx(self._mm, SFX_EMP)
+                if self._mastery.count:                 # EMP+ (Sobrecarga)
+                    mv = self._mastery.active_view()
+                    mv["emp_max"][0] = max(mv["emp_max"][0], n)
                 if plus:                            # EMP+: buff, sem stun
                     pv["dmg_mult"][prow] = 1.0 + n * sd.buff_per
                     pv["dmg_t"][prow] = sd.buff_dur
@@ -508,8 +521,13 @@ class SkillSystem(ISystem):
                 if dx == 0.0 and dy == 0.0:
                     dy = -1.0
                 d = math.hypot(dx, dy)
-                tv["position_x"][trow] = min(max(px + dx / d * sd.power, 9.0), SCREEN_W - 9.0)
-                tv["position_y"][trow] = min(max(py + dy / d * sd.power, 9.0), SCREEN_H - 9.0)
+                nx = min(max(px + dx / d * sd.power, 9.0), SCREEN_W - 9.0)
+                ny = min(max(py + dy / d * sd.power, 9.0), SCREEN_H - 9.0)
+                tv["position_x"][trow] = nx
+                tv["position_y"][trow] = ny
+                if self._mastery.count and not \
+                        self._mastery.active_view()["blink_pass"][0]:
+                    self._check_blink_pass(px, py, nx, ny)
                 if plus:                            # BLINK+: EMP na origem
                     _destroy_bullets_within(world, self._eb, self._transform,
                                             px, py, sd.radius)
@@ -518,6 +536,8 @@ class SkillSystem(ISystem):
             if pressed and ready:
                 pv["skill_t"][prow] = sd.duration
                 pv["skill_cd"][prow] = sd.cd
+                if self._mastery.count:                 # OVERCLOCK+: nova janela
+                    self._mastery.active_view()["oc_dmg"][0] = 0.0
             if pv["skill_t"][prow] > 0.0:
                 pv["fr_mult"][prow] = sd.fr
                 if plus:                            # OVERCLOCK+: berserk lento
@@ -536,18 +556,22 @@ class SkillSystem(ISystem):
             if pressed and ready:
                 pv["skill_t"][prow] = sd.duration
                 pv["skill_cd"][prow] = sd.cd
+                if self._mastery.count and not \
+                        self._mastery.active_view()["timedil_close"][0]:
+                    self._check_timedil_close(px, py)
             if pv["skill_t"][prow] > 0.0:
                 ck["bullets"][0] = 0.0              # congela balas inimigas
             if expired and plus:                    # TIMEDIL+: estilhaço
                 _destroy_bullets_within(world, self._eb, self._transform,
                                         px, py, sd.radius)
 
-    def _parry(self, world, sd, plus: bool, px: float, py: float) -> None:
+    def _parry(self, world, sd, plus: bool, px: float, py: float) -> int:
         """Reflete balas no raio: destrói a inimiga e spawna uma bala do
-        jogador contra o boss (PARRY+: míssil homing de 1.5)."""
+        jogador contra o boss (PARRY+: míssil homing de 1.5). Retorna
+        quantas balas foram refletidas (PARRY+: burst da janela atual)."""
         n = self._eb.count
         if n == 0:
-            return
+            return 0
         ebv = self._eb.active_view()
         idxs = self._eb.active_entity_indices()
         trows = self._transform.dense_rows_of(idxs)
@@ -556,7 +580,7 @@ class SkillSystem(ISystem):
         dy = tv["position_y"][trows] - py
         m = dx * dx + dy * dy <= sd.radius * sd.radius
         if not m.any():
-            return
+            return 0
         if self._stats.count:                        # gate do ESCUDO (50 total)
             self._stats.active_view()["parries"][0] += int(m.sum())
         bx, by = px, py - 500.0                     # fallback: para cima
@@ -583,6 +607,49 @@ class SkillSystem(ISystem):
                 spawn_player_bullet(world, self._mm, "pb_padrao", x, y,
                                     ddx / d * 500.0, ddy / d * 500.0,
                                     sd.power, 4.0, color=(255, 255, 160))
+        return int(m.sum())
+
+    def _check_blink_pass(self, x0: float, y0: float, x1: float, y1: float) -> None:
+        """BLINK+ (Relâmpago Fantasma): marca se a linha do teleporte
+        (amostrada em t=0.25/0.5/0.75) cruzou o AABB de algum boss."""
+        mv = self._mastery.active_view()
+        for t in (0.25, 0.5, 0.75):
+            sx, sy = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t
+            for raw in self._boss.active_entity_indices():
+                bi = int(raw)
+                if self._boss.active_view()["invuln"][self._boss.dense_row_of(bi)]:
+                    continue
+                if self._aabb_contains(bi, sx, sy):
+                    mv["blink_pass"][0] = 1
+                    return
+            pv2 = self._part.active_view()
+            for k in range(self._part.count):
+                if self._aabb_contains(int(pv2["self"][k]) & 0xFFFFFFFF, sx, sy):
+                    mv["blink_pass"][0] = 1
+                    return
+
+    def _aabb_contains(self, entity_idx: int, x: float, y: float) -> bool:
+        trow = self._transform.dense_row_of(entity_idx)
+        hrow = self._hitbox.dense_row_of(entity_idx)
+        if trow < 0 or hrow < 0:
+            return False
+        tv = self._transform.active_view(); hv = self._hitbox.active_view()
+        cx = float(tv["position_x"][trow]); cy = float(tv["position_y"][trow])
+        hw = float(hv["half_width"][hrow]); hh = float(hv["half_height"][hrow])
+        return abs(x - cx) <= hw and abs(y - cy) <= hh
+
+    def _check_timedil_close(self, px: float, py: float) -> None:
+        """DILATAÇÃO+ (Ruptura Temporal): marca se havia uma bala inimiga
+        a <=5px do jogador no instante da ativação."""
+        if self._eb.count == 0:
+            return
+        tv = self._transform.active_view()
+        idxs = self._eb.active_entity_indices()
+        trows = self._transform.dense_rows_of(idxs)
+        dx = tv["position_x"][trows] - px
+        dy = tv["position_y"][trows] - py
+        if bool(((dx * dx + dy * dy) <= 25.0).any()):
+            self._mastery.active_view()["timedil_close"][0] = 1
 
 
 # ===========================================================================
@@ -1896,6 +1963,7 @@ class PlayerHitSystem(ISystem):
         self._player = memory_manager.get_pool("player")
         self._mods = memory_manager.get_pool("run_mods")
         self._stats = memory_manager.get_pool("stats")
+        self._mastery = memory_manager.get_pool("mastery")
 
     def _absorb_or_damage(self, world, pv, prow, px: float, py: float) -> None:
         """Aplica um hit no jogador respeitando o ESCUDO."""
@@ -1910,6 +1978,8 @@ class PlayerHitSystem(ISystem):
             if sd is not None and sd.name == "shield+" \
                     and float(pv["skill_age"][prow]) < sd.perfect:
                 pv["skill_cd"][prow] *= (1.0 - sd.refund)
+                if self._mastery.count:
+                    self._mastery.active_view()["shield_perfects"][0] += 1
                 for j in range(sd.ring_n):
                     th = j * (TWO_PI / sd.ring_n)
                     spawn_player_bullet(world, self._mm, "pb_padrao", px, py,
@@ -1977,6 +2047,11 @@ class PlayerHitSystem(ISystem):
         if cnt:
             eb["grazed"][graze] = 1
             pv["graze"][prow] += cnt
+            if self._mastery.count:                 # DASH+: graze durante i-frames
+                sd = self._data.skills.get(int(pv["skill_id"][prow]))
+                if sd is not None and sd.name == "dash+" and \
+                        float(pv["skill_t"][prow]) > 0.0:
+                    self._mastery.active_view()["dash_graze"][0] += cnt
 
         # TETHER: o arame entre o par fere se o jogador cruza o segmento
         te = eb["tether"] != TETHER_NONE
@@ -2012,16 +2087,21 @@ class PlayerBulletVsBossSystem(ISystem):
     atravessa com cooldown; PLASMA aplica DPS sem nunca ser consumida
     (a regra que corrigiu o bug do plasma no legado)."""
 
-    def __init__(self, memory_manager: MemoryManager) -> None:
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
         self._mm = memory_manager
+        self._data = data
         self._pb_core = memory_manager.get_pool("pb_core")
         self._pb_pierce = memory_manager.get_pool("pb_pierce")
         self._pb_dot = memory_manager.get_pool("pb_dot")
         self._pb_shrap = memory_manager.get_pool("pb_shrap")
+        self._pb_orbit = memory_manager.get_pool("pb_orbit")
         self._transform = memory_manager.get_pool("transform")
         self._hitbox = memory_manager.get_pool("hitbox")
         self._boss = memory_manager.get_pool("boss")
         self._part = memory_manager.get_pool("part")
+        self._player = memory_manager.get_pool("player")
+        self._mastery = memory_manager.get_pool("mastery")
+        self._dot_contact_this_frame = False
 
     def update(self, world: "World", delta_time: float) -> None:
         if self._pb_core.count == 0 or self._boss.count == 0:
@@ -2033,19 +2113,46 @@ class PlayerBulletVsBossSystem(ISystem):
         bys = tv["position_y"][pb_trows]
         cv = self._pb_core.active_view()
 
+        # PADRÃO/SPREAD (masteries): arma nunca troca no meio da run — o
+        # weapon_id do jogador já identifica TODAS as balas na tela
+        weapon_name = ""
+        overclock_on = False
+        pi = self._player.active_entity_indices()
+        if pi.size and self._mastery.count:
+            prow = self._player.dense_row_of(int(pi[0]))
+            pv = self._player.active_view()
+            wd = self._data.weapons.get(int(pv["weapon_id"][prow]))
+            weapon_name = wd.name if wd is not None else ""
+            sd = self._data.skills.get(int(pv["skill_id"][prow]))
+            overclock_on = sd is not None and sd.name.startswith("overclock") \
+                and float(pv["skill_t"][prow]) > 0.0
+
+        self._dot_contact_this_frame = False
         # bosses com hitbox própria (classic/timemage/twins)
         for raw in self._boss.active_entity_indices():
             bi = int(raw)
-            self._collide_aabb(world, bi, bi, tv, pb_idx, bxs, bys, cv, delta_time)
+            self._collide_aabb(world, bi, bi, tv, pb_idx, bxs, bys, cv,
+                               delta_time, weapon_name, overclock_on)
         # partes de boss composto (wall/swarm) — dano roteado à raiz
         pvw = self._part.active_view()
         p_idxs = self._part.active_entity_indices()
         for k in range(self._part.count):
             self._collide_aabb(world, int(p_idxs[k]), int(pvw["root"][k]),
-                               tv, pb_idx, bxs, bys, cv, delta_time)
+                               tv, pb_idx, bxs, bys, cv, delta_time,
+                               weapon_name, overclock_on)
+
+        if self._mastery.count:                   # PLASMA+: contato contínuo
+            mv = self._mastery.active_view()
+            if self._dot_contact_this_frame:
+                mv["plasma_contact"][0] += delta_time
+                mv["plasma_max"][0] = max(mv["plasma_max"][0],
+                                          mv["plasma_contact"][0])
+            else:
+                mv["plasma_contact"][0] = 0.0
 
     def _collide_aabb(self, world, hit_entity: int, boss_entity: int, tv,
-                      pb_idx, bxs, bys, cv, delta_time: float) -> None:
+                      pb_idx, bxs, bys, cv, delta_time: float,
+                      weapon_name: str, overclock_on: bool = False) -> None:
         btrow = self._transform.dense_row_of(hit_entity)
         hrow = self._hitbox.dense_row_of(hit_entity)
         brow = self._boss.dense_row_of(boss_entity)
@@ -2062,6 +2169,7 @@ class PlayerBulletVsBossSystem(ISystem):
             return
 
         bv = self._boss.active_view()
+        mv = self._mastery.active_view() if self._mastery.count else None
 
         # PLASMA (DoT): dano contínuo, bala nunca consumida
         drows = self._pb_dot.dense_rows_of(pb_idx)
@@ -2071,10 +2179,13 @@ class PlayerBulletVsBossSystem(ISystem):
             dv = self._pb_dot.active_view()
             total_dps = float(np.sum(dv["dps"][drows[dot_in]]))
             bv["hp"][brow] -= total_dps * delta_time
+            self._dot_contact_this_frame = True
 
         # Dano de impacto (consome, exceto pierce em cooldown)
         prows = self._pb_pierce.dense_rows_of(pb_idx)
         is_pierce = prows != -1
+        orows = self._pb_orbit.dense_rows_of(pb_idx)
+        is_orbit = orows != -1
         impact = inside & ~is_dot
         if impact.any():
             pv = self._pb_pierce.active_view()
@@ -2083,12 +2194,34 @@ class PlayerBulletVsBossSystem(ISystem):
             if pierce_ready.any():
                 ready = pv["t"][prows[pierce_ready]] <= 0.0
                 rows_sel = np.where(pierce_ready)[0][ready]
-                bv["hp"][brow] -= float(np.sum(cv["damage"][rows_sel]))
+                dmg = float(np.sum(cv["damage"][rows_sel]))
+                bv["hp"][brow] -= dmg
                 pv["t"][prows[rows_sel]] = pv["cd"][prows[rows_sel]]
+                if mv is not None and rows_sel.size:
+                    if weapon_name.startswith("satelite"):
+                        mv["orbit_damage"][0] += dmg   # SATÉLITE+ (interceptor)
+                    if overclock_on:
+                        mv["oc_dmg"][0] += dmg
+                        mv["oc_dmg_max"][0] = max(mv["oc_dmg_max"][0], mv["oc_dmg"][0])
             # bala normal: dano + destruição (+ CARREGADO+ estilhaça)
             normal = impact & ~is_pierce
             if normal.any():
-                bv["hp"][brow] -= float(np.sum(cv["damage"][normal]))
+                dmg = float(np.sum(cv["damage"][normal]))
+                bv["hp"][brow] -= dmg
+                if mv is not None:
+                    if overclock_on:
+                        mv["oc_dmg"][0] += dmg
+                        mv["oc_dmg_max"][0] = max(mv["oc_dmg_max"][0], mv["oc_dmg"][0])
+                    orbit_hit = normal & is_orbit
+                    if orbit_hit.any():              # SATÉLITE: dano das gemas
+                        mv["orbit_damage"][0] += float(np.sum(cv["damage"][orbit_hit]))
+                    if weapon_name.startswith("padrao"):        # PADRÃO+
+                        mv["default_streak"][0] += int(normal.sum())
+                        mv["default_max"][0] = max(mv["default_max"][0],
+                                                   mv["default_streak"][0])
+                    elif weapon_name.startswith("spread"):      # SPREAD+
+                        near = normal & (np.hypot(bxs - cx, bys - cy) < 40.0)
+                        mv["spread_close"][0] += int(near.sum())
                 for k in np.where(normal)[0][:4]:   # faíscas de impacto
                     spawn_particles(world, self._mm, float(bxs[k]),
                                     float(bys[k]), (255, 220, 150), 2,

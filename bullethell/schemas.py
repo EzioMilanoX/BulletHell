@@ -90,6 +90,24 @@ WAVE_DTYPE = np.dtype([          # Wave Survival (1 linha)
     ("seed",    np.uint32),      # posições determinísticas por hash
 ])
 
+MASTERY_DTYPE = np.dtype([       # desafios de skill+/arma+ da run atual
+    ("dash_graze",      np.uint32),   # DASH+: grazes durante i-frames do dash
+    ("parry_burst",     np.uint32),   # PARRY+: balas refletidas na ativação atual
+    ("parry_burst_max", np.uint32),   # PARRY+: maior burst já visto na run
+    ("emp_max",         np.uint32),   # EMP+: maior nº destruído numa ativação
+    ("oc_dmg",          np.float32),  # OVERCLOCK+: dano na janela atual
+    ("oc_dmg_max",       np.float32), # OVERCLOCK+: maior valor já visto na run
+    ("shield_perfects", np.uint32),   # ESCUDO+: blocos perfeitos (<0.15s)
+    ("blink_pass",      np.uint8),    # BLINK+: já teleportou através do boss
+    ("timedil_close",   np.uint8),    # DILATAÇÃO+: já ativou com bala a <=5px
+    ("default_streak",  np.uint32),   # PADRÃO+: sequência de acertos atual
+    ("default_max",      np.uint32),  # PADRÃO+: maior sequência já vista
+    ("spread_close",     np.uint32),  # SPREAD+: acertos <40px do boss
+    ("plasma_contact",   np.float32), # PLASMA+: contato contínuo atual
+    ("plasma_max",        np.float32),# PLASMA+: maior contato contínuo já visto
+    ("orbit_damage",      np.float32),# SATÉLITE+: dano total das gemas
+])
+
 # hud.kind
 HUD_BOSS_HP, HUD_LIFE0, HUD_LIFE1, HUD_LIFE2, HUD_SKILL_CD = 0, 1, 2, 3, 4
 HUD_DTYPE = np.dtype([
@@ -233,6 +251,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "run_mods":     RUN_MODS_DTYPE,
     "stats":        STATS_DTYPE,
     "wave":         WAVE_DTYPE,
+    "mastery":      MASTERY_DTYPE,
     "particle":     PARTICLE_DTYPE,
     "hud":          HUD_DTYPE,
     "minion":       MINION_DTYPE,
@@ -260,6 +279,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 # Capacidades densas por pool (teto fixo, nunca realocado — Constituição §1)
 GAME_POOL_CAPACITY: Dict[str, int] = {
     "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "wave": 1,
+    "mastery": 1,
     "particle": 1024, "hud": 8, "minion": 64, "hazard": 8, "boss": 4,
     "part": 8, "laser": 16, "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
