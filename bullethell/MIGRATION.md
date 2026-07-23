@@ -328,8 +328,16 @@ Portado (fases 1–2):
         `smoke_ecs.py` ganhou o teste de escala de HP do SINS RUSH;
         `smoke_devmode.py` ganhou 4 asserts de hot-reload (20 no total).
         6/6 smoke tests OK.
+      - **13k** — P3: `BOSS_INTROS` (`scenes.py`) — as 14 entradas cujo
+        boss existe em ambos os jogos passam a citar o texto exato de
+        `_BOSS_INTRO` (`main.py:1066-1079`), inclusive "10 padrões" do
+        CLÁSSICO (hoje literal — o boss tem 10 padrões distintos desde
+        a Fase 13f). `timemage` (invenção do port) mantém texto
+        próprio. **Todos os P0/P1/P2 e o P3 de textos aplicados** —
+        resta só Tela Cheia (fora de escopo) e a divergência
+        deliberada de fire rate do SPREAD. 6/6 smoke tests OK.
 
-Fase 14 (futuro — resíduo residual, ver PARITY_PLAN.md P2/P3):
+Fase 14 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)

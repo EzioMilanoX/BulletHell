@@ -1,13 +1,15 @@
 # PARITY_PLAN.md — o que falta para o port ECS igualar (ou superar) o legado
 
 > **Progresso (Fase 13, ver MIGRATION.md):** **Todos os P0 (P0-1 a
-> P0-5) e todos os P1 (P1-1 a P1-7) já aplicados**, mais o dev overlay/
-> cheats de P2, o `balance.json` hot-reload, o texto de "SELECT_RUSH_
-> PLAYLIST" e o escalonamento de HP do SINS RUSH. Os detalhes de cada
-> um continuam abaixo (specs exatas + aproximações assumidas) — leia
-> como registro do que foi decidido, não mais como pendência. Resta só
-> **Tela Cheia** (exigiria método novo no `IRenderer` da engine — fora
-> do escopo deste port) e itens cosméticos de P3 já documentados.
+> P0-5), todos os P1 (P1-1 a P1-7) e todos os P2 já aplicados** (dev
+> overlay/cheats, `balance.json` hot-reload, texto de "SELECT_RUSH_
+> PLAYLIST", escalonamento de HP do SINS RUSH), mais o P3 dos textos de
+> flavor/intro dos bosses. Os detalhes de cada um continuam abaixo
+> (specs exatas + aproximações assumidas) — leia como registro do que
+> foi decidido, não mais como pendência. Resta só **Tela Cheia**
+> (exigiria método novo no `IRenderer` da engine — fora do escopo deste
+> port) e a divergência de fire rate do SPREAD, que já é uma decisão
+> deliberada de produto (documentada abaixo), não uma pendência.
 
 ## 0. Como isto foi produzido
 
@@ -486,11 +488,17 @@ o "abissal" que deveria ser dificuldade, não mutador.
   (`ORANGE (255,165,0)` para normal, etc.), com os tipos "compostos" do
   legado (gravity/phaser/spinner, que lá são multi-camada) resolvidos
   para o tom mais representativo de cada um.
-- Textos de flavor/intro (`BOSS_INTROS` em `scenes.py:91-107`) foram
-  reescritos livremente em vez de citar o `_BOSS_INTRO` literal do
-  legado (`main.py:1066-1079`) — considerar usar os textos exatos onde
-  o boss existe em ambos os jogos, mantendo textos próprios só para
-  bosses que só existem no port (ex. "timemage", se ele for mantido).
+- ~~Textos de flavor/intro (`BOSS_INTROS` em `scenes.py:91-107`) foram
+  reescritos livremente~~ — ✅ resolvido (Fase 13k): as 14 entradas cujo
+  boss existe em ambos os jogos agora citam o texto exato de
+  `_BOSS_INTRO` (`main.py:1066-1079`) — inclusive "10 padrões" do
+  CLÁSSICO, que hoje bate literalmente (o boss ganhou 10 padrões
+  distintos na Fase 13f: spread/ring/shard/spiral/fracture/
+  circular_saw/blaster/laser_wave + 2 emprestados do "timemage").
+  `timemage` (invenção do port, sem equivalente no legado) mantém
+  texto próprio. Nome/estilização (`" *"`/`" **"`) seguem a convenção
+  já estabelecida do port, não o `_BOSS_INTRO` (que não tem essa
+  marcação).
 
 ---
 
