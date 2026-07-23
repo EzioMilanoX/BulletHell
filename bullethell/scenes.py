@@ -239,6 +239,10 @@ STEP_COLS = [(80, 220, 80), (80, 180, 255), (255, 220, 0),
             (220, 50, 60), (140, 80, 255)]
 STEP_NAMES = ["DIFICULDADE", "BOSS", "HABILIDADE", "ARMA", "MUTADORES"]
 
+# Sequência secreta do dev mode (legado: W W S S A D A D, main.py:1719-1724)
+DEV_SEQ_TARGET = ("move_up", "move_up", "move_down", "move_down",
+                  "move_left", "move_right", "move_left", "move_right")
+
 
 class GameApp:
     """Máquina de cenas + loop principal (substitui o GameLoop da engine
@@ -272,6 +276,13 @@ class GameApp:
         self.achieved: set = set(self.save.get("achievements", []))
         self.new_achievements: list = []
         self._running = True
+        # dev overlay (legado: sequência secreta W W S S A D A D, main.py:
+        # 1719-1734) — F9/F10 em qualquer estado; F5/F3/F4/F7 só em PLAYING
+        self.dev_mode = False
+        self.godmode = False
+        self._dev_seq: list = []
+        self.dev_flash_t = 0.0
+        self.dev_flash_msg = ""
         if self._audio is not None:                  # SFX procedurais (M4)
             self._audio.register_tone("hit", "noise", 220.0, 0.16)
             self._audio.register_tone("boom", "sweep", 190.0, 0.45)
@@ -284,6 +295,109 @@ class GameApp:
     def _play(self, sound_id: str, volume: float = 0.5) -> None:
         if self._audio is not None:
             self._audio.play_one_shot(sound_id, volume)
+
+    # ------------------------------------------------------------------
+    # dev overlay / cheats (legado: main.py:1717-1775, 2371-2418)
+    # ------------------------------------------------------------------
+    def _update_dev_mode(self, dt: float) -> None:
+        inp = self._input
+        for action in ("move_up", "move_down", "move_left", "move_right"):
+            if inp.is_action_pressed(action):
+                self._dev_seq.append(action)
+                del self._dev_seq[:-8]
+        if tuple(self._dev_seq) == DEV_SEQ_TARGET:
+            self.dev_mode = not self.dev_mode
+            self._dev_seq = []
+            self.dev_flash_t = 1.8
+            self.dev_flash_msg = "CHEAT ATIVADO" if self.dev_mode else \
+                "CHEAT DESATIVADO"
+            self._play("ui_ok", 0.5)
+        if self.dev_flash_t > 0.0:
+            self.dev_flash_t = max(0.0, self.dev_flash_t - dt)
+        if not self.dev_mode:
+            return
+        if inp.is_action_pressed("cheat_unlock"):
+            self._cheat_unlock_all()
+            self.dev_flash_t, self.dev_flash_msg = 1.8, "CHEAT ATIVADO"
+        if inp.is_action_pressed("cheat_wipe"):
+            self._cheat_wipe_save()
+            self.dev_flash_t, self.dev_flash_msg = 1.8, "SAVE APAGADO"
+        if inp.is_action_pressed("cheat_godmode"):
+            self.godmode = not self.godmode
+        if self.state != PLAYING or self.world is None:
+            return
+        bp = self.world.get_pool("boss")
+        if not bp.count:
+            return
+        bv = bp.active_view()
+        if inp.is_action_pressed("cheat_kill"):
+            bv["hp"][: bp.count] = 0.0
+        if inp.is_action_pressed("cheat_hp50"):
+            bv["hp"][: bp.count] = bv["max_hp"][: bp.count] * 0.5
+        if inp.is_action_pressed("cheat_hp10"):
+            bv["hp"][: bp.count] = bv["max_hp"][: bp.count] * 0.1
+        if inp.is_action_pressed("cheat_phase"):
+            self._cheat_advance_phase(bp)
+
+    def _cheat_unlock_all(self) -> None:
+        self.save["highest_cleared_diff"] = len(DIFFS) - 1
+        self.save["sins_rush_cleared"] = True
+        self.save["unlocked_skills"] = [s[0] for s in SKILLS]
+        self.save["unlocked_mutators"] = [m[0] for m in MUTATORS]
+        self.save["omega_unlocked"] = True
+        self.save["skill_plus_unlocked"] = ["all"]
+        self.save["weapon_plus_unlocked"] = ["all"]
+
+    def _cheat_wipe_save(self) -> None:
+        settings = self.save.get("settings",
+                                 {"screen_shake": True, "show_hitbox": False})
+        self.save.clear()
+        self.save.update({
+            "runs": 0, "total_kills": 0, "total_deaths": 0, "total_graze": 0,
+            "total_parries": 0, "achievements": [],
+            "highest_cleared_diff": 0, "sins_rush_cleared": False,
+            "unlocked_skills": ["none", "dash"], "unlocked_mutators": [],
+            "omega_unlocked": False, "skill_plus_unlocked": [],
+            "weapon_plus_unlocked": [], "best_time_dificil": 0.0,
+            "settings": settings,
+        })
+        self.achieved = set()
+        self.sel.update(diff="facil", skill="none", skill_plus=False,
+                        weapon="padrao", weapon_plus=False, muts=set())
+
+    def _cheat_advance_phase(self, boss_pool) -> None:
+        bv = boss_pool.active_view()
+        for k in range(boss_pool.count):
+            bdef = self._data.bosses[int(bv["boss_id"][k])]
+            nxt = int(bv["phase_idx"][k]) + 1
+            if nxt < len(bdef.phases):
+                frac = max(0.001, bdef.phases[nxt - 1].hp_above - 0.01)
+                bv["hp"][k] = bv["max_hp"][k] * frac
+
+    def _render_dev_overlay(self) -> None:
+        r = self._r
+        badge = (255, 60, 200, 255) if self.dev_mode else (60, 60, 80, 255)
+        r.draw_text(SCREEN_W - 14, 34, "[ DEV ]", 13, badge, anchor="topright")
+        if self.dev_flash_t > 0.0:
+            a = min(255, int(self.dev_flash_t * 200))
+            r.draw_text(SCREEN_W - 14, 54, self.dev_flash_msg, 13,
+                        (80, 255, 160, a), anchor="topright")
+        if not self.dev_mode:
+            return
+        px, py, pw, ph = SCREEN_W - 268, 74, 260, 138
+        r.draw_ui_rect(px, py, pw, ph, (10, 10, 20, 200))
+        cmds = [("F9", "Desbloquear tudo"), ("F10", "Apagar save"),
+               ("F5", "Matar boss [PLAYING]"),
+               ("F6", "God mode: " + ("ON" if self.godmode else "off")),
+               ("F3", "Boss HP -> 50% [PLAYING]"),
+               ("F4", "Boss HP -> 10% [PLAYING]"),
+               ("F7", "Avançar fase [PLAYING]")]
+        for i, (key, desc) in enumerate(cmds):
+            y = py + 10 + i * 18
+            key_c = (0, 255, 160, 255) if key == "F6" and self.godmode \
+                else (255, 220, 60, 255)
+            r.draw_text(px + 8, y, key, 12, key_c)
+            r.draw_text(px + 46, y, desc, 12, (160, 160, 180, 255))
 
     # ------------------------------------------------------------------
     def run(self) -> None:
@@ -302,6 +416,7 @@ class GameApp:
 
     # ------------------------------------------------------------------
     def tick(self, dt: float) -> None:
+        self._update_dev_mode(dt)
         s = self.state
         if s == PLAYING:
             self._tick_playing(dt)
@@ -381,6 +496,7 @@ class GameApp:
                        step=5, crumb=self._crumb()[:4])
         elif s in (WIN, GAMEOVER):
             self._end_screen(s)
+        self._render_dev_overlay()               # por cima de tudo (legado)
 
     # ------------------------------------------------------------------
     # menus
@@ -827,6 +943,11 @@ class GameApp:
         w = self.world
         self.replay_frames.append((encode_frame(self._input), dt))
         self.run_t += dt
+        if self.godmode:                          # F6 (dev mode)
+            pl = w.get_pool("player")
+            pi = pl.active_entity_indices()
+            if pi.size:
+                pl.active_view()["invuln_t"][pl.dense_row_of(int(pi[0]))] = 999.0
         w.step(dt)
         self._pump_sfx()
         self._apply_shake(dt)

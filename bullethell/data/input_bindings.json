@@ -20,5 +20,12 @@
   "confirm": "KEY_RETURN",
   "back": "KEY_ESCAPE",
   "retry": "KEY_T",
-  "to_menu": "KEY_R"
+  "to_menu": "KEY_R",
+  "cheat_unlock": "KEY_F9",
+  "cheat_wipe": "KEY_F10",
+  "cheat_kill": "KEY_F5",
+  "cheat_hp50": "KEY_F3",
+  "cheat_hp10": "KEY_F4",
+  "cheat_phase": "KEY_F7",
+  "cheat_godmode": "KEY_F6"
 }

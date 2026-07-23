@@ -1,10 +1,11 @@
 # PARITY_PLAN.md — o que falta para o port ECS igualar (ou superar) o legado
 
 > **Progresso (Fase 13, ver MIGRATION.md):** **Todos os P0 (P0-1 a
-> P0-5) já aplicados**, e os P1 pontuais (P1-1 a P1-6) também. Os
-> detalhes de cada um continuam abaixo (specs exatas + aproximações
-> assumidas) — leia como registro do que foi decidido, não mais como
-> pendência. Restam P1-7 (masteries de arma/skill) e os itens P2/P3.
+> P0-5) já aplicados**, os P1 pontuais (P1-1 a P1-6) e o dev overlay/
+> cheats de P2. Os detalhes de cada um continuam abaixo (specs exatas +
+> aproximações assumidas) — leia como registro do que foi decidido, não
+> mais como pendência. Restam P1-7 (masteries de arma/skill) e o resto
+> de P2/P3 (RECORDS/SETTINGS textual, `balance.json` hot-reload).
 
 ## 0. Como isto foi produzido
 
@@ -382,21 +383,31 @@ o "abissal" que deveria ser dificuldade, não mutador.
 
 ## 4. P2 — Meta / polish
 
-- **RECORDS** e **SETTINGS** ausentes (parte de P0-4, mas o conteúdo em
-  si é pequeno — 5 linhas de stats e 3 toggles).
-- **Fullscreen/screen_shake/show_hitbox** não existem como toggles em
-  lugar nenhum do port (nem persistidos, nem lidos) — o shake sempre
-  acontece, não há debug de hitbox.
+- ~~**RECORDS** e **SETTINGS** ausentes~~ — ✅ resolvido (Fase 13d, ver
+  P0-4). **Screen Shake**/**Mostrar Hitbox** também resolvidos (Fase
+  13d); **Tela Cheia** segue de fora (exigiria método novo no
+  `IRenderer` da engine).
 - **SELECT_RUSH_PLAYLIST**: o port não tem essa tela porque promoveu
   `rush`/`sins` a modos de jogo separados em vez de sub-escolha dentro de
   Boss Rush — funcionalmente equivalente, mas o texto/fluxo do legado
   (`"BOSS RUSH CLÁSSICO"` vs `"OS 7 PECADOS"` como playlists) não é
   replicado; considerar renomear os modos do port para bater com os
   textos exatos do legado se a fidelidade textual importa.
-- **Dev overlay / cheats** (F9 unlock all, F10 wipe, F3/F4 HP%, F5 mata
-  boss, F6 godmode, F7 avança fase, F8 Sala do Dummy, sequência secreta
-  `WWSSADAD`) — zero equivalente; alto valor para debug/QA mas baixo
-  impacto na experiência do jogador final.
+- ~~**Dev overlay / cheats**~~ — ✅ resolvido (Fase 13h): sequência
+  secreta `WWSSADAD` (lê os 4 `move_*` já vinculados a WASD, sem tocar
+  no binding) liga/desliga `dev_mode`; com ele ligado, **F9** (unlock
+  all — todas as dificuldades/skills/mutadores/ÔMEGA/variantes "+"),
+  **F10** (wipe save — reseta save e seleção), **F6** (god mode —
+  reusa o `invuln_t` já existente, sem nenhum sistema novo) funcionam
+  em qualquer estado; **F5** (mata o boss), **F3**/**F4** (HP→50%/10%)
+  e **F7** (avança fase — empurra o HP para logo abaixo do próximo
+  `hp_above`, deixando o `BossPhaseSystem` já existente fazer a
+  transição sozinho) só em PLAYING. Badge `[ DEV ]` sempre visível
+  (magenta ligado / cinza desligado) + painel de comandos quando
+  ligado. **F8 (Sala do Dummy) ficou de fora** — o port não tem um
+  boss "saco de pancadas"/dificuldade TESTE equivalente, não haveria o
+  que a tecla abrisse. `smoke_devmode.py` (novo) cobre os 7 cheats +
+  a sequência secreta ligando/desligando — 16/16 OK.
 - **balance.json + hot-reload** — não existe no port; todo número vive
   direto em `data/*.json` e precisa reiniciar para recarregar. Se
   quiser, dá pra tratar o próprio `data/*.json` como o "balance" e

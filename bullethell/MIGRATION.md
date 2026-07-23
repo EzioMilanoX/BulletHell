@@ -278,11 +278,24 @@ Portado (fases 1–2):
         pior que não listá-la (ver PARITY_PLAN.md P1-7, ainda aberto).
         61+43+18+7 OK (smoke_gating.py: 28→43 asserts, com as 15 novas
         sobre as condições de conquista)
+      - **13h** — Dev overlay/cheats (PARITY_PLAN P2): sequência secreta
+        `WWSSADAD` (reusa os 4 `move_*` já vinculados a WASD) liga o
+        `dev_mode`; **F9** unlock all, **F10** wipe save, **F6** god
+        mode (reusa `player.invuln_t`, sem sistema novo) em qualquer
+        estado; **F5** mata boss, **F3**/**F4** HP→50%/10%, **F7**
+        avança fase (empurra o HP pra baixo do próximo `hp_above` e
+        deixa o `BossPhaseSystem` já existente fazer a transição)
+        só em PLAYING. Badge `[ DEV ]` + painel de comandos sempre
+        visíveis por cima de tudo. F8 (Sala do Dummy) ficou de fora —
+        o port não tem um boss "saco de pancadas" equivalente.
+        `smoke_devmode.py` (novo): 16 asserts cobrindo os 7 cheats +
+        a sequência secreta. 61+43+18+7+16 OK
 
 Fase 14 (futuro, ver PARITY_PLAN.md P1-7/P2/P3):
 - [ ] Masteries de arma/skill do legado (17 desafios — exigem
       instrumentar contagens específicas em vários sistemas)
-- [ ] Dev overlay/cheats (F9/F10/F3-F8, sequência secreta, hot-reload)
+- [ ] `balance.json` + hot-reload (conveniência de dev, não paridade
+      de jogador)
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
 
