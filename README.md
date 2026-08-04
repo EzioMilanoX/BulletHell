@@ -5,7 +5,18 @@ Engine de bullet hell escrita do zero em Python/pygame-ce, com arquitetura
 paralelos, com pools pré-alocados e **zero alocação dinâmica durante o game
 loop** — 5000+ balas simultâneas a 60 FPS.
 
-## Requisitos
+Duas versões no mesmo repositório: o jogo **legado** (`main.py`, Python/
+pygame-ce puro) e o port **ECS** (`bullethell/`, sobre a
+[OuroborosEngine](https://github.com/EzioMilanoX/OuroborosEngine)) — ver
+`bullethell/PARITY_PLAN.md`/`bullethell/MIGRATION.md` pro histórico da
+migração.
+
+## Baixar e jogar (sem instalar Python)
+
+Ver [INSTALL.md](INSTALL.md) — dois `.exe` standalone na
+[página de Releases](https://github.com/EzioMilanoX/BulletHell/releases).
+
+## Requisitos (rodando do código-fonte)
 
 - Python 3.12+ (desenvolvido em 3.14)
 - pygame-ce e numpy (ver `requirements.txt`)
@@ -14,10 +25,11 @@ loop** — 5000+ balas simultâneas a 60 FPS.
 
 ```bash
 pip install -r requirements.txt
-python main.py
+python main.py          # legado
+python main_ecs.py       # port ECS — precisa também do repo-irmão OuroborosEngine
 ```
 
-No Windows também dá para usar o `run.bat`.
+No Windows também dá para usar o `run.bat` (legado).
 
 ## Controles
 
@@ -47,14 +59,21 @@ A documentação completa de mecânicas, arquitetura e balanceamento está em
 ## Estrutura
 
 ```
-main.py         # loop de jogo, render e menus
-entities.py     # constantes, pools SoA, bosses, colisão, save
-waves.json      # composição das ondas do Wave Survival
-patterns.json   # padrões de tiro data-driven
-balance.json    # overrides de balanceamento
-tests/          # suíte pytest (FSM de bosses, pools, gameplay)
-src/            # referência em C++ (estudo; não é compilada nem usada)
-ouroboros/      # rascunho da migração para ECS (em andamento)
+main.py            # legado — loop de jogo, render e menus
+entities.py        # legado — constantes, pools SoA, bosses, colisão, save
+waves.json         # legado — composição das ondas do Wave Survival
+patterns.json      # legado — padrões de tiro data-driven
+balance.json       # legado — overrides de balanceamento
+tests/             # suíte pytest do legado (FSM de bosses, pools, gameplay)
+src/               # referência em C++ (estudo; não é compilada nem usada)
+
+main_ecs.py        # port ECS — entrada
+bullethell/        # port ECS — pacote (ver bullethell/MIGRATION.md)
+smoke_*.py         # port ECS — smoke tests headless (ver cada bullethell/*.md)
+
+packaging/         # specs do PyInstaller pros dois .exe (ver INSTALL.md)
+tools/             # scripts de build dos .exe
+wheels/            # wheel versionado da OuroborosEngine (build, não dev)
 ```
 
 ## Testes

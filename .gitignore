@@ -10,3 +10,10 @@ save_ecs.json
 # Logs de debug
 err.txt
 out.txt
+
+# Build dos .exe standalone (ver tools/build_exes.ps1, INSTALL.md) —
+# gerados localmente, não versionados; os binários finais vão como
+# assets de GitHub Release, não como commit.
+.build_venv/
+build_pyinstaller/
+dist/

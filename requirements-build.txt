@@ -1,0 +1,17 @@
+# Dependências pra buildar os .exe standalone (ver tools/build_exes.ps1).
+# Só pra build/empacotamento — pra desenvolver, use requirements.txt.
+#
+# pygame-ce pinado: a OuroborosEngine já corrige o nome certo do pacote
+# (pygame-ce, não "pygame" — eram distribuições diferentes no PyPI, ver
+# OuroborosEngine/pyproject.toml), mas a versão exata aqui é a testada
+# de ponta a ponta (build + os dois .exe abrindo de verdade).
+pygame-ce==2.5.7
+numpy>=2.4
+pyinstaller==6.21.0
+
+# Wheel local da engine (repo-irmão, não está no PyPI) — gerado por
+# tools/build_engine_wheel.ps1, versionado em wheels/ pra o build ficar
+# reproduzível mesmo sem o repo-irmão no disco. NÃO instalar via
+# `pip install -e ../OuroborosEngine` pra este fim — editable install
+# usa um finder de import que o PyInstaller não enxerga como pasta real.
+wheels/ouroboros_engine-0.1.0-py3-none-any.whl

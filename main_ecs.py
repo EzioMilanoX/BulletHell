@@ -16,11 +16,17 @@ Fim de run: T joga de novo · R volta ao menu
 """
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import bullethell  # noqa: F401  — garante a engine no sys.path
 
-SAVE_PATH = Path(__file__).parent / "save_ecs.json"
+# Path(__file__).parent aponta pra uma pasta temp nova a cada execução sob
+# PyInstaller --onefile (sys._MEIPASS muda por processo) — usar a pasta do
+# .exe quando congelado, senão o save nunca persiste entre sessões.
+_APP_DIR = Path(sys.executable).parent if getattr(sys, "frozen", False) \
+    else Path(__file__).parent
+SAVE_PATH = _APP_DIR / "save_ecs.json"
 
 
 def _load_save() -> dict:
