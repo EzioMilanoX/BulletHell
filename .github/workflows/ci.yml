@@ -1,0 +1,45 @@
+name: CI
+
+# Smoke tests headless (null backends, sem SDL/janela real — ver
+# ouroboros/interfaces/null/*) em toda mudanca. Roda em Linux mesmo o
+# jogo sendo Windows-first: os testes nao tocam pygame de verdade, e o
+# wheel da engine (wheels/*.whl) e "py3-none-any" (puro Python).
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instala dependencias (pygame-ce, numpy, wheel local da engine)
+        run: |
+          pip install -r requirements.txt
+          pip install wheels/ouroboros_engine-*.whl
+
+      - name: smoke_ecs.py
+        run: python smoke_ecs.py
+
+      - name: smoke_gating.py
+        run: python smoke_gating.py
+
+      - name: smoke_menu.py
+        run: python smoke_menu.py
+
+      - name: smoke_replay.py
+        run: python smoke_replay.py
+
+      - name: smoke_devmode.py
+        run: python smoke_devmode.py
+
+      - name: smoke_mastery.py
+        run: python smoke_mastery.py

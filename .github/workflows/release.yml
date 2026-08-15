@@ -1,0 +1,52 @@
+name: Release
+
+# Builda os dois .exe standalone (ver tools/build_exes.ps1, INSTALL.md)
+# e publica como Release toda vez que uma tag "v*.*.*" for empurrada.
+# O repo-irmao OuroborosEngine nao existe neste runner — o script usa o
+# wheel ja versionado em wheels/ automaticamente (Test-Path falha, pula
+# o rebuild). Isso e o motivo de termos comitado o wheel em vez de só
+# depender do checkout do repo-irmao.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Builda os dois .exe (venv limpo + PyInstaller)
+        shell: pwsh
+        run: .\tools\build_exes.ps1
+
+      - name: Empacota os .zip de release
+        shell: pwsh
+        run: |
+          $tag = "${{ github.ref_name }}"
+          New-Item -ItemType Directory -Force -Path staging\Legado, staging\ECS | Out-Null
+          Copy-Item dist\BulletHellLegado.exe, balance.json, waves.json staging\Legado\
+          Copy-Item dist\BulletHellECS.exe staging\ECS\
+          Compress-Archive -Path staging\Legado\* -DestinationPath "BulletHellLegado-$tag-win64.zip"
+          Compress-Archive -Path staging\ECS\* -DestinationPath "BulletHellECS-$tag-win64.zip"
+
+      - name: Publica a Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          gh release create $tag `
+            "BulletHellLegado-$tag-win64.zip" `
+            "BulletHellECS-$tag-win64.zip" `
+            --title "$tag" `
+            --generate-notes

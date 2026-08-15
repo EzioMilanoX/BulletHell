@@ -92,6 +92,15 @@ fica versionado em `wheels/`).
 Resultado em `dist/`: `BulletHellLegado.exe`, `BulletHellECS.exe`,
 `balance.json`, `waves.json`.
 
+### Ou deixa o CI buildar
+
+`git push` numa tag `vX.Y.Z` roda `.github/workflows/release.yml`, que
+faz exatamente os dois passos acima (sem precisar do repo-irmão — usa
+o wheel já versionado) e publica os dois `.zip` como assets da Release
+automaticamente. `.github/workflows/ci.yml` roda os 6 smoke tests
+headless em todo push/PR pra `main` (não builda `.exe`, só valida que
+nada quebrou).
+
 ### Arquivos relevantes
 
 ```
@@ -101,6 +110,8 @@ requirements-build.txt        # deps pinadas do venv de build (não confundir co
 wheels/ouroboros_engine-*.whl # wheel versionado da engine (ver ENGINE_COMMIT.txt ao lado)
 tools/build_engine_wheel.ps1  # gera o wheel a partir do repo-irmão
 tools/build_exes.ps1          # orquestra venv + PyInstaller + cópia dos JSONs
+.github/workflows/ci.yml      # smoke tests em todo push/PR
+.github/workflows/release.yml # build + publish automático em tag vX.Y.Z
 ```
 
 ### Pegadinhas que já mordemos (documentadas pra não repetir)
