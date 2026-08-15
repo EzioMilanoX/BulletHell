@@ -3675,4 +3675,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback
+        from datetime import datetime
+        with open("crash.log", "a", encoding="utf-8") as f:
+            f.write(f"\n=== {datetime.now().isoformat(timespec='seconds')} ===\n")
+            f.write(traceback.format_exc())
+        raise

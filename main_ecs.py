@@ -27,6 +27,7 @@ import bullethell  # noqa: F401  — garante a engine no sys.path
 _APP_DIR = Path(sys.executable).parent if getattr(sys, "frozen", False) \
     else Path(__file__).parent
 SAVE_PATH = _APP_DIR / "save_ecs.json"
+BACKUP_PATH = _APP_DIR / "save_ecs.json.bak"
 
 
 def _load_save() -> dict:
@@ -42,11 +43,17 @@ def _load_save() -> dict:
             "skill_plus_unlocked": [], "weapon_plus_unlocked": [],
             "best_time_dificil": 0.0,
             "settings": {"screen_shake": True, "show_hitbox": False}}
-    if SAVE_PATH.exists():
+    # save principal, senão o .bak (gravado pelo _persist() anterior) antes
+    # de aceitar os defaults — protege contra escrita interrompida no meio
+    # (queda de energia, disco cheio) corromper o JSON
+    for path in (SAVE_PATH, BACKUP_PATH):
+        if not path.exists():
+            continue
         try:
-            save.update(json.loads(SAVE_PATH.read_text(encoding="utf-8")))
+            save.update(json.loads(path.read_text(encoding="utf-8")))
+            break
         except Exception:
-            pass
+            continue
     return save
 
 
@@ -58,7 +65,16 @@ def _persist(save: dict, totals: dict, achieved: set) -> None:
     save["total_graze"] += totals["graze"]
     save["total_parries"] += totals.get("parries", 0)
     save["achievements"] = sorted(achieved)
-    SAVE_PATH.write_text(json.dumps(save, indent=2), encoding="utf-8")
+    # backup de 1 geração antes de sobrescrever — mesmo raciocínio do load
+    if SAVE_PATH.exists():
+        try:
+            BACKUP_PATH.write_bytes(SAVE_PATH.read_bytes())
+        except Exception:
+            pass
+    try:
+        SAVE_PATH.write_text(json.dumps(save, indent=2), encoding="utf-8")
+    except Exception:
+        pass
     if totals["runs"]:
         print(f"sessão: {totals['kills']} kills em {totals['runs']} runs — "
               f"totais: {save['total_kills']} kills / "
@@ -120,4 +136,12 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback
+        from datetime import datetime
+        with open(_APP_DIR / "crash.log", "a", encoding="utf-8") as f:
+            f.write(f"\n=== {datetime.now().isoformat(timespec='seconds')} ===\n")
+            f.write(traceback.format_exc())
+        raise

@@ -5091,9 +5091,20 @@ class SaveManager:
 
     # ------------------------------------------------------------------
     def _load(self):
+        # tenta o save principal; se estiver corrompido (escrita
+        # interrompida, disco cheio etc.), cai pro .bak gravado no
+        # persist() anterior antes de resetar tudo pro padrão
+        data = None
+        for path in (self.SAVE_PATH, self.SAVE_PATH + ".bak"):
+            try:
+                with open(path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                break
+            except Exception:
+                continue
+        if data is None:
+            return
         try:
-            with open(self.SAVE_PATH, 'r', encoding='utf-8') as f:
-                data = json.load(f)
             self.highest_cleared_diff = int(data.get("highest_cleared_diff", 0))
             raw = data.get("unlocked_skills", [SKILL_NONE, SKILL_DASH])
             self.unlocked_skills = sorted(set([SKILL_NONE] + [int(s) for s in raw]))
@@ -5124,6 +5135,16 @@ class SaveManager:
             pass
 
     def persist(self):
+        # backup de 1 geração: se a escrita abaixo for interrompida no
+        # meio (queda de energia, disco cheio), ainda sobra uma cópia
+        # boa do save anterior pro _load() recuperar
+        try:
+            with open(self.SAVE_PATH, 'rb') as src:
+                backup_data = src.read()
+            with open(self.SAVE_PATH + '.bak', 'wb') as dst:
+                dst.write(backup_data)
+        except Exception:
+            pass
         try:
             with open(self.SAVE_PATH, 'w', encoding='utf-8') as f:
                 json.dump({

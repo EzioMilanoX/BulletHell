@@ -29,6 +29,11 @@ baixe o `.zip` da versão mais recente.
 4. O progresso (conquistas, dificuldades destravadas, masteries) fica
    em `save.json`/`save_ecs.json`, criado na mesma pasta do `.exe` na
    primeira execução. Apagar esse arquivo reseta o progresso.
+5. A cada vez que o jogo grava o save, ele guarda uma cópia do save
+   anterior em `save.json.bak`/`save_ecs.json.bak` — se o processo for
+   morto no meio de uma escrita (queda de energia, fechar pelo Gerenciador
+   de Tarefas) e o arquivo principal corromper, o jogo recupera do `.bak`
+   sozinho na próxima abertura em vez de resetar o progresso.
 
 ## Requisitos
 
@@ -43,6 +48,11 @@ nenhum erro aparecer, o motivo mais provável é o SmartScreen do
 Windows bloqueando silenciosamente. Confira o aviso do Explorer
 (clique direito no `.exe` → Propriedades → se tiver um botão
 "Desbloquear" no rodapé, clique nele) antes de reportar bug.
+
+Se o jogo abrir e fechar sozinho com um erro, confira `crash.log` na
+mesma pasta do `.exe` — todo erro não tratado é registrado ali (com
+data/hora e o traceback completo) antes do jogo fechar. Anexe esse
+arquivo ao reportar um bug.
 
 ---
 
