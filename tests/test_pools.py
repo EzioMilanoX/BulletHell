@@ -1,12 +1,10 @@
 """test_pools.py — Zero-GC SoA pool integrity tests."""
-import numpy as np
 import pytest
 
 from entities import (
     BulletPool, PlayerBulletPool, EnemyPool,
     MAX_BULLETS, MAX_ENEMIES, MAX_PB,
-    ETYPE_KAMIKAZE, ETYPE_SENTINEL,
-    ENEMY_KAMIKAZE_HP,
+    ETYPE_KAMIKAZE, ENEMY_KAMIKAZE_HP,
 )
 
 DT = 1 / 60
@@ -191,7 +189,7 @@ class TestEnemyPool:
     def test_kill_n_reset_each_check(self):
         enm = EnemyPool()
         pb = PlayerBulletPool()
-        idx = enm.acquire(400.0, 300.0, ETYPE_KAMIKAZE)
+        enm.acquire(400.0, 300.0, ETYPE_KAMIKAZE)
         pb_idx = pb.acquire(damage=ENEMY_KAMIKAZE_HP + 1.0)
         pb.px[pb_idx] = 400.0
         pb.py[pb_idx] = 300.0

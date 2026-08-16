@@ -3,18 +3,13 @@ import math
 import pytest
 
 from entities import (
-    BulletPool, PlayerBulletPool, EnemyPool, EmitterPool, LaserPool,
-    SpatialHash, check_boss_collision,
-    Boss, DummyBoss, PrideBoss,
-    Player, Difficulty,
+    BulletPool, PlayerBulletPool, EnemyPool, SpatialHash, check_boss_collision,
+    Boss, DummyBoss, Difficulty,
     GameConfig,
-    DIFF_NORMAL, DIFF_HARD, DIFF_EXPERT, DIFF_ABISSAL,
-    BOSS_CLASSIC, BOSS_DUMMY, BOSS_PRIDE,
-    SKILL_NONE, WEAPON_DEFAULT,
+    DIFF_NORMAL, DIFF_EXPERT, DIFF_ABISSAL,
+    BOSS_CLASSIC, SKILL_NONE, WEAPON_DEFAULT,
     ETYPE_KAMIKAZE, ENEMY_KAMIKAZE_HP,
     BTYPE_PURPLE, TWO_PI,
-    SCREEN_W, SCREEN_H,
-    MAX_LIVES, INVULN_FRAMES,
 )
 
 DT = 1 / 60

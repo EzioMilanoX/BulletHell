@@ -431,10 +431,7 @@ def _render_sin_boss(surf: pygame.Surface, boss: SinBoss):
             pygame.draw.circle(surf, col, (mx, my), 7, 1)
             pygame.draw.line(surf, col, (mx - 5, my), (mx + 5, my), 1)
             pygame.draw.line(surf, col, (mx, my - 5), (mx, my + 5), 1)
-    # Fase 3 — timer de sobrevivência
-    if boss._phase == 3 and boss.invulnerable:
-        secs = max(0, int(boss.survive_timer) + 1)
-        # Exibido no render da HUD (main.py)
+    # Fase 3 — timer de sobrevivência é exibido no render da HUD, não aqui
 
 
 def _render_dummy_boss(surf: pygame.Surface, boss: DummyBoss):
@@ -446,13 +443,8 @@ def _render_dummy_boss(surf: pygame.Surface, boss: DummyBoss):
     cx, cy = int(boss.cx), int(boss.cy)
     for r, c in ((s // 2, (200, 60, 60)), (s // 3, (200, 200, 60)), (s // 5, (60, 200, 60))):
         pygame.draw.circle(surf, c, (cx, cy), r, 2)
-    # Floating damage numbers
-    for i in np.where(boss._fn_active)[0]:
-        alpha = max(0, min(255, int(255 * (boss._fn_t[i] / 1.8))))
-        val   = int(boss._fn_val[i])
-        lbl   = f"+{val:.0f}"
-        # Cannot blit with alpha easily here — just draw white text
-        _gfx_dummy_label = None  # drawn in HUD section with font
+    # Floating damage numbers: desenhado na seção de HUD (com acesso à
+    # fonte), não aqui
 
 
 def render_arena_border(surf: pygame.Surface, player: Player):
@@ -1288,7 +1280,7 @@ _WEAPON_PLUS_DESC = {
                      f"★ Maestria: {MASTERY_W_SPREAD_CLOSE} hits a <40px do boss."],
     WEAPON_NEEDLE:  ["PENETRANTE",
                      "A bala perfura o boss sem ser destruída.",
-                     f"CD +20% mais lento. Excelente vs WallBoss.",
+                     "CD +20% mais lento. Excelente vs WallBoss.",
                      f"★ Maestria: {MASTERY_W_NEEDLE_PHASE} fase com ≤5 erros."],
     WEAPON_CHARGED: ["FRAGMENTAÇÃO",
                      "Ao acertar em carga máxima, explode em",
@@ -1948,7 +1940,7 @@ ACHIEVEMENTS_DEF = [
      "desc": f"Acerte o boss a <40px de distância {MASTERY_W_SPREAD_CLOSE} vezes com a SPREAD.",
      "reward": "SPREAD+"},
     {"id": "wp_needle",    "name": "Penetrante",          "secret": False,
-     "desc": f"Complete uma fase do boss com a AGULHA cometendo ≤5 erros.",
+     "desc": "Complete uma fase do boss com a AGULHA cometendo ≤5 erros.",
      "reward": "AGULHA+"},
     {"id": "wp_charged",   "name": "Fragmentação",        "secret": False,
      "desc": f"Destrua ≥3 lacaios com um único tiro Carregado, {MASTERY_W_CHARGED_MULTI} vezes.",
@@ -2275,7 +2267,6 @@ def main():
 
     pool = pb_pool = ep = lp = pp = boss = player = shash = diff = enm_pool = None
     hz_pool = HazardPool()
-    audio   = AudioManager()
     recorder: ReplayRecorder  = None
     replay_frame_idx  = 0
     elapsed           = 0.0

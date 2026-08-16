@@ -15,7 +15,7 @@ import numpy as np
 
 from ouroboros.core.memory.component_pool import intersect_entity_indices
 
-from bullethell.composition import DIFFICULTIES, build_world
+from bullethell.composition import build_world
 from bullethell.game_systems import PLAYER_HIT_R, RUSH_ORDERS
 from bullethell.ids import sid
 from bullethell.loaders import DATA_DIR, GameData, load_all

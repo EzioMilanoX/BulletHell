@@ -7,7 +7,6 @@ prescreve).
 """
 from __future__ import annotations
 
-import numpy as np
 
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.core.components.schemas import COMPONENT_SCHEMAS

@@ -2,7 +2,7 @@
 Bullet Hell — Game Logic (entities, pools, constants)
 Render + loop live in main.py  (`from entities import *`)
 """
-import sys, math, random, json
+import math, random, json
 from collections import deque
 import numpy as np
 import pygame
@@ -2516,7 +2516,6 @@ class WallBoss:
             return
 
         aim_px = px + pvx * PREDICT_AIM_TIME if MUTATOR_PREDATOR in self.mutators else px
-        aim_py = py + pvy * PREDICT_AIM_TIME if MUTATOR_PREDATOR in self.mutators else py
         aim_px = max(0.0, min(aim_px, SCREEN_W))
         self.preview_aim = math.atan2(py - (self.y + self.wall_height / 2), px - SCREEN_W / 2)
         self.preview_gap = self.preview_aim + math.pi / 2

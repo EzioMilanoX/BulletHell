@@ -8,7 +8,6 @@ Uso: python smoke_devmode.py
 """
 import os
 
-import numpy as np
 
 import bullethell  # noqa: F401 — engine no sys.path
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider

@@ -1537,7 +1537,7 @@ class EmitterSystem(ISystem):
             for cx_ in (w0 / 2.0, (w1 + SCREEN_W) / 2.0):
                 for j in range(pat.count):
                     jit = (((seed * 69621 + j * 97561) % 997) / 997.0 - 0.5) * 60.0
-                    p = self._spawn(world, pat, cx_ + jit, -8.0, down_ := math.pi / 2, px, py)
+                    p = self._spawn(world, pat, cx_ + jit, -8.0, math.pi / 2, px, py)
                     if p is not None:
                         vrow = self._velocity.dense_row_of(p & 0xFFFFFFFF)
                         vv2 = self._velocity.active_view()
@@ -3112,7 +3112,6 @@ class AutoLaunchSystem(ISystem):
         crow = self._pb_core.dense_row_of(eidx)
         world.destroy_entity(int(self._pb_core.active_view()["self"][crow]))
         # míssil homing com o dano da gema
-        base = self._data.weapons.get(sid("teleguiado"))
         dx = bx - x; dy = by - y
         d = math.hypot(dx, dy) or 1.0
         packed = spawn_player_bullet(world, self._mm, "pb_teleguiado", x, y,

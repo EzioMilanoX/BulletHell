@@ -13,7 +13,6 @@ Uso: python smoke_mastery.py
 """
 import math
 
-import numpy as np
 
 import bullethell  # noqa: F401 — engine no sys.path
 from bullethell.composition import build_headless

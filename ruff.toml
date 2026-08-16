@@ -1,0 +1,12 @@
+# Lint mínimo (só pyflakes "F"): pega bug de verdade (import morto,
+# variável nunca usada, nome indefinido) sem entrar no mérito de estilo
+# (linha longa, aspas, etc.) — o codebase nunca teve lint nenhum até
+# agora, então um gate de estilo completo seria ruído puro no dia 1.
+#
+# F403/F405 ignorados de propósito: main.py faz `from entities import *`
+# (main.py:5-6, arquitetura deliberada — ver README.md "Estrutura").
+# O ruff não resolve nomes vindos de wildcard import estaticamente e
+# falso-positiva em ~1700 linhas por causa disso; não é sinal de bug.
+[lint]
+select = ["F"]
+ignore = ["F403", "F405"]

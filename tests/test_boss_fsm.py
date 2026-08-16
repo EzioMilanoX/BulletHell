@@ -7,7 +7,7 @@ from entities import (
     BulletPool, EmitterPool, LaserPool,
     GameConfig, Difficulty,
     DIFF_NORMAL, DIFF_EXPERT,
-    BOSS_CLASSIC, BOSS_DUMMY, BOSS_PRIDE, BOSS_LUST,
+    BOSS_CLASSIC, BOSS_PRIDE, BOSS_LUST,
     BOSS_WRATH, BOSS_SLOTH, BOSS_GREED, BOSS_ENVY, BOSS_GLUTTONY,
     SKILL_NONE, WEAPON_DEFAULT,
     PREP_TIME,

@@ -16,7 +16,7 @@ import pytest
 from entities import (
     GameConfig, Difficulty,
     DIFF_NORMAL, DIFF_HARD, DIFF_EXPERT, DIFF_ABISSAL,
-    BOSS_CLASSIC, BOSS_DUMMY, SKILL_NONE, WEAPON_DEFAULT,
+    BOSS_CLASSIC, SKILL_NONE, WEAPON_DEFAULT,
     BulletPool, PlayerBulletPool, EnemyPool, EmitterPool, LaserPool,
 )
 

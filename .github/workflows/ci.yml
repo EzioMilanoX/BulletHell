@@ -1,9 +1,15 @@
 name: CI
 
-# Smoke tests headless (null backends, sem SDL/janela real — ver
-# ouroboros/interfaces/null/*) em toda mudanca. Roda em Linux mesmo o
-# jogo sendo Windows-first: os testes nao tocam pygame de verdade, e o
-# wheel da engine (wheels/*.whl) e "py3-none-any" (puro Python).
+# lint: so pyflakes ("F" — import morto, variavel nunca usada, nome
+# indefinido; ver ruff.toml pro porque de F403/F405 ficarem de fora),
+# sem instalar nada alem do proprio ruff — mais rapido, roda em paralelo.
+#
+# test: os 174 testes pytest do jogo LEGADO (tests/, FSM de bosses,
+# pools, colisao) + os 6 smoke tests headless do port ECS (null
+# backends, sem SDL/janela real — ver ouroboros/interfaces/null/*).
+# Roda em Linux mesmo o jogo sendo Windows-first: nada aqui toca pygame
+# de verdade, e o wheel da engine (wheels/*.whl) e "py3-none-any"
+# (puro Python).
 
 on:
   push:
@@ -12,7 +18,17 @@ on:
     branches: [main]
 
 jobs:
-  smoke:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,22 +40,26 @@ jobs:
       - name: Instala dependencias (pygame-ce, numpy, wheel local da engine)
         run: |
           pip install -r requirements.txt
+          pip install pytest
           pip install wheels/ouroboros_engine-*.whl
 
-      - name: smoke_ecs.py
+      - name: pytest (legado — tests/)
+        run: pytest tests/ -q
+
+      - name: smoke_ecs.py (ECS)
         run: python smoke_ecs.py
 
-      - name: smoke_gating.py
+      - name: smoke_gating.py (ECS)
         run: python smoke_gating.py
 
-      - name: smoke_menu.py
+      - name: smoke_menu.py (ECS)
         run: python smoke_menu.py
 
-      - name: smoke_replay.py
+      - name: smoke_replay.py (ECS)
         run: python smoke_replay.py
 
-      - name: smoke_devmode.py
+      - name: smoke_devmode.py (ECS)
         run: python smoke_devmode.py
 
-      - name: smoke_mastery.py
+      - name: smoke_mastery.py (ECS)
         run: python smoke_mastery.py

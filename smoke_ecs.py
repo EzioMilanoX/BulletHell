@@ -189,7 +189,7 @@ if __name__ == "__main__":
     # SINS RUSH: HP escala +15%/stage (legado, spec menus §11) — o
     # 2º boss da fila deve ter mais HP máximo que o 1º só pelo estágio
     from bullethell.composition import build_headless as _bh
-    from bullethell.game_systems import RUSH_ORDERS as _RO, SINS_RUSH_HP_SCALE as _SC
+    from bullethell.game_systems import SINS_RUSH_HP_SCALE as _SC
     w_sins, inp_sins = _bh(mode="sins")
     bp_sins = w_sins.get_pool("boss")
     hp0 = float(bp_sins.active_view()["max_hp"][0])
