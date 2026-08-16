@@ -87,6 +87,14 @@
 
     { "name": "truth/real",
       "_doc": "Decálogo #7 — Verdade: as poucas reais — dano normal, opacas.",
-      "contact": "always", "color": 0, "radius": 4.0 }
+      "contact": "always", "color": 0, "radius": 4.0 },
+
+    { "name": "purity/blue",
+      "_doc": "Decálogo #6b — Pureza: bala azul — dano em dobro na metade vermelha da tela (PlayerHitSystem, gimmick purity_zones).",
+      "contact": "always", "color": 1, "radius": 4.0 },
+
+    { "name": "purity/red",
+      "_doc": "Decálogo #6b — Pureza: bala vermelha — dano em dobro na metade azul da tela.",
+      "contact": "always", "color": 4, "radius": 4.0 }
   ]
 }

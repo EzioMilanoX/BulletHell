@@ -518,4 +518,70 @@ if __name__ == "__main__":
     if not trap_off_ok:
         ok = False
 
+    # Decálogo #6b — Purity: raiz normal, sem invuln escondendo nada.
+    r = run("purity", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Purity: zona errada tira 2 vidas; zona certa tira só 1
+    from bullethell.schemas import SCREEN_W as _SW
+
+    def _hit_zone(zone_x_frac: float, bullet_color: int):
+        w_p, inp_p = _bh2(boss_name="purity", weapon_name="padrao")
+        pl_p = w_p.get_pool("player"); tp_p = w_p.get_pool("transform")
+        pidx_p = int(pl_p.active_entity_indices()[0])
+        prow_p = pl_p.dense_row_of(pidx_p)
+        trow_p = tp_p.dense_row_of(pidx_p)
+        tp_p.active_view()["position_x"][trow_p] = _SW * zone_x_frac
+        tp_p.active_view()["position_y"][trow_p] = 400.0
+        x = float(tp_p.active_view()["position_x"][trow_p])
+        y = float(tp_p.active_view()["position_y"][trow_p])
+        lives0 = int(pl_p.active_view()["lives"][prow_p])
+        _seb(w_p, w_p, x, y, 0.0, 0.0, color=bullet_color)
+        inp_p.poll(); w_p.step(DT)
+        lives1 = int(pl_p.active_view()["lives"][prow_p])
+        return lives0 - lives1
+
+    lost_wrong = _hit_zone(0.75, 1)   # azul (1) na metade vermelha (direita)
+    wrong_ok = lost_wrong == 2
+    print(f"[{'OK ' if wrong_ok else 'FAIL'}] purity: cor errada na zona "
+         f"errada -> tira 2 vidas (perdeu {lost_wrong})")
+    if not wrong_ok:
+        ok = False
+
+    lost_right = _hit_zone(0.25, 1)   # azul (1) na metade azul (esquerda)
+    right_ok = lost_right == 1
+    print(f"[{'OK ' if right_ok else 'FAIL'}] purity: cor certa na zona "
+         f"certa -> tira só 1 vida (perdeu {lost_right})")
+    if not right_ok:
+        ok = False
+
+    # Purity fase 1: força só aplica fora do anel de 120px
+    w_p2, inp_p2 = _bh2(boss_name="purity", weapon_name="padrao")
+    bp_p2 = w_p2.get_pool("boss")
+    bv_p2 = bp_p2.active_view()
+    bv_p2["hp"][0] = bv_p2["max_hp"][0] * 0.4
+    pl_p2 = w_p2.get_pool("player"); tp_p2 = w_p2.get_pool("transform")
+    pidx_p2 = int(pl_p2.active_entity_indices()[0])
+    trow_p2 = tp_p2.dense_row_of(pidx_p2)
+    bidx_p2 = int(bp_p2.active_entity_indices()[0])
+    btrow_p2 = tp_p2.dense_row_of(bidx_p2)
+    bx_p2 = float(tp_p2.active_view()["position_x"][btrow_p2])
+    by_p2 = float(tp_p2.active_view()["position_y"][btrow_p2])
+    tp_p2.active_view()["position_x"][trow_p2] = bx_p2
+    tp_p2.active_view()["position_y"][trow_p2] = by_p2 + 200.0   # fora do anel, on-screen
+    inp_p2.poll(); w_p2.step(DT)
+    y0 = float(tp_p2.active_view()["position_y"][trow_p2])
+    inp_p2.poll(); w_p2.step(DT)
+    y1 = float(tp_p2.active_view()["position_y"][trow_p2])
+    force_ok = (y1 - y0) > 1.0
+    print(f"[{'OK ' if force_ok else 'FAIL'}] purity: fora do anel -> "
+         f"força empurra pra baixo (y {y0:.1f}->{y1:.1f})")
+    if not force_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)

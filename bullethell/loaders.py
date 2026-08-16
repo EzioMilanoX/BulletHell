@@ -138,6 +138,10 @@ class BossPhaseDef:
     # (pattern_sid, off_x, off_y, part_idx) — part_idx -1 = origem na raiz
     emitters: Tuple[Tuple[int, float, float, int], ...]
     force: Tuple[float, float]    # px/s empurrando o jogador (Gula/Soberba)
+    # 0 = force incondicional (Gula/Soberba/Luxúria, sempre); >0 = só
+    # aplica force quando o jogador está a MAIS que force_radius do
+    # boss (Pureza: gravidade extrema fora do anel)
+    force_radius: float
     gimmick: str                  # "" | "spotlight" | "gate_minions" | "icon_hide"
     # (n, kind, hp, speed) — lacaios spawnados na ENTRADA da fase
     minions: Tuple[int, int, float, float]
@@ -253,6 +257,7 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
                          int(em.get("part", -1)))
                         for em in ph["emitters"]),
                     force=tuple(map(float, ph.get("force", [0.0, 0.0]))),
+                    force_radius=float(ph.get("force_radius", 0.0)),
                     gimmick=ph.get("gimmick", ""),
                     minions=tuple(ph.get("minions", [0, 0, 0.0, 0.0])),
                     part_kind=tuple(_PART_KIND[k] for k in ph.get("part_kind", ())),

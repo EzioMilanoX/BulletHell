@@ -95,7 +95,7 @@ def main() -> None:
                              "summoner", "omega", "pride", "gluttony", "sloth",
                              "envy", "greed", "lust", "wrath", "sin",
                              "monolith", "icon", "lineage", "truth",
-                             "silence", "sabbath", "ascetic"])
+                             "silence", "sabbath", "ascetic", "purity"])
     ap.add_argument("--weapon", default="padrao")
     ap.add_argument("--skill", default="none",
                     choices=["none", "dash", "parry", "focus", "emp", "blink",

@@ -476,17 +476,48 @@ outros 9.
         como esperado fisicamente, não é bug). Entra no loop genérico
         + 2 asserts dedicados (anel liga a armadilha; bala ocupando o
         vazio desliga). 6/6 smoke tests + 174 pytest OK.
+      - **14e** — **Purity** ("A Pureza"), passo 4 do plano (P2 — a
+        variante mais cara, força condicional por RAIO, não por
+        campo já existente — e P3, dano zona×cor). `BossPhaseDef`
+        ganha `force_radius` (default 0 = comportamento incondicional
+        de sempre, zero regressão pra Gula/Soberba/Luxúria): quando
+        `>0`, `BossGimmickSystem` só aplica `ph.force` se a distância
+        jogador↔boss for MAIOR que o raio — usado na fase 1 pra "fora
+        do anel de 120px, gravidade forte (180px/s) puxa pra baixo".
+        Dano zona×cor: como o dano ao jogador sempre foi binário
+        (`lives -= 1` em 4 lugares, sem nenhum valor numérico de dano
+        por bala), a simplificação já anotada no plano foi adotada
+        sem ajuste — `_absorb_or_damage` ganha `extra_life_loss`
+        (tira 2 vidas em vez de 1); `PlayerHitSystem` computa isso
+        comparando `eb["color"]` da bala que acertou (reusa os ids já
+        existentes na PALETTE — 1=azul, 4=rosa/vermelho — não precisou
+        de campo novo) contra a metade da tela em que o jogador está.
+        Detalhe de escopo cuidado: o gimmick `"purity_zones"` é só um
+        MARCADOR (não faz nada dentro de `BossGimmickSystem` — cai no
+        fallback normal que já limpa o invuln) lido por
+        `PlayerHitSystem`, que precisou ganhar acesso à pool `boss`
+        pra checar isso — sem essa checagem, a regra de zona teria
+        vazado pra QUALQUER boss que por acaso usasse as cores 1/4
+        (Gêmeos usa a cor 1 pro Yin!), o que teria sido uma regressão
+        real. Confirmado que Gêmeos/tether continuam intocados nos
+        6/6 smoke tests depois da mudança.
+        Só as fases "Separação"+"Laço Sagrado" desta rodada — a
+        "Contaminação" (anel encolhendo no fim) fica pra depois.
+        Entra no loop genérico + 3 asserts dedicados (zona errada tira
+        2 vidas; zona certa tira 1; força só empurra fora do anel).
+        6/6 smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Os 4 bosses restantes do Decálogo (Purity, Restitution, Mercy,
-      DECALOGUE final) — design completo já em
+- [ ] Os 3 bosses restantes do Decálogo (Restitution, Mercy, DECALOGUE
+      final) — design completo já em
       `.claude/plans/greedy-conjuring-knuth.md`, implementação ainda
-      pendente, boss a boss. Fase 2 do Ascetic ("Renúncia") também
-      fica pra quando Restitution construir a pool de pickup.
+      pendente, boss a boss. Fase 2 do Ascetic ("Renúncia") e fase 2
+      da Purity ("Contaminação") também ficam pra quando Restitution
+      construir a pool de pickup.
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

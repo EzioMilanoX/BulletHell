@@ -105,6 +105,11 @@ ASCETIC_HOLE_R = 40.0        # raio "vazio" checado ao redor do jogador
 ASCETIC_EDGE_R = 140.0       # raio da borda do buraco (anel de balas)
 ASCETIC_MIN_EDGE_N = 6       # nº mínimo de balas na borda pra contar como buraco
 ASCETIC_PULL_STRENGTH = 220.0
+# Pureza (Purity): metade azul (x<SCREEN_W/2) / metade vermelha da tela —
+# bala da cor errada na zona errada tira 1 vida A MAIS (ver PlayerHitSystem,
+# gimmick "purity_zones" só marca a fase ativa, não faz nada sozinho).
+PURITY_BLUE_COLOR = 1        # reusa a cor "yin azul" já existente na PALETTE
+PURITY_RED_COLOR = 4         # reusa a cor "tether" (rosa/vermelho) da PALETTE
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -2047,9 +2052,12 @@ class PlayerHitSystem(ISystem):
         self._mods = memory_manager.get_pool("run_mods")
         self._stats = memory_manager.get_pool("stats")
         self._mastery = memory_manager.get_pool("mastery")
+        self._boss = memory_manager.get_pool("boss")
 
-    def _absorb_or_damage(self, world, pv, prow, px: float, py: float) -> None:
-        """Aplica um hit no jogador respeitando o ESCUDO."""
+    def _absorb_or_damage(self, world, pv, prow, px: float, py: float,
+                          extra_life_loss: bool = False) -> None:
+        """Aplica um hit no jogador respeitando o ESCUDO. `extra_life_loss`
+        (Pureza: bala da cor errada na zona errada) tira 1 vida A MAIS."""
         if pv["shield_up"][prow]:
             pv["shield_up"][prow] = 0
             pv["invuln_t"][prow] = 0.5
@@ -2071,7 +2079,7 @@ class PlayerHitSystem(ISystem):
                                         1.0, 4.0, color=(120, 255, 160))
             return
         pv["invuln_t"][prow] = PLAYER_INVULN
-        pv["lives"][prow] -= 1
+        pv["lives"][prow] -= 2 if extra_life_loss else 1
         spawn_particles(world, self._mm, px, py, (240, 240, 255), 14,
                         speed=220.0, seed=int(px + py))
         add_shake(self._mm, 8.0)
@@ -2113,10 +2121,22 @@ class PlayerHitSystem(ISystem):
         prow = self._player.dense_row_of(i)
         pv = self._player.active_view()
         if hits.any():
+            extra_life_loss = False
+            for braw in self._boss.active_entity_indices():
+                brow_b = self._boss.dense_row_of(int(braw))
+                bv_b = self._boss.active_view()
+                bdef_b = self._data.bosses[int(bv_b["boss_id"][brow_b])]
+                if bdef_b.phases[int(bv_b["phase_idx"][brow_b])].gimmick == "purity_zones":
+                    hit_colors = eb["color"][hits]
+                    in_red_zone = px >= SCREEN_W / 2.0
+                    mismatched = (hit_colors == PURITY_BLUE_COLOR) if in_red_zone \
+                        else (hit_colors == PURITY_RED_COLOR)
+                    extra_life_loss = bool(mismatched.any())
+                    break
             for h in eb["self"][hits]:
                 world.destroy_entity(int(h))
             if pv["invuln_t"][prow] <= 0.0:
-                self._absorb_or_damage(world, pv, prow, px, py)
+                self._absorb_or_damage(world, pv, prow, px, py, extra_life_loss)
                 if pv["lives"][prow] < 0:          # game over
                     if not handle_player_death(pv, prow,
                                                self._mods.active_view(),
@@ -2803,8 +2823,14 @@ class BossGimmickSystem(ISystem):
             ph = bdef.phases[int(bv["phase_idx"][brow])]
 
             if ph.force != (0.0, 0.0):              # sucção/empuxo no jogador
-                tv["position_x"][ptrow] += ph.force[0] * delta_time
-                tv["position_y"][ptrow] += ph.force[1] * delta_time
+                apply_force = True
+                if ph.force_radius > 0.0:            # Pureza: só fora do anel
+                    btrow = self._transform.dense_row_of(bi)
+                    bx = float(tv["position_x"][btrow]); by = float(tv["position_y"][btrow])
+                    apply_force = (px - bx) ** 2 + (py - by) ** 2 > ph.force_radius ** 2
+                if apply_force:
+                    tv["position_x"][ptrow] += ph.force[0] * delta_time
+                    tv["position_y"][ptrow] += ph.force[1] * delta_time
 
             gm = ph.gimmick
             if gm == "spotlight":

@@ -299,6 +299,16 @@
       "_doc": "Decálogo #6 — Abnegação: anel denso com um vão de fuga que gira devagar — os 'buracos' emergem naturalmente da rotação do vão + a densidade geral, checados ao vivo pelo gimmick ascetic_trap.",
       "emit": "ring", "bullet": "std/normal",
       "period": 1.3, "count": 22, "speed": 100.0,
-      "gap": 0.4, "gap_step": 0.3 }
+      "gap": 0.4, "gap_step": 0.3 },
+
+    { "name": "purity/blue_shots",
+      "_doc": "Decálogo #6b — Pureza: leque azul mirado — dano em dobro se acertar na metade vermelha.",
+      "emit": "arc", "bullet": "purity/blue",
+      "period": 0.5, "count": 3, "arc": 0.5, "aim": "player", "speed": 170.0 },
+
+    { "name": "purity/red_shots",
+      "_doc": "Decálogo #6b — Pureza: leque vermelho mirado — dano em dobro se acertar na metade azul.",
+      "emit": "arc", "bullet": "purity/red",
+      "period": 0.5, "count": 3, "arc": 0.5, "aim": "player", "speed": 170.0 }
   ]
 }
