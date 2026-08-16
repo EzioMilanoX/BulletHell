@@ -395,6 +395,19 @@
           "force": [0, 180], "force_radius": 120,
           "emitters": [ { "pattern": "purity/blue_shots" },
                         { "pattern": "purity/red_shots" } ] }
+      ] },
+
+    { "name": "restitution",
+      "_doc": "Decálogo #8 — A Restituição: fase 0 (O Confisco) reafirma speed_debuff/fr_debuff (campos persistentes em PLAYER_DTYPE, imunes ao reset por frame de speed_mult/fr_mult no SkillSystem) assim que a luta começa. Fase 1 (A Devolução) para de reafirmar o confisco e passa a derrubar orbes dourados pelo mapa (pool `pickup` nova, spawn por hash determinístico via gimmick restitution_theft) — coletar devolve os stats aos poucos (PickupSystem). Bala do boss perto de um orb o faz 'piscar e recuar' (nudge + reduz ttl), no lugar de ricochete bala-vs-entidade de verdade.",
+      "hp": 360,
+      "hitbox": [20, 20],
+      "route": [[640, 90, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.5, "gimmick": "restitution_theft",
+          "emitters": [ { "pattern": "restitution/prison_bars" } ] },
+        { "hp_above": 0.0, "gimmick": "restitution_theft",
+          "emitters": [ { "pattern": "restitution/prison_bars" } ] }
       ] }
   ]
 }

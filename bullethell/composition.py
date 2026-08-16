@@ -62,6 +62,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_archetype("laser", ("transform", "sprite", "laser"))
     world.register_archetype("minion", ("transform", "velocity", "sprite", "minion"))
     world.register_archetype("hazard_entity", ("transform", "sprite", "hazard"))
+    world.register_archetype("pickup_entity", ("transform", "sprite", "pickup"))
     world.register_archetype("particle_entity", ("transform", "velocity",
                                                  "sprite", "particle"))
     world.register_archetype("emitter", ("emitter",))
@@ -86,6 +87,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.LaserSystem(mm))
     world.register_system(gs.MinionAISystem(mm))           # kamikazes perseguem
     world.register_system(gs.HazardSystem(mm))             # névoas SLOW (Luxúria)
+    world.register_system(gs.PickupSystem(mm))              # orbes (Restituição)
     world.register_system(gs.ScaledMovementSystem(mm))     # física com escalas de tempo
     world.register_system(gs.OrbitSystem(mm))              # pós-física: sobrescreve Transform
     world.register_system(gs.EnemyBulletBehaviorSystem(mm))
@@ -212,6 +214,7 @@ def _spawn_player(world: World, mm: MemoryManager, data: GameData,
     pv["skill_id"][row] = sid(skill_name)
     pv["focus_en"][row] = gs.FOCUS_MAX
     pv["speed_mult"][row] = pv["fr_mult"][row] = pv["dmg_mult"][row] = 1.0
+    pv["speed_debuff"][row] = pv["fr_debuff"][row] = 1.0   # Restituição: neutro
 
 
 def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str) -> None:

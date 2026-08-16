@@ -584,4 +584,108 @@ if __name__ == "__main__":
     if not force_ok:
         ok = False
 
+    # Decálogo #8 — Restitution: raiz normal, sem invuln escondendo nada.
+    r = run("restitution", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Restitution fase 0: confisca speed_debuff/fr_debuff assim que a luta
+    # começa (reafirmado toda frame enquanto phase_idx==0)
+    from bullethell.game_systems import (
+        spawn_pickup as _spu, RESTITUTION_SPEED_DEBUFF as _RSD,
+        RESTITUTION_FR_DEBUFF as _RFD,
+    )
+
+    w_rt, inp_rt = _bh2(boss_name="restitution", weapon_name="padrao")
+    pl_rt = w_rt.get_pool("player")
+    prow_rt = pl_rt.dense_row_of(int(pl_rt.active_entity_indices()[0]))
+    inp_rt.poll(); w_rt.step(DT)
+    sd0 = float(pl_rt.active_view()["speed_debuff"][prow_rt])
+    fr0 = float(pl_rt.active_view()["fr_debuff"][prow_rt])
+    confisco_ok = abs(sd0 - _RSD) < 1e-6 and abs(fr0 - _RFD) < 1e-6
+    print(f"[{'OK ' if confisco_ok else 'FAIL'}] restitution: confisco na "
+         f"fase 0 (speed_debuff={sd0:.2f}, fr_debuff={fr0:.2f})")
+    if not confisco_ok:
+        ok = False
+
+    # Restitution fase 1: derruba orbes dourados ao longo do tempo
+    bp_rt = w_rt.get_pool("boss")
+    bp_rt.active_view()["hp"][0] = bp_rt.active_view()["max_hp"][0] * 0.4
+    pu_rt = w_rt.get_pool("pickup")
+    max_pu = 0
+    for _ in range(400):
+        inp_rt.poll(); w_rt.step(DT)
+        max_pu = max(max_pu, pu_rt.count)
+    drop_ok = max_pu > 0
+    print(f"[{'OK ' if drop_ok else 'FAIL'}] restitution: fase 1 derruba "
+         f"orbes ao longo do tempo (pico={max_pu})")
+    if not drop_ok:
+        ok = False
+
+    # Restitution: coletar um orb devolve speed_debuff/fr_debuff rumo a 1.0
+    # (mundo novo — o w_rt anterior já tem a pool `pickup` cheia)
+    def _restitution_phase1(world_fn=_bh2):
+        w, inp = world_fn(boss_name="restitution", weapon_name="padrao")
+        inp.poll(); w.step(DT)                       # fase 0: confisca
+        bp = w.get_pool("boss")
+        bp.active_view()["hp"][0] = bp.active_view()["max_hp"][0] * 0.4
+        inp.poll(); w.step(DT)                        # transiciona p/ fase 1
+        return w, inp
+
+    w_rt2, inp_rt2 = _restitution_phase1()
+    pl_rt2 = w_rt2.get_pool("player")
+    prow_rt2 = pl_rt2.dense_row_of(int(pl_rt2.active_entity_indices()[0]))
+    tp_rt2 = w_rt2.get_pool("transform")
+    trow_rt2 = tp_rt2.dense_row_of(int(pl_rt2.active_entity_indices()[0]))
+    px_rt2 = float(tp_rt2.active_view()["position_x"][trow_rt2])
+    py_rt2 = float(tp_rt2.active_view()["position_y"][trow_rt2])
+    pu_rt2 = w_rt2.get_pool("pickup")
+    _spu(w_rt2, w_rt2, px_rt2, py_rt2)          # orb em cima do jogador
+    n0_rt = pu_rt2.count
+    sd1 = float(pl_rt2.active_view()["speed_debuff"][prow_rt2])
+    fr1 = float(pl_rt2.active_view()["fr_debuff"][prow_rt2])
+    inp_rt2.poll(); w_rt2.step(DT)
+    n1_rt = pu_rt2.count
+    sd2 = float(pl_rt2.active_view()["speed_debuff"][prow_rt2])
+    fr2 = float(pl_rt2.active_view()["fr_debuff"][prow_rt2])
+    restore_ok = (n1_rt == n0_rt - 1) and sd2 > sd1 and fr2 < fr1
+    print(f"[{'OK ' if restore_ok else 'FAIL'}] restitution: coletar orb "
+         f"devolve stats (speed_debuff={sd1:.2f}->{sd2:.2f}, "
+         f"fr_debuff={fr1:.2f}->{fr2:.2f}, orbs={n0_rt}->{n1_rt})")
+    if not restore_ok:
+        ok = False
+
+    # Restitution: bala do boss perto de um orb o empurra e reduz o ttl
+    # (mundo novo de novo — mesmo motivo)
+    from bullethell.game_systems import (
+        spawn_enemy_bullet as _seb2, RESTITUTION_ORB_TTL as _ROT,
+    )
+
+    w_rt3, inp_rt3 = _restitution_phase1()
+    pl_rt3 = w_rt3.get_pool("player"); tp_rt3 = w_rt3.get_pool("transform")
+    trow_rt3 = tp_rt3.dense_row_of(int(pl_rt3.active_entity_indices()[0]))
+    px_rt3 = float(tp_rt3.active_view()["position_x"][trow_rt3])
+    py_rt3 = float(tp_rt3.active_view()["position_y"][trow_rt3])
+    pu_rt3 = w_rt3.get_pool("pickup")
+    ox_rt, oy_rt = px_rt3 + 300.0, py_rt3 - 250.0     # longe do jogador
+    packed_rt = _spu(w_rt3, w_rt3, ox_rt, oy_rt)
+    oidx_rt = packed_rt & 0xFFFFFFFF
+    _seb2(w_rt3, w_rt3, ox_rt + 10.0, oy_rt, 0.0, 0.0, color=0)
+    inp_rt3.poll(); w_rt3.step(DT)
+    otrow_rt = tp_rt3.dense_row_of(oidx_rt)
+    if otrow_rt >= 0:
+        ox1_rt = float(tp_rt3.active_view()["position_x"][otrow_rt])
+        ttl1_rt = float(pu_rt3.active_view()["ttl"][pu_rt3.dense_row_of(oidx_rt)])
+        recoil_ok = ox1_rt != ox_rt and ttl1_rt < _ROT - 1e-3
+    else:
+        recoil_ok = False
+    print(f"[{'OK ' if recoil_ok else 'FAIL'}] restitution: bala perto do "
+         f"orb -> recua e reduz ttl")
+    if not recoil_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)

@@ -309,6 +309,12 @@
     { "name": "purity/red_shots",
       "_doc": "Decálogo #6b — Pureza: leque vermelho mirado — dano em dobro se acertar na metade azul.",
       "emit": "arc", "bullet": "purity/red",
-      "period": 0.5, "count": 3, "arc": 0.5, "aim": "player", "speed": 170.0 }
+      "period": 0.5, "count": 3, "arc": 0.5, "aim": "player", "speed": 170.0 },
+
+    { "name": "restitution/prison_bars",
+      "_doc": "Decálogo #8 — Restituição: colunas verticais do topo, como grades de prisão (150px/s, spec exata) — mesmo emit 'rain' do wall/rain.",
+      "emit": "rain", "bullet": "std/normal",
+      "period": 0.6, "count": 10, "gap": 0.25, "aim": "down",
+      "speed": 150.0 }
   ]
 }

@@ -49,6 +49,10 @@ PLAYER_DTYPE = np.dtype([
     ("dmg_t",      np.float32),
     ("skill_locked_t", np.float32),  # Reverência (Silêncio): >0 = skill travada
     ("fire_locked_t",  np.float32),  # Reverência (Silêncio): >0 = arma silenciada
+    # Restituição: confisco persistente (1.0=neutro), NÃO resetado por
+    # frame como speed_mult/fr_mult (só muda no confisco e ao coletar orbs)
+    ("speed_debuff", np.float32),
+    ("fr_debuff",    np.float32),
 ])
 
 CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
@@ -135,6 +139,11 @@ HAZARD_DTYPE = np.dtype([        # zonas de névoa SLOW (Luxúria)
     ("self",   np.uint64),
     ("radius", np.float32),
     ("t",      np.float32),      # tempo de vida restante
+])
+
+PICKUP_DTYPE = np.dtype([        # orbes dourados da Restituição (Fase 1)
+    ("self", np.uint64),
+    ("ttl",  np.float32),        # tempo de vida restante; despawna ao zerar
 ])
 
 BOSS_DTYPE = np.dtype([
@@ -265,6 +274,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "hud":          HUD_DTYPE,
     "minion":       MINION_DTYPE,
     "hazard":       HAZARD_DTYPE,
+    "pickup":       PICKUP_DTYPE,
     "boss":         BOSS_DTYPE,
     "part":         PART_DTYPE,
     "laser":        LASER_DTYPE,
@@ -289,7 +299,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 GAME_POOL_CAPACITY: Dict[str, int] = {
     "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "wave": 1,
     "mastery": 1,
-    "particle": 1024, "hud": 8, "minion": 64, "hazard": 8, "boss": 4,
+    "particle": 1024, "hud": 8, "minion": 64, "hazard": 8, "pickup": 4, "boss": 4,
     "part": 12, "laser": 16, "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,

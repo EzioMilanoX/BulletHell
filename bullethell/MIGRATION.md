@@ -506,18 +506,47 @@ outros 9.
         Entra no loop genérico + 3 asserts dedicados (zona errada tira
         2 vidas; zona certa tira 1; força só empurra fora do anel).
         6/6 smoke tests + 174 pytest OK.
+      - **14f** — **Restitution** ("A Restituição"), passo 5 do plano
+        (P5 completo — pool nova, maior risco isolado de propósito).
+        `PLAYER_DTYPE` ganha `speed_debuff`/`fr_debuff`: multiplicadores
+        PERSISTENTES (1.0=neutro), diferente de `speed_mult`/`fr_mult`
+        que o `SkillSystem` reseta pra 1.0 todo frame — achado do plano
+        confirmado na prática, por isso os campos novos. Fase 0 (O
+        Confisco) reafirma `speed_debuff=0.5`/`fr_debuff=1.8` todo
+        frame via o gimmick `restitution_theft` (mesmo padrão
+        reset-e-reafirma do `clock["invert"]`); fase 1 (A Devolução)
+        para de reafirmar — os valores ficam exatamente onde a fase 0
+        os deixou — e passa a derrubar orbes dourados a cada 1.5s
+        (posição por hash determinístico em `boss.aux_angle`/`aux2`,
+        mesmo esquema do `seventh_seal`).
+        Pool `pickup` nova (`self`+`ttl`, capacidade 4) e arquétipo
+        `pickup_entity` — sem `radius`/`kind` por entidade (só existe
+        1 tipo de orb hoje, raio fixo em constante, YAGNI). `PickupSystem`
+        genérico (roda sempre, no-op se `pickup.count==0`, mesmo padrão
+        do `HazardSystem`): expira por `ttl`, colide com o jogador
+        (círculo raio 16px) e devolve os stats, e detecta bala do boss
+        perto de um orb — em vez de ricochete bala-vs-entidade de
+        verdade (que não existe em lugar nenhum do jogo, confirmado no
+        plano), o orb só "pisca e recua" (nudge de 40px + corta 1s do
+        ttl), simplificação deliberada com a mesma sensação de risco.
+        Padrão `restitution/prison_bars` reusa o emit `"rain"` que o
+        `wall/rain` já tinha (colunas verticais do topo = "grades de
+        prisão" do espec, sem precisar de emit type novo).
+        Entra no loop genérico + 4 asserts dedicados (confisco ativo na
+        fase 0; orbes caem ao longo do tempo na fase 1; coletar devolve
+        stats; bala perto recua e reduz ttl). 6/6 smoke tests + 174
+        pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Os 3 bosses restantes do Decálogo (Restitution, Mercy, DECALOGUE
-      final) — design completo já em
-      `.claude/plans/greedy-conjuring-knuth.md`, implementação ainda
-      pendente, boss a boss. Fase 2 do Ascetic ("Renúncia") e fase 2
-      da Purity ("Contaminação") também ficam pra quando Restitution
-      construir a pool de pickup.
+- [ ] Os 2 bosses restantes do Decálogo (Mercy, DECALOGUE final) —
+      design completo já em `.claude/plans/greedy-conjuring-knuth.md`,
+      implementação ainda pendente, boss a boss. Fase 2 do Ascetic
+      ("Renúncia") e fase 2 da Purity ("Contaminação") agora que a pool
+      `pickup` da Restitution existe.
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

@@ -110,6 +110,20 @@ ASCETIC_PULL_STRENGTH = 220.0
 # gimmick "purity_zones" só marca a fase ativa, não faz nada sozinho).
 PURITY_BLUE_COLOR = 1        # reusa a cor "yin azul" já existente na PALETTE
 PURITY_RED_COLOR = 4         # reusa a cor "tether" (rosa/vermelho) da PALETTE
+# Restituição (Restitution): confisca velocidade/cadência ao entrar na luta
+# (fase 0), devolve aos poucos coletando orbes dourados (fase 1). Balas do
+# boss perto de um orb o fazem "piscar e recuar" (nudge + reduz ttl) — no
+# lugar de ricochete bala-vs-entidade de verdade, que não existe no jogo.
+RESTITUTION_SPEED_DEBUFF = 0.5     # Speed ×0.5 (spec exata)
+RESTITUTION_FR_DEBUFF = 1.8        # cadência "despenca" (fire_rate ×1.8)
+RESTITUTION_RESTORE_SPEED = 0.15   # por orb coletado, sobe rumo a 1.0
+RESTITUTION_RESTORE_FR = 0.2       # por orb coletado, desce rumo a 1.0
+RESTITUTION_ORB_R = 16.0           # raio de coleta do orb
+RESTITUTION_ORB_TTL = 6.0          # despawna se não coletado em 6s
+RESTITUTION_ORB_SPAWN_T = 1.5      # intervalo entre drops (fase 1)
+RESTITUTION_BULLET_NEAR_R = 50.0   # bala do boss perto de um orb o afeta
+RESTITUTION_RECOIL_PUSH = 40.0     # px de empurrão ao "piscar e recuar"
+RESTITUTION_RECOIL_TTL_CUT = 1.0   # segundos a menos no ttl ao ser "atingido"
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -373,6 +387,30 @@ def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
     mv["hp"][mrow] = hp
     mv["speed"][mrow] = speed
     mv["timer"][mrow] = BUBBLE_EXPLODE_T if kind == MINION_BUBBLE else 0.0
+    return packed
+
+
+def spawn_pickup(world: "World", mm: MemoryManager, x: float, y: float) -> int:
+    """Spawna um orb dourado da Restituição. Retorna packed ou -1 (pool cheia)."""
+    pickup = mm.get_pool("pickup")
+    if pickup.count >= pickup.capacity:
+        return -1
+    packed = world.create_entity("pickup_entity")
+    idx = packed & 0xFFFFFFFF
+    t = mm.get_pool("transform")
+    trow = t.dense_row_of(idx); tv = t.active_view()
+    tv["position_x"][trow] = x
+    tv["position_y"][trow] = y
+    tv["scale_x"][trow] = tv["scale_y"][trow] = RESTITUTION_ORB_R / 4.0
+    s = mm.get_pool("sprite")
+    srow = s.dense_row_of(idx); sv = s.active_view()
+    sv["texture_id"][srow] = SHAPE_CIRCLE
+    sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 255, 210, 60
+    sv["tint_a"][srow] = 255
+    sv["layer_z"][srow] = 14
+    prow = pickup.dense_row_of(idx); pkv = pickup.active_view()
+    pkv["self"][prow] = np.uint64(packed)
+    pkv["ttl"][prow] = RESTITUTION_ORB_TTL
     return packed
 LASER_TELEGRAPH, LASER_FIRE_DUR = 1.8, 0.65
 LASER_HALF = 6.0
@@ -766,7 +804,8 @@ class PlayerControlSystem(ISystem):
             dx *= 0.7071; dy *= 0.7071
         prow = self._player.dense_row_of(i)
         pv = self._player.active_view()
-        speed = PLAYER_SPEED * float(pv["speed_mult"][prow])   # DASH/OC+
+        speed = (PLAYER_SPEED * float(pv["speed_mult"][prow])   # DASH/OC+
+                * float(pv["speed_debuff"][prow]))              # Restituição
         vrow = self._velocity.dense_row_of(i)
         vv = self._velocity.active_view()
         vv["linear_x"][vrow] = dx * speed
@@ -826,7 +865,8 @@ class WeaponFireSystem(ISystem):
         if wd is None:
             return
         # multiplicadores: habilidades (OVERCLOCK / EMP+) + CANHÃO DE VIDRO
-        self._fr = float(pv["fr_mult"][prow])
+        # + confisco persistente da Restituição (fr_debuff)
+        self._fr = float(pv["fr_mult"][prow]) * float(pv["fr_debuff"][prow])
         self._dmg = float(pv["dmg_mult"][prow])
         if self._mods.active_view()["glass"][0]:
             self._dmg *= 3.0
@@ -3051,6 +3091,22 @@ class BossGimmickSystem(ISystem):
                     if collapsing:
                         eb["gravity"][near_edge] = ASCETIC_PULL_STRENGTH
 
+            elif gm == "restitution_theft":          # Restituição: confisco + devolução
+                bv["invuln"][brow] = 0
+                if int(bv["phase_idx"][brow]) == 0:  # O Confisco: reafirma toda frame
+                    pv["speed_debuff"][prow] = RESTITUTION_SPEED_DEBUFF
+                    pv["fr_debuff"][prow] = RESTITUTION_FR_DEBUFF
+                else:                                # A Devolução: derruba orbes
+                    bv["aux_angle"][brow] += wdt
+                    if bv["aux_angle"][brow] >= RESTITUTION_ORB_SPAWN_T:
+                        bv["aux_angle"][brow] -= RESTITUTION_ORB_SPAWN_T
+                        seed = int(bv["aux2"][brow]); bv["aux2"][brow] += 1
+                        ox = SCREEN_W / 2.0 + (((seed * 2654435761) % 2000) - 1000) \
+                            / 1000.0 * (SCREEN_W / 2.0 - 120.0)
+                        oy = SCREEN_H / 2.0 + (((seed * 2654435761 + 12345) % 2000) - 1000) \
+                            / 1000.0 * (SCREEN_H / 2.0 - 160.0)
+                        spawn_pickup(world, self._mm, ox, oy)
+
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0
         if not spotlight_on:                        # apaga o feixe
@@ -3151,6 +3207,71 @@ class HazardSystem(ISystem):
             vv = self._velocity.active_view()
             vv["linear_x"][vrow] *= 0.5
             vv["linear_y"][vrow] *= 0.5
+
+
+# ===========================================================================
+class PickupSystem(ISystem):
+    """Orbes dourados da Restituição (fase 1, spawnados pelo gimmick
+    restitution_theft): expiram por tempo; jogador em cima devolve os
+    stats confiscados aos poucos; bala do boss perto de um orb o faz
+    'piscar e recuar' (nudge + reduz ttl) — simplificação no lugar de
+    ricochete bala-vs-entidade de verdade, que não existe em lugar
+    nenhum do jogo."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._pickup = memory_manager.get_pool("pickup")
+        self._transform = memory_manager.get_pool("transform")
+        self._player = memory_manager.get_pool("player")
+        self._eb = memory_manager.get_pool("enemy_bullet")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._pickup.count
+        if n == 0:
+            return
+        pv = self._pickup.active_view()
+        pv["ttl"] -= delta_time
+        dead = pv["ttl"] <= 0.0
+        idxs = self._pickup.active_entity_indices()
+        trows = self._transform.dense_rows_of(idxs)
+        tv = self._transform.active_view()
+
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow >= 0:
+            px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+            dx = tv["position_x"][trows] - px
+            dy = tv["position_y"][trows] - py
+            collected = (~dead) & (dx * dx + dy * dy <= RESTITUTION_ORB_R ** 2)
+            n_collected = int(collected.sum())
+            if n_collected:
+                prow = self._player.dense_row_of(i)
+                plv = self._player.active_view()
+                plv["speed_debuff"][prow] = min(1.0, float(plv["speed_debuff"][prow])
+                                                + RESTITUTION_RESTORE_SPEED * n_collected)
+                plv["fr_debuff"][prow] = max(1.0, float(plv["fr_debuff"][prow])
+                                             - RESTITUTION_RESTORE_FR * n_collected)
+                dead = dead | collected
+
+        if self._eb.count:
+            eidxs = self._eb.active_entity_indices()
+            erows = self._transform.dense_rows_of(eidxs)
+            ex = tv["position_x"][erows]; ey = tv["position_y"][erows]
+            for k in range(n):
+                if dead[k]:
+                    continue
+                bx = float(tv["position_x"][trows[k]]); by = float(tv["position_y"][trows[k]])
+                near = (ex - bx) ** 2 + (ey - by) ** 2 <= RESTITUTION_BULLET_NEAR_R ** 2
+                if near.any():
+                    j = int(np.argmax(near))
+                    ddx = bx - float(ex[j]); ddy = by - float(ey[j])
+                    d = math.hypot(ddx, ddy) or 1.0
+                    tv["position_x"][trows[k]] = min(max(
+                        bx + ddx / d * RESTITUTION_RECOIL_PUSH, 16.0), SCREEN_W - 16.0)
+                    tv["position_y"][trows[k]] = min(max(
+                        by + ddy / d * RESTITUTION_RECOIL_PUSH, 16.0), SCREEN_H - 16.0)
+                    pv["ttl"][k] -= RESTITUTION_RECOIL_TTL_CUT
+
+        for h in pv["self"][dead]:
+            world.destroy_entity(int(h))
 
 
 # ===========================================================================
