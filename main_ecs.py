@@ -38,6 +38,7 @@ def _load_save() -> dict:
     save = {"runs": 0, "total_kills": 0, "total_deaths": 0,
             "total_graze": 0, "total_parries": 0, "achievements": [],
             "highest_cleared_diff": 0, "sins_rush_cleared": False,
+            "decalogue_rush_cleared": False,
             "unlocked_skills": ["none", "dash"],
             "unlocked_mutators": [], "omega_unlocked": False,
             "skill_plus_unlocked": [], "weapon_plus_unlocked": [],
@@ -87,7 +88,7 @@ def main() -> None:
     ap.add_argument("--play", action="store_true",
                     help="pula o menu e inicia direto com as opções dadas")
     ap.add_argument("--mode", default="classic",
-                    choices=["classic", "rush", "sins", "waves"])
+                    choices=["classic", "rush", "sins", "waves", "decalogo"])
     ap.add_argument("--diff", default="normal",
                     choices=["facil", "normal", "dificil", "expert", "abissal"])
     ap.add_argument("--boss", default="classic",

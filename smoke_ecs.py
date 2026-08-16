@@ -186,6 +186,16 @@ if __name__ == "__main__":
         ok = False
     print(f"[{status}] {r}")
 
+    # Decálogo Rush: spread+ derrete o monolith (1º estágio, ordem canônica
+    # dos mandamentos) → deve avançar pro icon (2º estágio)
+    r = run("classic", "spread+", frames=2400, approach=True, mode="decalogo")
+    r["mode"] = "decalogo"
+    rushed = r["kills"] >= 1
+    status = "OK " if rushed else "FAIL"
+    if not rushed:
+        ok = False
+    print(f"[{status}] {r}")
+
     # SINS RUSH: HP escala +15%/stage (legado, spec menus §11) — o
     # 2º boss da fila deve ter mais HP máximo que o 1º só pelo estágio
     from bullethell.composition import build_headless as _bh
@@ -905,6 +915,56 @@ if __name__ == "__main__":
          f"diagonal de verdade (x {x0_lk:.1f}->{x1_lk:.1f}, "
          f"y {y0_lk:.1f}->{y1_lk:.1f})")
     if not lock_ok:
+        ok = False
+
+    # Decálogo Rush: cascateia pela ordem canônica dos mandamentos e varre
+    # pools sem campo 'root' (minion/pickup/hazard/laser) a cada troca de
+    # boss — sem isso, orbes/Inocentes/minas/névoas sobreviveriam pro
+    # próximo estágio
+    from bullethell.game_systems import RUSH_ORDERS as _RO
+    from bullethell.ids import sid as _sid
+    from bullethell.loaders import load_all as _la2
+    from bullethell.game_systems import spawn_pickup as _spu2, spawn_minion as _smi2
+    from bullethell.game_systems import MINION_INNOCENT as _MI2
+
+    _data2 = _la2()
+    w_dr, inp_dr = _bh2(mode="decalogo")
+    bp_dr = w_dr.get_pool("boss")
+    canon_order = _RO[4]
+
+    def _kill_current_and_advance():
+        bv = bp_dr.active_view()
+        for k in range(bp_dr.count):
+            bid = int(bv["boss_id"][k])
+            n_ph = len(_data2.bosses[bid].phases)
+            bv["phase_idx"][k] = n_ph - 1
+            bv["hp"][k] = 0.0
+        inp_dr.poll(); w_dr.step(DT)
+        inp_dr.poll(); w_dr.step(DT)
+
+    cascade_ok = True
+    for i in range(3):                       # monolith -> icon -> silence -> sabbath
+        _kill_current_and_advance()
+        expected = canon_order[i + 1]
+        ids_now = sorted(set(int(bp_dr.active_view()["boss_id"][k])
+                             for k in range(bp_dr.count)))
+        expected_ids = sorted({_sid(expected)})
+        cascade_ok = cascade_ok and (ids_now == expected_ids)
+    print(f"[{'OK ' if cascade_ok else 'FAIL'}] decalogo rush: cascateia "
+         f"monolith->icon->silence->sabbath na ordem canonica")
+    if not cascade_ok:
+        ok = False
+
+    pu_dr = w_dr.get_pool("pickup"); mn_dr = w_dr.get_pool("minion")
+    _spu2(w_dr, w_dr, 400.0, 300.0)
+    _smi2(w_dr, w_dr, 500.0, 300.0, _MI2, 1.0, 0.0)
+    n0_dr = pu_dr.count, mn_dr.count
+    _kill_current_and_advance()               # sabbath -> lineage
+    n1_dr = pu_dr.count, mn_dr.count
+    sweep_ok = n0_dr[0] > 0 and n0_dr[1] > 0 and n1_dr == (0, 0)
+    print(f"[{'OK ' if sweep_ok else 'FAIL'}] decalogo rush: troca de boss "
+         f"varre pickup/minion orfaos ({n0_dr}->{n1_dr})")
+    if not sweep_ok:
         ok = False
 
     raise SystemExit(0 if ok else 1)

@@ -109,9 +109,10 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     _spawn_hud(world, mm)
     _spawn_player(world, mm, data, weapon_name, skill_name,
                   glass=("glass" in mutators))
-    # modos: classic = boss escolhido em loop; rush/sins = sequência;
+    # modos: classic = boss escolhido em loop; rush/sins/decalogo = sequência;
     # waves = Wave Survival (WaveSystem controla os spawns)
-    rush_kind = {"classic": 0, "rush": 1, "sins": 2, "waves": 3}.get(mode, 0)
+    rush_kind = {"classic": 0, "rush": 1, "sins": 2, "waves": 3,
+                "decalogo": 4}.get(mode, 0)
     mods = mm.get_pool("run_mods")
     mods.active_view()["rush"][0] = rush_kind
     mods.active_view()["rush_idx"][0] = 0
@@ -123,7 +124,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     wpacked = world.create_entity("wave_entity")
     wrow = mm.get_pool("wave").dense_row_of(wpacked & 0xFFFFFFFF)
     mm.get_pool("wave").active_view()["idx"][wrow] = -1   # 1ª onda no 1º frame
-    if rush_kind in (1, 2):
+    if rush_kind in (1, 2, 4):
         _spawn_boss(world, mm, data, gs.RUSH_ORDERS[rush_kind][0])
     elif rush_kind == 0:
         _spawn_boss(world, mm, data, boss_name)

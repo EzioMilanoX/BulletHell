@@ -10,7 +10,11 @@ import bullethell  # noqa: F401 — engine no sys.path
 from ouroboros.interfaces.null.null_renderer import NullRenderer
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 from bullethell.loaders import load_all
-from bullethell.scenes import ACHIEVEMENTS, BOSSES, DIFFS, GameApp, MUTATORS, SKILLS
+from bullethell.scenes import (
+    ACHIEVEMENTS, BOSSES, DIFFS, GameApp, MODES, MUTATORS, SKILLS,
+)
+
+DECALOGO_IDX = [m[0] for m in MODES].index("decalogo")
 
 DATA = load_all()
 
@@ -35,6 +39,8 @@ if __name__ == "__main__":
     ok &= check("save novo: EXPERT travada", a._diff_locked(3) is True)
     ok &= check("save novo: ABISSAL travada (exige SINS RUSH)",
                a._diff_locked(4) is True)
+    ok &= check("save novo: DECALOGO RUSH travado (exige SINS RUSH)",
+               a._mode_locked(DECALOGO_IDX) is True)
     ok &= check("save novo: DASH destravada", a._skill_locked("dash") is False)
     ok &= check("save novo: PARRY travada", a._skill_locked("parry") is True)
     ok &= check("save novo: ESCUDO travada", a._skill_locked("shield") is True)
@@ -101,6 +107,11 @@ if __name__ == "__main__":
     a._apply_progression("win")
     ok &= check("vencer o SINS RUSH -> ABISSAL destrava",
                a._diff_locked(4) is False)
+    ok &= check("vencer o SINS RUSH -> DECALOGO RUSH destrava",
+               a._mode_locked(DECALOGO_IDX) is False)
+    ok &= check("vencer o SINS RUSH -> decalogue_rush_cleared ainda False "
+               "(só sins_rush_cleared muda aqui)",
+               a.save.get("decalogue_rush_cleared", False) is False)
 
     a = app_with({})
     a.achieved = {"grazes_100", "no_hit_win"}
@@ -128,8 +139,8 @@ if __name__ == "__main__":
 
     # --- conquistas (PARITY_PLAN P1-6: 20 reais, sem masteries falsas) ---
     ids = [a[0] for a in ACHIEVEMENTS]
-    ok &= check("20 conquistas, todas com id único",
-               len(ids) == 20 and len(set(ids)) == len(ids))
+    ok &= check("21 conquistas, todas com id único",
+               len(ids) == 21 and len(set(ids)) == len(ids))
     ok &= check("5 são secretas (parries_200/speed_hard/all_mutators/"
                "no_skill/omega_hard)",
                sum(1 for a in ACHIEVEMENTS if a[4]) == 5)
@@ -160,5 +171,15 @@ if __name__ == "__main__":
                {"boss_rush_win", "easy_win", "no_hit_win"} <= a.achieved)
     ok &= check("NAO concede hard_win/speed_hard/no_skill (condicoes erradas)",
                not ({"hard_win", "speed_hard", "no_skill"} & a.achieved))
+
+    a = app_with({})
+    a.end_stats = (1, 0, 0)
+    a.sel.update(mode="decalogo", diff="facil", boss="classic", skill="dash",
+                muts=set())
+    a.totals["parries"] = a.totals["graze"] = 0
+    a.run_t = 999.0
+    a._check_achievements("win", lives=3, graze=0)
+    ok &= check("concede decalogue_rush_win + easy_win + no_hit_win",
+               {"decalogue_rush_win", "easy_win", "no_hit_win"} <= a.achieved)
 
     raise SystemExit(0 if ok else 1)

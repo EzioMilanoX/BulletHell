@@ -71,6 +71,11 @@ SPOT_SWEEP = 95.0                 # px/s de varredura
 RUSH_ORDERS = {
     1: ("classic", "swarm", "wall", "timemage", "twins", "summoner", "omega"),
     2: ("pride", "sloth", "envy", "gluttony", "greed", "lust", "wrath", "sin"),
+    # Decálogo Rush: ordem CANÔNICA dos mandamentos (1º-10º + final), não a
+    # ordem de implementação. Sem escala de HP (como o Boss Rush) — a
+    # dificuldade já vem da complexidade mecânica crescente de cada boss.
+    4: ("monolith", "icon", "silence", "sabbath", "lineage", "mercy",
+        "purity", "restitution", "truth", "ascetic", "decalogue"),
 }
 SINS_RUSH_HP_SCALE = 1.15   # legado: hp_scale_per_stage do SINS Rush (spec §11)
 
@@ -1213,7 +1218,7 @@ class BossPhaseSystem(ISystem):
                         add_shake(self._mm, 12.0)
                         add_sfx(self._mm, SFX_BOOM)
                     mode = int(mods["rush"][0])
-                    if mode in (1, 2):             # Boss Rush / SINS
+                    if mode in (1, 2, 4):           # Boss Rush / SINS / Decálogo
                         self._rush_advance(world, i, brow, bv)
                     elif mode == 3:                # Waves: só remove; o
                         self._destroy_boss(world, i, brow, bv)   # WaveSystem avança
@@ -1282,6 +1287,16 @@ class BossPhaseSystem(ISystem):
         self._destroy_boss(world, boss_index, brow, bv)
         if others_alive:
             return
+        # limpa entidades órfãs sem campo `root` que a troca de boss não
+        # varre sozinha (orbes da Restituição, Inocentes/minas/névoas da
+        # Misericórdia, lasers em voo) — sem isso sobreviveriam pro
+        # próximo estágio (ex.: coletar de graça um orb de status durante
+        # a introdução do boss seguinte). Mesmo gap já existia em silêncio
+        # no SINS Rush (minas da Avareza podiam sobreviver pra Luxúria).
+        for pool_name in ("minion", "pickup", "hazard", "laser"):
+            pool = self._mm.get_pool(pool_name)
+            for h in pool.active_view()["self"][: pool.count]:
+                world.destroy_entity(int(h))
         mods = self._mods.active_view()
         order = RUSH_ORDERS[int(mods["rush"][0])]
         mods["rush_idx"][0] = (int(mods["rush_idx"][0]) + 1) % len(order)

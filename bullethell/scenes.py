@@ -81,6 +81,8 @@ ACHIEVEMENTS = [
      False, None),
     ("glass_win", "CORAÇÃO DE VIDRO", "Vença com o CANHÃO DE VIDRO.",
      "—", False, None),
+    ("decalogue_rush_win", "O JUÍZO", "Complete o DECÁLOGO RUSH.", "—",
+     False, None),
 ]
 
 # clock.sfx → som registrado (bit, sound_id)
@@ -109,7 +111,11 @@ MODES = [("classic", "CLÁSSICO",
           "Vencer libera a dificuldade ABISSAL."), (180, 40, 255)),
          ("waves", "WAVE SURVIVAL",
          ("30 ondas; bosses nas ondas 10/20/30.",
-          "Sobreviva até o fim para vencer."), (80, 200, 100))]
+          "Sobreviva até o fim para vencer."), (80, 200, 100)),
+         ("decalogo", "DECÁLOGO RUSH",
+         ("11 bosses em ordem fixa — dos Mandamentos ao Juízo Final.",
+          "HP sem escala — a lei fica mais complexa, não mais forte.",
+          "⚠ Requer vitória no SINS RUSH"), (245, 245, 240))]
 
 DIFFS = [("facil", "FÁCIL",
          ("HP ×0.67 e velocidade ×0.75.",
@@ -276,7 +282,8 @@ BOSS_INTROS = {
 }
 
 WIN_GOALS = {"classic": 1, "rush": len(RUSH_ORDERS[1]),
-             "sins": len(RUSH_ORDERS[2]), "waves": 3}
+             "sins": len(RUSH_ORDERS[2]), "waves": 3,
+             "decalogo": len(RUSH_ORDERS[4])}
 
 ACCENT = (124, 80, 255, 255)
 TXT = (221, 218, 245, 255)
@@ -421,6 +428,7 @@ class GameApp:
     def _cheat_unlock_all(self) -> None:
         self.save["highest_cleared_diff"] = len(DIFFS) - 1
         self.save["sins_rush_cleared"] = True
+        self.save["decalogue_rush_cleared"] = True
         self.save["unlocked_skills"] = [s[0] for s in SKILLS]
         self.save["unlocked_mutators"] = [m[0] for m in MUTATORS]
         self.save["omega_unlocked"] = True
@@ -435,6 +443,7 @@ class GameApp:
             "runs": 0, "total_kills": 0, "total_deaths": 0, "total_graze": 0,
             "total_parries": 0, "achievements": [],
             "highest_cleared_diff": 0, "sins_rush_cleared": False,
+            "decalogue_rush_cleared": False,
             "unlocked_skills": ["none", "dash"], "unlocked_mutators": [],
             "omega_unlocked": False, "skill_plus_unlocked": [],
             "weapon_plus_unlocked": [], "best_time_dificil": 0.0,
@@ -513,7 +522,8 @@ class GameApp:
             self._menu([m[1] for m in MODES], "MODO DE JOGO",
                        colors=[m[3] for m in MODES],
                        descs=[m[2] for m in MODES],
-                       on_confirm=self._mode_confirm, back_to=MENU_MAIN)
+                       on_confirm=self._mode_confirm, back_to=MENU_MAIN,
+                       locked=[self._mode_locked(k) for k in range(len(MODES))])
         elif s == MENU_DIFF:
             self._menu([d[1] for d in DIFFS], "BULLET HELL",
                        colors=[d[3] for d in DIFFS],
@@ -594,6 +604,11 @@ class GameApp:
         if DIFFS[idx][0] == "abissal":     # só pelo SINS RUSH, não por tier
             return not self.save.get("sins_rush_cleared", False)
         return idx > int(self.save.get("highest_cleared_diff", 0))
+
+    def _mode_locked(self, idx: int) -> bool:
+        if MODES[idx][0] == "decalogo":   # desafio final: só pelo SINS RUSH
+            return not self.save.get("sins_rush_cleared", False)
+        return False
 
     def _skill_locked(self, name: str) -> bool:
         return name not in self.save.get("unlocked_skills", ["none", "dash"])
@@ -942,6 +957,8 @@ class GameApp:
                     14, MUTED, anchor="center")
 
     def _mode_confirm(self, k: int) -> None:
+        if self._mode_locked(k):
+            return
         self.sel["mode"] = MODES[k][0]
         self.state, self.cursor = MENU_DIFF, 1
 
@@ -992,6 +1009,8 @@ class GameApp:
             self.sel["skill"] = "none"
         if self._diff_locked([d[0] for d in DIFFS].index(self.sel["diff"])):
             self.sel["diff"] = "facil"
+        if self._mode_locked([m[0] for m in MODES].index(self.sel["mode"])):
+            self.sel["mode"] = "classic"
         skill = self.sel["skill"]
         if self.sel["skill_plus"] and self._has_plus(skill, self._data.skills) \
                 and self._plus_unlocked("skill", skill):
@@ -1009,6 +1028,7 @@ class GameApp:
         mode = self.sel["mode"]
         self.intro_boss = (RUSH_ORDERS[1][0] if mode == "rush" else
                            RUSH_ORDERS[2][0] if mode == "sins" else
+                           RUSH_ORDERS[4][0] if mode == "decalogo" else
                            self.sel["boss"])
         self.intro_t = 0.0 if mode == "waves" else 2.4
         self.run_t = 0.0
@@ -1212,6 +1232,8 @@ class GameApp:
             grant("sins_rush_win")
         if mode == "waves":
             grant("waves_win")
+        if mode == "decalogo":
+            grant("decalogue_rush_win")
         if "glass" in muts:
             grant("glass_win")
         if len(muts) >= 3:
@@ -1232,6 +1254,8 @@ class GameApp:
         self.save["highest_cleared_diff"] = hcd
         if self.sel["mode"] == "sins":
             self.save["sins_rush_cleared"] = True
+        if self.sel["mode"] == "decalogo":
+            self.save["decalogue_rush_cleared"] = True
 
         unlocked = set(self.save.get("unlocked_skills", ["none", "dash"]))
         if hcd >= 1:                                  # venceu FÁCIL
@@ -1410,6 +1434,9 @@ class GameApp:
         for name in ("twin_yin", "twin_yang"):
             if sid(name) == boss_id:
                 return "OS GÊMEOS"
+        for name in ("lineage_sol", "lineage_lua"):
+            if sid(name) == boss_id:
+                return "LINHAGEM †"
         return "???"
 
     def _render_intro(self) -> None:
@@ -1454,4 +1481,5 @@ class GameApp:
 
 
 MODES_SHORT = [("classic", "CLÁSSICO"), ("rush", "BOSS RUSH"),
-               ("sins", "SINS RUSH"), ("waves", "WAVES")]
+               ("sins", "SINS RUSH"), ("waves", "WAVES"),
+               ("decalogo", "DECÁLOGO RUSH")]

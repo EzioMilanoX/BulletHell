@@ -626,14 +626,58 @@ outros 9.
         `--boss <nome>` e cobertos em `smoke_ecs.py`; nenhum ainda em
         `CLASSIC_BOSS_NAMES`/Boss Rush (falta um modo "rush" próprio
         do arco, fora de escopo por ora).
+      - **14i** — **Modo Decálogo Rush**, encaixa o arco completo como
+        5º modo de jogo (`rush_kind=4` em `RUSH_ORDERS`), reusando 100%
+        da infra do Boss Rush/SINS Rush — nenhuma pool/sistema novo.
+        Ordem CANÔNICA dos mandamentos (1º-10º + final, do espec
+        original), não a ordem de implementação:
+        monolith→icon→silence→sabbath→lineage→mercy→purity→
+        restitution→truth→ascetic→decalogue (`"lineage"` spawna sol+lua
+        como par; `others_alive` em `_rush_advance` já trata bosses de
+        2 raízes, mesmo mecanismo do `"twins"` no Boss Rush). Sem
+        escala de HP (flat, como o Boss Rush) e travado atrás de
+        `sins_rush_cleared` (mesmo flag que libera ABISSAL) — vira "o
+        desafio final" da progressão, decisões confirmadas com o
+        usuário antes de implementar.
+        3 bugs pegos e corrigidos durante a implementação (nenhum
+        estava no plano original, todos achados testando de verdade):
+        (1) `BossPhaseSystem` só chamava `_rush_advance` pra
+        `mode in (1, 2)` — faltava o `4` novo, sem isso o boss nunca
+        avançava e só reiniciava (fluxo "clássico"); (2) `build_world`
+        só spawnava o boss inicial pra `rush_kind in (1, 2)`, mesmo gap;
+        (3) `_boss_display` (nome do boss no HUD) não reconhecia
+        `lineage_sol`/`lineage_lua` como sids válidos (só o menu-name
+        `"lineage"`, que nunca é o boss_id real em runtime) — mostrava
+        "???" durante a luta da Honra; corrigido com o mesmo fallback
+        que já existe pra `twin_yin`/`twin_yang`. Também corrigido um
+        gap de limpeza NUNCA notado (nem no SINS Rush, que já o tinha
+        silenciosamente): `_rush_advance` só limpava `emitter`/`part`/a
+        raiz do boss morto — pools sem campo `root` (`minion`,
+        `pickup`, `hazard`, `laser`) sobreviviam pro próximo estágio.
+        Sem a correção, matar a Restituição com um orb no chão deixaria
+        esse orb "de graça" pro próximo boss, ou minas/Inocentes/névoas
+        da Misericórdia vazariam do mesmo jeito. Adicionado um sweep
+        genérico dessas 4 pools logo após o `others_alive` check, antes
+        do próximo `spawn_boss`.
+        Novo `MENU_MODE.locked=[...]` (não existia — só difficulty/
+        skill/arma/mutador/boss tinham gate) via `_mode_locked()`, mesmo
+        formato de `_diff_locked()`; o menu já pula sozinho entradas
+        travadas ao navegar (mesmo comportamento do ABISSAL). Nova
+        conquista `decalogue_rush_win` ("O JUÍZO") e novo save-key
+        `decalogue_rush_cleared` (mesmo padrão de `sins_rush_cleared`,
+        sem nada consumindo ainda — pronto pra uma conquista futura).
+        Testado via `build_headless(mode="decalogo")` cascateando os 11
+        estágios de verdade (não só checando o dict) + o sweep de
+        pools + `smoke_gating.py` (lock/unlock + contagem de conquistas)
+        + simulação de menu completa (`GameApp` com `NullInputProvider`,
+        do MENU_MODE até PLAYING) confirmando que o boss inicial é
+        mesmo o Monolith. 6/6 smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Modo "rush" próprio do Decálogo (os 10 bosses do arco em
-      sequência, como Boss Rush/SINS Rush) — nenhum design feito ainda.
 - [ ] Fase 2 do Ascetic ("Renúncia") e fase 2 da Purity
       ("Contaminação"), deferidas quando a pool `pickup` da
       Restitution foi construída — infra já existe, falta desenhar e
