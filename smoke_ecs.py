@@ -393,4 +393,77 @@ if __name__ == "__main__":
     if not reveal_ok:
         ok = False
 
+    # Decálogo #3 — Silence e #4 — Sabbath: raízes normais, sem parte
+    # especial escondendo nada — entram no loop genérico.
+    for boss in ("silence", "sabbath"):
+        r = run(boss, "padrao", frames=1600, approach=False)
+        spawned = r["enemy_bullets_peak"] > 0
+        damaged = r["boss_damage"] > 0
+        status = "OK " if (spawned and damaged) else "FAIL"
+        if not (spawned and damaged):
+            ok = False
+        print(f"[{status}] {r}")
+
+    # Silence fase 0: skill travada + tentativa dispara o bolt inescapável
+    w_sl, inp_sl = _bh2(boss_name="silence", weapon_name="padrao", skill_name="dash")
+    pl_sl = w_sl.get_pool("player")
+    prow_sl = pl_sl.dense_row_of(int(pl_sl.active_entity_indices()[0]))
+    inp_sl.poll(); w_sl.step(DT)
+    locked_ok = float(pl_sl.active_view()["skill_locked_t"][prow_sl]) > 0.0
+    print(f"[{'OK ' if locked_ok else 'FAIL'}] silence: skill_locked_t>0 na fase 0")
+    if not locked_ok:
+        ok = False
+
+    eb_sl = w_sl.get_pool("enemy_bullet")
+    eb0 = eb_sl.count
+    inp_sl.set_action_held("skill", True)
+    inp_sl.poll(); w_sl.step(DT)
+    bolt_ok = eb_sl.count > eb0
+    skill_t = float(pl_sl.active_view()["skill_t"][prow_sl])
+    print(f"[{'OK ' if bolt_ok and skill_t <= 0.0 else 'FAIL'}] silence: "
+         f"tentar skill travada dispara o bolt (eb {eb0}->{eb_sl.count}) "
+         f"e a skill nao ativa de verdade (skill_t={skill_t})")
+    if not (bolt_ok and skill_t <= 0.0):
+        ok = False
+
+    # Silence fase 1: arma silenciada periodicamente (2s a cada 5s)
+    w_sl2, inp_sl2 = _bh2(boss_name="silence", weapon_name="padrao")
+    bp_sl2 = w_sl2.get_pool("boss")
+    bp_sl2.active_view()["hp"][0] = bp_sl2.active_view()["max_hp"][0] * 0.4
+    pl_sl2 = w_sl2.get_pool("player")
+    prow_sl2 = pl_sl2.dense_row_of(int(pl_sl2.active_entity_indices()[0]))
+    inp_sl2.set_action_held("fire", True)
+    found_lock = False
+    for _ in range(360):
+        inp_sl2.poll(); w_sl2.step(DT)
+        if float(pl_sl2.active_view()["fire_locked_t"][prow_sl2]) > 0.0:
+            found_lock = True
+            break
+    print(f"[{'OK ' if found_lock else 'FAIL'}] silence: fase 1 silencia a "
+         f"arma em algum momento do ciclo de 5s")
+    if not found_lock:
+        ok = False
+
+    # Sabbath: mover/atirar na janela de descanso tira vida; parado nao
+    w_sb, inp_sb = _bh2(boss_name="sabbath", weapon_name="padrao")
+    bp_sb = w_sb.get_pool("boss")
+    bv_sb = bp_sb.active_view()
+    bv_sb["hp"][0] = bv_sb["max_hp"][0] * 0.4
+    pl_sb = w_sb.get_pool("player")
+    prow_sb = pl_sb.dense_row_of(int(pl_sb.active_entity_indices()[0]))
+    lives0 = int(pl_sb.active_view()["lives"][prow_sb])
+    inp_sb.poll(); w_sb.step(DT)
+    for _ in range(300):
+        inp_sb.poll(); w_sb.step(DT)
+        if float(bv_sb["aux_angle"][0]) % 4.0 < 1.0:
+            break
+    inp_sb.set_action_held("move_right", True)
+    inp_sb.poll(); w_sb.step(DT)
+    lives1 = int(pl_sb.active_view()["lives"][prow_sb])
+    punish_ok = lives1 < lives0
+    print(f"[{'OK ' if punish_ok else 'FAIL'}] sabbath: mover na janela de "
+         f"descanso tira vida ({lives0}->{lives1})")
+    if not punish_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)

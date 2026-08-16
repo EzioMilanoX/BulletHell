@@ -88,6 +88,15 @@ ICON_SWAP_PERMUTATIONS = (              # nenhuma é a identidade (sempre mexe)
 # redor do próprio jogador revela (tint_a sobe) as que estiverem perto.
 TRUTH_REVEAL_R = 90.0
 TRUTH_GHOST_ALPHA = 70    # deve bater com o "alpha" do arquétipo fantasma
+# Reverência (Silence): fase 0 trava a skill (revide se tentar usar);
+# fase 1 silencia a arma periodicamente.
+SILENCE_BOLT_SPEED = 500.0
+SILENCE_BOLT_HOMING_T = 3.0
+SILENCE_CYCLE_T = 5.0
+SILENCE_SILENCE_T = 2.0
+# Sabbath: janela de "descanso" pune mover/atirar
+SABBATH_CYCLE_T = 4.0
+SABBATH_REST_T = 1.5
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -487,7 +496,7 @@ class SkillSystem(ISystem):
         if was_active:
             pv["skill_t"][prow] -= delta_time
         expired = was_active and pv["skill_t"][prow] <= 0.0
-        ready = pv["skill_cd"][prow] <= 0.0
+        ready = pv["skill_cd"][prow] <= 0.0 and pv["skill_locked_t"][prow] <= 0.0
 
         if base == "dash":
             if pressed and ready:
@@ -735,6 +744,11 @@ class PlayerControlSystem(ISystem):
              (1.0 if self._input.is_action_held("move_up") else 0.0)
         if self._clock.active_view()["invert"][0]:  # Luxúria: atração fatal
             dx, dy = -dx, -dy
+        axis_lock = int(self._clock.active_view()["axis_lock"][0])  # DECALOGUE final
+        if axis_lock == 1:
+            dy = 0.0
+        elif axis_lock == 2:
+            dx = 0.0
         if dx != 0.0 and dy != 0.0:
             dx *= 0.7071; dy *= 0.7071
         prow = self._player.dense_row_of(i)
@@ -748,6 +762,10 @@ class PlayerControlSystem(ISystem):
             pv["invuln_t"][prow] -= delta_time
         if pv["fire_cd"][prow] > 0.0:
             pv["fire_cd"][prow] -= delta_time
+        if pv["skill_locked_t"][prow] > 0.0:      # Reverência (Silêncio)
+            pv["skill_locked_t"][prow] -= delta_time
+        if pv["fire_locked_t"][prow] > 0.0:
+            pv["fire_locked_t"][prow] -= delta_time
 
 
 # ===========================================================================
@@ -804,6 +822,9 @@ class WeaponFireSystem(ISystem):
         py = float(tv["position_y"][trow])
         held = self._input.is_action_held("fire")
         released = self._input.is_action_released("fire")
+        if pv["fire_locked_t"][prow] > 0.0:      # Reverência (Silêncio): silenciada
+            held = False
+            released = False
 
         if wd.special == "charged":
             self._charged(world, wd, pv, prow, px, py, held, released, delta_time)
@@ -2699,9 +2720,11 @@ class BossGimmickSystem(ISystem):
     fantasmas morrerem. Roda após o BossMotion e antes do Emitter (o
     spotlight_rain lê aux_angle)."""
 
-    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+    def __init__(self, memory_manager: MemoryManager, data: GameData,
+                 input_provider: IInputProvider) -> None:
         self._data = data
         self._mm = memory_manager
+        self._input = input_provider
         self._boss = memory_manager.get_pool("boss")
         self._transform = memory_manager.get_pool("transform")
         self._minion = memory_manager.get_pool("minion")
@@ -2714,6 +2737,7 @@ class BossGimmickSystem(ISystem):
         self._sprite = memory_manager.get_pool("sprite")
         self._part = memory_manager.get_pool("part")
         self._eb = memory_manager.get_pool("enemy_bullet")
+        self._velocity = memory_manager.get_pool("velocity")
 
     def _update_beam(self, spot_x: float, player_inside: bool,
                      visible: bool) -> None:
@@ -2751,6 +2775,7 @@ class BossGimmickSystem(ISystem):
     def update(self, world: "World", delta_time: float) -> None:
         ck = self._clock.active_view()
         ck["invert"][0] = 0
+        ck["axis_lock"][0] = 0                   # DECALOGUE final: reset-e-reafirma
         wdt = delta_time * float(ck["world"][0])
         i, ptrow = _player_row(self._player, self._transform)
         if ptrow < 0:
@@ -2947,6 +2972,34 @@ class BossGimmickSystem(ISystem):
                         sv2 = self._sprite.active_view()
                         sv2["tint_a"][srows_g[near]] = 255
                         sv2["tint_a"][srows_g[~near]] = TRUTH_GHOST_ALPHA
+
+            elif gm == "silence_vow":                # Reverência: fases 0-1
+                bv["invuln"][brow] = 0
+                if int(bv["phase_idx"][brow]) == 0:
+                    pv["skill_locked_t"][prow] = 1.0     # reafirma toda frame
+                    if self._input.is_action_pressed("skill"):
+                        spawn_enemy_bullet(world, self._mm, px, -20.0,
+                                          0.0, SILENCE_BOLT_SPEED, color=3,
+                                          homing_t=SILENCE_BOLT_HOMING_T)
+                else:                                    # fase 1: silencia periodicamente
+                    bv["aux_angle"][brow] += wdt
+                    cycle = float(bv["aux_angle"][brow]) % SILENCE_CYCLE_T
+                    if cycle < SILENCE_SILENCE_T:
+                        pv["fire_locked_t"][prow] = 0.1  # reafirma toda frame na janela
+
+            elif gm == "sabbath_rest":               # Sabbath: janela de descanso
+                bv["invuln"][brow] = 0
+                bv["aux_angle"][brow] += wdt
+                cycle = float(bv["aux_angle"][brow]) % SABBATH_CYCLE_T
+                if cycle < SABBATH_REST_T:
+                    bv["stun_t"][brow] = 0.1     # boss "descansa": para de atirar/mover
+                    moved = (self._input.is_action_held("move_up")
+                            or self._input.is_action_held("move_down")
+                            or self._input.is_action_held("move_left")
+                            or self._input.is_action_held("move_right"))
+                    fired = self._input.is_action_held("fire")
+                    if moved or fired:
+                        self._hit_player(pv, prow)
 
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0

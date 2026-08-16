@@ -278,6 +278,21 @@
     { "name": "truth/real_spiral",
       "_doc": "Decálogo #7 — Verdade: 2 dos 10 braços (20%) são reais — mesmo spin_speed/period da fantasma.",
       "emit": "spiral", "bullet": "truth/real",
-      "period": 0.05, "arms": 2, "spin_speed": 3.0, "speed": 140.0 }
+      "period": 0.05, "arms": 2, "spin_speed": 3.0, "speed": 140.0 },
+
+    { "name": "silence/dense_spiral",
+      "_doc": "Decálogo #3 — Reverência fase 0 (O Voto): espiral densa de 8 braços.",
+      "emit": "spiral", "bullet": "std/normal",
+      "period": 0.08, "arms": 8, "spin_speed": 2.0, "speed": 120.0 },
+
+    { "name": "silence/eightway",
+      "_doc": "Decálogo #3 — Reverência fase 1 (Blasfêmia): rajada de 8 vias, periódica.",
+      "emit": "ring", "bullet": "std/normal",
+      "period": 0.6, "count": 8, "speed": 200.0 },
+
+    { "name": "sabbath/chaos_rain",
+      "_doc": "Decálogo #4 — Sabbath: chuva vertical caótica (aprox. 175px/s, faixa 110-240 do original simplificada num valor médio).",
+      "emit": "rain", "bullet": "std/normal",
+      "period": 0.15, "count": 10, "gap": 0.3, "speed": 175.0 }
   ]
 }

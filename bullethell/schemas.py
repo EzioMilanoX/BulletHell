@@ -47,6 +47,8 @@ PLAYER_DTYPE = np.dtype([
     ("fr_mult",    np.float32),  # OVERCLOCK
     ("dmg_mult",   np.float32),  # EMP+
     ("dmg_t",      np.float32),
+    ("skill_locked_t", np.float32),  # Reverência (Silêncio): >0 = skill travada
+    ("fire_locked_t",  np.float32),  # Reverência (Silêncio): >0 = arma silenciada
 ])
 
 CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
@@ -55,6 +57,7 @@ CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
     ("invert",  np.uint8),       # Luxúria fase 1: controles invertidos
     ("shake",   np.float32),     # screen shake acumulado (decai na cena)
     ("sfx",     np.uint32),      # bitmask de eventos sonoros do frame
+    ("axis_lock", np.uint8),     # DECALOGUE final: 0=livre, 1=só X, 2=só Y
 ])
 
 # clock.sfx — bits de eventos (a cena toca e limpa)

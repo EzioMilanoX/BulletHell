@@ -417,16 +417,48 @@ outros 9.
         danificáveis, sem parte especial escondendo nada) + 4 asserts
         dedicados (enrage liga/desliga certo; proporção 80/20 exata;
         revelação por proximidade). 6/6 smoke tests + 174 pytest OK.
+      - **14c** — **Silence** ("A Reverência") e **Sabbath**, o passo 2
+        do plano (P1 — restrição de input). Novo `CLOCK_DTYPE.axis_lock`
+        (0=livre/1=só X/2=só Y — reservado pro final do Decálogo, ainda
+        não usado por nenhum boss) segue exatamente o padrão de reset-
+        e-reafirma do `invert` já existente (Luxúria). Novos
+        `PLAYER_DTYPE.skill_locked_t`/`fire_locked_t` (contadores, mesma
+        família de `invuln_t`/`fire_cd`/`skill_cd`) travam skill/arma
+        por tempo; `SkillSystem`'s `ready` e `WeaponFireSystem`'s gate
+        de disparo passam a checá-los. `BossGimmickSystem` ganha acesso
+        a `input_provider` (só assim consegue saber se o jogador
+        *tentou* usar a skill travada, não só se ela ativou).
+        **Silence**: fase 0 (`silence_vow`) trava a skill o jogo todo;
+        tentar usá-la (`is_action_pressed` direto, sem depender do
+        `ready` que já bloqueou) dispara um bolt homing (500px/s) do
+        topo da tela. Fase 1 (mesmo gimmick, phase-gated) silencia a
+        arma por 2s a cada ciclo de 5s (`aux_angle` como timer, mesmo
+        padrão do `seventh_seal`/`slam`).
+        **Sabbath**: gimmick `sabbath_rest` não precisou de nenhum
+        campo novo — como `BossGimmickSystem` roda DEPOIS de
+        `PlayerControlSystem`/`WeaponFireSystem` no mesmo frame, ele lê
+        `is_action_held` diretamente pra saber se o jogador se moveu ou
+        atirou durante a janela dourada de "descanso" (1.5s a cada 4s)
+        e pune com `_hit_player` (já existente) se sim. Reaproveitou
+        `boss.stun_t` (o mesmo campo que o EMP do jogador usa) pra
+        "o boss para de atirar/mover" durante a janela — já suprimia
+        emissão em `EmitterSystem` e movimento em `BossMotionSystem`/
+        `WaypointSystem`, sem precisar de nada novo.
+        Os dois entram no loop genérico de `smoke_ecs.py` (raízes
+        normais, sem invuln escondendo nada) + 5 asserts dedicados
+        (skill travada + bolt + skill não ativa de verdade; arma
+        silencia no ciclo certo; mover pune, ficar parado não). 6/6
+        smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Os 7 bosses restantes do Decálogo (Silence, Sabbath, Ascetic,
-      Purity, Restitution, Mercy, DECALOGUE final) — design completo
-      já em `.claude/plans/greedy-conjuring-knuth.md`, implementação
-      ainda pendente, boss a boss
+- [ ] Os 5 bosses restantes do Decálogo (Ascetic, Purity, Restitution,
+      Mercy, DECALOGUE final) — design completo já em
+      `.claude/plans/greedy-conjuring-knuth.md`, implementação ainda
+      pendente, boss a boss
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

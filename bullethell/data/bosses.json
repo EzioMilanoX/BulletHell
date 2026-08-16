@@ -342,6 +342,32 @@
         { "hp_above": 0.0, "gimmick": "truth_reveal",
           "emitters": [ { "pattern": "truth/ghost_spiral" },
                         { "pattern": "truth/real_spiral" } ] }
+      ] },
+
+    { "name": "silence",
+      "_doc": "Decálogo #3 — A Reverência: fase 0 (O Voto) trava a skill do jogador o jogo todo (gimmick silence_vow); tentar usá-la dispara um bolt homing inescapável do topo da tela. Fase 1 (Blasfêmia) silencia a arma primária por 2s a cada 5s.",
+      "hp": 380,
+      "hitbox": [22, 22],
+      "route": [[640, 90, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.5, "gimmick": "silence_vow",
+          "emitters": [ { "pattern": "silence/dense_spiral" } ] },
+        { "hp_above": 0.0, "gimmick": "silence_vow",
+          "emitters": [ { "pattern": "silence/eightway" } ] }
+      ] },
+
+    { "name": "sabbath",
+      "_doc": "Decálogo #4 — Sabbath: fase 0 (Trabalho) só chuva caótica. Fase 1 junta 'O Descanso'+'Oração Contínua' — a cada 4s, 1.5s de janela dourada em que o boss pausa (stun_t) e mover/atirar custa uma vida (gimmick sabbath_rest).",
+      "hp": 380,
+      "hitbox": [20, 20],
+      "route": [[640, 90, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.5,
+          "emitters": [ { "pattern": "sabbath/chaos_rain" } ] },
+        { "hp_above": 0.0, "gimmick": "sabbath_rest",
+          "emitters": [ { "pattern": "sabbath/chaos_rain" } ] }
       ] }
   ]
 }
