@@ -792,4 +792,119 @@ if __name__ == "__main__":
     if not magnet_ok:
         ok = False
 
+    # DECALOGUE final: root_hitbox=true, danificavel via mira ingenua.
+    r = run("decalogue", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # DECALOGUE fase 0 (O Decreto): grade de lasers H+V em tabuleiro
+    from bullethell.schemas import LASER_H, LASER_V
+
+    w_dl, inp_dl = _bh2(boss_name="decalogue", weapon_name="padrao")
+    lz_dl = w_dl.get_pool("laser")
+    for _ in range(100):
+        inp_dl.poll(); w_dl.step(DT)
+    lv_dl = lz_dl.active_view()
+    n_h = int((lv_dl["axis"][:lz_dl.count] == LASER_H).sum())
+    n_v = int((lv_dl["axis"][:lz_dl.count] == LASER_V).sum())
+    staggered = len(set(round(float(t), 2) for t in lv_dl["telegraph_t"][:lz_dl.count])) >= 2
+    grid_ok = n_h > 0 and n_v > 0 and staggered
+    print(f"[{'OK ' if grid_ok else 'FAIL'}] decalogue: grade H+V em "
+         f"tabuleiro (h={n_h}, v={n_v}, staggered={staggered})")
+    if not grid_ok:
+        ok = False
+
+    # DECALOGUE fase 1 (O Peso da Lei): bolas caem e assentam empilhando
+    # em camadas (BEH_SETTLE)
+    from bullethell.game_systems import BEH_SETTLE as _BSET
+
+    w_rs, inp_rs = _bh2(boss_name="decalogue", weapon_name="padrao")
+    bp_rs = w_rs.get_pool("boss"); bv_rs = bp_rs.active_view()
+    bv_rs["hp"][0] = bv_rs["max_hp"][0] * 0.6      # forca fase 1
+    eb_rs = w_rs.get_pool("enemy_bullet")
+    for _ in range(700):
+        inp_rs.poll(); w_rs.step(DT)
+    ebv_rs = eb_rs.active_view()
+    tp_rs = w_rs.get_pool("transform")
+    idxs_rs = eb_rs.active_entity_indices()
+    n_settled = 0
+    layers = set()
+    for k in range(eb_rs.count):
+        if int(ebv_rs["beh"][k]) != _BSET:
+            continue
+        trow_rs = tp_rs.dense_row_of(int(idxs_rs[k]))
+        y = float(tp_rs.active_view()["position_y"][trow_rs])
+        if abs(y - float(ebv_rs["p1"][k])) < 0.5:
+            n_settled += 1
+            layers.add(round(float(ebv_rs["p1"][k]), 1))
+    stack_ok = n_settled >= 5 and len(layers) >= 2
+    print(f"[{'OK ' if stack_ok else 'FAIL'}] decalogue: bolas assentam "
+         f"empilhando em camadas (settled={n_settled}, camadas={len(layers)})")
+    if not stack_ok:
+        ok = False
+
+    # DECALOGUE fase 2 (O Olho do Juiz): pilar instantaneo no X do jogador
+    w_jg, inp_jg = _bh2(boss_name="decalogue", weapon_name="padrao")
+    bp_jg = w_jg.get_pool("boss"); bv_jg = bp_jg.active_view()
+    bv_jg["hp"][0] = bv_jg["max_hp"][0] * 0.3       # cascateia ate fase 2
+    for _ in range(4):
+        inp_jg.poll(); w_jg.step(DT)
+    pl_jg = w_jg.get_pool("player"); tp_jg = w_jg.get_pool("transform")
+    prow_jg = tp_jg.dense_row_of(int(pl_jg.active_entity_indices()[0]))
+    px_jg = float(tp_jg.active_view()["position_x"][prow_jg])
+    lz_jg = w_jg.get_pool("laser")
+    found_pillar = False
+    for _ in range(60):
+        inp_jg.poll(); w_jg.step(DT)
+        if lz_jg.count > 0:
+            lvv = lz_jg.active_view()
+            found_pillar = (int(bv_jg["phase_idx"][0]) == 2
+                            and int(lvv["axis"][0]) == LASER_V
+                            and abs(float(lvv["pos"][0]) - px_jg) < 1.0)
+            break
+    print(f"[{'OK ' if found_pillar else 'FAIL'}] decalogue: pilar "
+         f"instantaneo mira o X do jogador ({px_jg:.1f})")
+    if not found_pillar:
+        ok = False
+
+    # DECALOGUE fase 3 (O Codigo Final): axis_lock alterna X/Y e trava
+    # movimento diagonal de verdade
+    w_lk, inp_lk = _bh2(boss_name="decalogue", weapon_name="padrao")
+    bp_lk = w_lk.get_pool("boss"); bv_lk = bp_lk.active_view()
+    bv_lk["hp"][0] = bv_lk["max_hp"][0] * 0.1       # cascateia ate fase 3
+    for _ in range(4):
+        inp_lk.poll(); w_lk.step(DT)
+    ck_lk = w_lk.get_pool("clock")
+    seen_locks = set()
+    for _ in range(300):
+        inp_lk.poll(); w_lk.step(DT)
+        seen_locks.add(int(ck_lk.active_view()["axis_lock"][0]))
+    alternates_ok = int(bv_lk["phase_idx"][0]) == 3 and seen_locks == {1, 2}
+    print(f"[{'OK ' if alternates_ok else 'FAIL'}] decalogue: axis_lock "
+         f"alterna X/Y na fase 3 ({sorted(seen_locks)})")
+    if not alternates_ok:
+        ok = False
+
+    pl_lk = w_lk.get_pool("player"); tp_lk = w_lk.get_pool("transform")
+    prow_lk = tp_lk.dense_row_of(int(pl_lk.active_entity_indices()[0]))
+    while int(ck_lk.active_view()["axis_lock"][0]) != 1:  # espera a janela so-X
+        inp_lk.poll(); w_lk.step(DT)
+    inp_lk.set_action_held("move_right", True)
+    inp_lk.set_action_held("move_down", True)
+    x0_lk = float(tp_lk.active_view()["position_x"][prow_lk])
+    y0_lk = float(tp_lk.active_view()["position_y"][prow_lk])
+    inp_lk.poll(); w_lk.step(DT)
+    x1_lk = float(tp_lk.active_view()["position_x"][prow_lk])
+    y1_lk = float(tp_lk.active_view()["position_y"][prow_lk])
+    lock_ok = (x1_lk - x0_lk) > 0.5 and abs(y1_lk - y0_lk) < 1e-6
+    print(f"[{'OK ' if lock_ok else 'FAIL'}] decalogue: axis_lock=1 trava "
+         f"diagonal de verdade (x {x0_lk:.1f}->{x1_lk:.1f}, "
+         f"y {y0_lk:.1f}->{y1_lk:.1f})")
+    if not lock_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)

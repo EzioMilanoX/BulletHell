@@ -422,6 +422,26 @@
           "emitters": [ { "pattern": "mercy/plea" } ] },
         { "hp_above": 0.0, "gimmick": "mercy_martyr",
           "emitters": [ { "pattern": "mercy/mines" } ] }
+      ] },
+
+    { "name": "decalogue",
+      "_doc": "Boss final do arco — As Tábuas da Lei. root_hitbox true + 2 partes visuais (tábuas esquerda/direita, PART_NORMAL — dano sempre roteia à raiz, sem mecânica de decoy/fake). Fase 0 (O Decreto): grade de lasers H+V em tabuleiro (emit laser_grid novo, LASER_V nunca tinha sido spawnado antes — só LASER_H). Fase 1 (O Peso da Lei): força incondicional pra baixo (tábua esquerda, reusa 'force' do Gula) + bolas que caem e assentam empilhando (tábua direita, BEH_SETTLE novo). Fase 2 (O Olho do Juiz): tábuas se unem no centro (part_offsets [0,0]) e um pilar instantâneo (telegraph_t=0) cai no X do jogador a cada 0.8s (gimmick decalogue_judge) — simplificação do laser de tracking contínuo do espec, sem estado visual persistente. Fase 3 (O Código Final): axis_lock (campo reservado desde o plano do arco) alterna X/Y a cada 2s (gimmick decalogue_lockstep, 'Morte da Diagonal') + ondas expansivas quadradas.",
+      "hp": 500,
+      "hitbox": [40, 40],
+      "route": [[640, 140, 1.0]],
+      "parts": [[-200, 0, 40, 160], [200, 0, 40, 160]],
+      "root_hitbox": true,
+      "phases": [
+        { "hp_above": 0.75,
+          "emitters": [ { "pattern": "decalogue/law_grid" } ] },
+        { "hp_above": 0.5, "force": [0, 120],
+          "emitters": [ { "pattern": "decalogue/roll_stack" } ] },
+        { "hp_above": 0.25, "gimmick": "decalogue_judge",
+          "part_offsets": [[0, 0], [0, 0]],
+          "emitters": [] },
+        { "hp_above": 0.0, "gimmick": "decalogue_lockstep",
+          "part_offsets": [[0, 0], [0, 0]],
+          "emitters": [ { "pattern": "decalogue/square_wave" } ] }
       ] }
   ]
 }

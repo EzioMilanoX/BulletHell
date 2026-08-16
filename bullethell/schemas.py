@@ -16,11 +16,13 @@ import numpy as np
 # Constantes de domínio (semântica das colunas)
 # ---------------------------------------------------------------------------
 SCREEN_W, SCREEN_H = 1280, 720
+SHAPE_RECT, SHAPE_CIRCLE = 0, 1   # ouroboros.interfaces.renderer
 
 # enemy_bullet["contact"]
 CONTACT_ALWAYS, CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER = 0, 1, 2, 3
 # enemy_bullet["beh"]
 BEH_NONE, BEH_STOPGO, BEH_BOOMERANG, BEH_SLEEPER = 0, 1, 2, 3
+BEH_SETTLE = 4                # DECALOGUE: cai até p1 (target_y) e assenta lá
 # part["kind"] — comportamento ao ser atingida por bala do jogador.
 # NORMAL/REAL rotam dano pra raiz (comportamento de sempre); DECOY/FAKE/
 # GUARD nunca dão dano — reagem sozinhas em PlayerBulletVsBossSystem.
@@ -325,4 +327,5 @@ PALETTE = {
     7: (200, 150, 20),   # spinner
     8: (255, 220, 0),    # ricochete amarela
     9: (16, 14, 22),     # oculta (agulhas da Luxúria — próxima do BG_COLOR)
+    10: (245, 245, 240), # branco/dourado pálido (DECALOGUE final)
 }

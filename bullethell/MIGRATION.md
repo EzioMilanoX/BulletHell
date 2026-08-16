@@ -576,16 +576,68 @@ outros 9.
         invuln e acumula o timer; mina mata o boss e o jogador leva
         hit-kill; bala magnetizada empurra o boss e é absorvida). 6/6
         smoke tests + 174 pytest OK.
+      - **14h** — **DECALOGUE** ("As Tábuas da Lei"), passo 7 e ÚLTIMO
+        do plano — fecha o arco inteiro (9 bosses + o final). Usa quase
+        todos os primitivos construídos nos passos anteriores:
+        `root_hitbox` + 2 partes visuais (tábuas esquerda/direita,
+        `PART_NORMAL` — sem mecânica de decoy/fake, só flavor visual;
+        `part_offsets` já existente as une no centro na fase 2).
+        Fase 0 (O Decreto): novo emit `laser_grid` spawna lasers H **e**
+        V em padrão de tabuleiro (telegraph escalonado por linha) —
+        `LASER_V` já existia no schema e `LaserSystem` já colidia
+        corretamente com ele, mas nada NUNCA tinha spawnado um (só
+        `LASER_H`, hardcoded); extraído um `spawn_laser()` novo
+        (helper module-level, não mexe no branch `"laser"` existente,
+        que continua servindo Clássico/Ômega sem risco).
+        Fase 1 (O Peso da Lei): tábua esquerda usa `force` incondicional
+        (reusa Gula/Soberba, zero código novo); tábua direita dispara
+        bolas que caem e assentam empilhando em camadas —
+        `BEH_SETTLE` novo (`enemy_bullet.beh`), target_y calculado por
+        `EmitterSystem` no spawn a partir do índice de disparo (mesmo
+        truque de índice→layout do `roll_stack`); bala assentada nunca
+        é destruída, o empilhamento emerge sozinho. Bug pego e
+        corrigido durante o teste: bolas nasciam em y=-40 (fora do
+        `CULL_MARGIN=24`) e o `MaintenanceSystem` as destruía no MESMO
+        frame antes de caírem — corrigido pra y=10 (dentro da tela).
+        Fase 2 (O Olho do Juiz): tábuas se unem (`part_offsets`); gimmick
+        `decalogue_judge` solta um pilar `telegraph_t=0` (dispara no
+        MESMO frame, sem aviso) no X atual do jogador a cada 0.8s —
+        simplificação deliberada do "laser de tracking contínuo" do
+        espec (sem estado visual persistente entre pulsos).
+        Fase 3 (O Código Final, "Morte da Diagonal"): gimmick
+        `decalogue_lockstep` finalmente usa o `CLOCK_DTYPE.axis_lock`
+        reservado desde o P1 do plano original (Silêncio/Sabbath) —
+        alterna 1 (só X) / 2 (só Y) a cada 2s. Novo campo
+        `BulletArchetypeDef.shape` (default `"circle"`) deixa a onda
+        quadrada da fase realmente quadrada (`SHAPE_RECT`, que só
+        existia hardcoded dentro de `game_systems.py` — movido pra
+        `schemas.py` junto de `SHAPE_CIRCLE`, mesmo lugar dos outros
+        enums, sem mudar nenhum valor).
+        Entra no loop genérico (root_hitbox garante dano por mira
+        ingênua em qualquer fase) + 5 asserts dedicados (grade H+V com
+        telegraph escalonado; bolas assentam em ≥2 camadas distintas;
+        pilar mira o X exato do jogador; axis_lock realmente alterna
+        1/2; axis_lock=1 trava o eixo Y de verdade — X muda, Y não).
+        6/6 smoke tests + 174 pytest OK.
+
+        **Arco do Decálogo completo**: 9 bosses (Monolith, Icon,
+        Lineage, Truth, Silence, Sabbath, Ascetic, Purity, Restitution,
+        Mercy) + o boss final (DECALOGUE) — todos acessíveis via
+        `--boss <nome>` e cobertos em `smoke_ecs.py`; nenhum ainda em
+        `CLASSIC_BOSS_NAMES`/Boss Rush (falta um modo "rush" próprio
+        do arco, fora de escopo por ora).
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] O boss final do Decálogo (DECALOGUE) — design completo já em
-      `.claude/plans/greedy-conjuring-knuth.md`, implementação ainda
-      pendente. Fase 2 do Ascetic ("Renúncia") e fase 2 da Purity
-      ("Contaminação") agora que a pool `pickup` da Restitution existe.
+- [ ] Modo "rush" próprio do Decálogo (os 10 bosses do arco em
+      sequência, como Boss Rush/SINS Rush) — nenhum design feito ainda.
+- [ ] Fase 2 do Ascetic ("Renúncia") e fase 2 da Purity
+      ("Contaminação"), deferidas quando a pool `pickup` da
+      Restitution foi construída — infra já existe, falta desenhar e
+      implementar as duas fases extras.
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

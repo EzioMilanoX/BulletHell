@@ -11,9 +11,10 @@ from typing import Dict, Tuple
 
 from bullethell.ids import sid
 from bullethell.schemas import (
-    BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
+    BEH_BOOMERANG, BEH_NONE, BEH_SETTLE, BEH_SLEEPER, BEH_STOPGO,
     CONTACT_ALWAYS, CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
     PART_DECOY, PART_FAKE, PART_GUARD, PART_NORMAL, PART_REAL,
+    SHAPE_CIRCLE, SHAPE_RECT,
 )
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -21,9 +22,11 @@ DATA_DIR = Path(__file__).parent / "data"
 _CONTACT = {"always": CONTACT_ALWAYS, "if_moving": CONTACT_IF_MOVING,
             "if_still": CONTACT_IF_STILL, "never": CONTACT_NEVER}
 _BEH = {"none": BEH_NONE, "stopgo": BEH_STOPGO,
-        "boomerang": BEH_BOOMERANG, "sleeper": BEH_SLEEPER}
+        "boomerang": BEH_BOOMERANG, "sleeper": BEH_SLEEPER,
+        "settle": BEH_SETTLE}
 _PART_KIND = {"normal": PART_NORMAL, "real": PART_REAL, "decoy": PART_DECOY,
               "fake": PART_FAKE, "guard": PART_GUARD}
+_SHAPE = {"circle": SHAPE_CIRCLE, "rect": SHAPE_RECT}
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +47,7 @@ class BulletArchetypeDef:
     fragment: bool
     tether: bool
     alpha: int   # tint_a no spawn (255=opaco); Verdade usa baixo p/ balas fantasma
+    shape: int   # texture_id no spawn (SHAPE_CIRCLE default; DECALOGUE usa RECT)
 
 
 @dataclass(frozen=True, slots=True)
@@ -186,6 +190,7 @@ def load_bullet_archetypes(path=DATA_DIR / "bullet_archetypes.json") -> Dict[int
             fragment=e.get("fragment", False),
             tether=e.get("tether", False),
             alpha=int(e.get("alpha", 255)),
+            shape=_SHAPE[e.get("shape", "circle")],
         )
         out[sid(d.name)] = d
     return out

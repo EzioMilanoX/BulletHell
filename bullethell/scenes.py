@@ -155,7 +155,8 @@ BOSSES = [("classic", "CLÁSSICO", (128, 0, 0)),
           ("ascetic", "ABNEGAÇÃO †", (120, 140, 130)),
           ("purity", "PUREZA †", (120, 170, 255)),
           ("restitution", "RESTITUIÇÃO †", (230, 190, 90)),
-          ("mercy", "MISERICÓRDIA †", (140, 220, 160))]
+          ("mercy", "MISERICÓRDIA †", (140, 220, 160)),
+          ("decalogue", "DECALOGUE †", (245, 245, 240))]
 
 # Legado: SELECT_BOSS só lista CLASSIC_BOSS_IDS — os 8 pecados só são
 # jogáveis via SINS RUSH, "Mago do Tempo" (invenção do port) via BOSS RUSH.
@@ -270,6 +271,8 @@ BOSS_INTROS = {
                    "O que foi tomado só volta pelas próprias mãos."),
     "mercy": ("MISERICÓRDIA †",
              "Poupe os inocentes. Contenha a mão que atira."),
+    "decalogue": ("DECALOGUE †",
+                 "Nenhuma curva. Nenhum caos. Apenas a Lei."),
 }
 
 WIN_GOALS = {"classic": 1, "rush": len(RUSH_ORDERS[1]),

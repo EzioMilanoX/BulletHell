@@ -24,13 +24,14 @@ from ouroboros.interfaces.input_provider import IInputProvider
 from bullethell.ids import sid
 from bullethell.loaders import GameData, PatternDef
 from bullethell.schemas import (
-    BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
+    BEH_BOOMERANG, BEH_NONE, BEH_SETTLE, BEH_SLEEPER, BEH_STOPGO,
     CHAKRAM_FROZEN, CHAKRAM_OUT, CHAKRAM_RETURN,
     CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
     LASER_H, LASER_V, MINION_BUBBLE, MINION_INNOCENT, MINION_KAMIKAZE,
     MINION_MINE, MINION_SENTINEL, ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
     SFX_BOOM, SFX_EMP, SFX_HIT, SFX_MINE, SFX_SHIELD, TETHER_NONE,
     PART_DECOY, PART_FAKE, PART_GUARD, PART_NORMAL, PART_REAL,
+    SHAPE_CIRCLE,
 )
 
 if TYPE_CHECKING:
@@ -141,6 +142,20 @@ MERCY_CONTACT_R = 22.0         # raio de "absorção" da bala pelo boss
 MERCY_PUSH_PER_HIT = 5.0       # px de empurrão no boss por bala absorvida no frame
 MERCY_MINE_NEAR_R = 45.0       # mesmo raio que MinionCombatSystem já usa pro jogador
 MERCY_MINE_DAMAGE = 60.0       # dano ao boss quando uma mina o atinge
+# DECALOGUE (final): fase 0 (O Decreto) grade de lasers H+V em padrão de
+# tabuleiro; fase 1 (O Peso da Lei) gravidade incondicional (tábua esquerda,
+# reusa `force`) + bolas que caem e assentam empilhando (tábua direita,
+# BEH_SETTLE novo); fase 2 (O Olho do Juiz) pilar instantâneo no X do
+# jogador a cada 0.8s — simplificação do "laser de tracking contínuo" do
+# espec (sem estado visual persistente, só o efeito periódico); fase 3
+# (O Código Final) axis_lock alterna X/Y (mesmo campo reservado desde o
+# plano do arco) + ondas quadradas expansivas.
+DECALOGUE_GRID_STAGGER = 0.5       # atraso de telegraph das linhas ímpares
+DECALOGUE_MAX_STACK = 6            # camadas de bolas empilhando
+DECALOGUE_FLOOR_Y = SCREEN_H - 40.0
+DECALOGUE_JUDGE_PERIOD = 0.8       # spec exata: pilar a cada 0.8s
+DECALOGUE_JUDGE_FIRE_T = 0.15      # flash breve do pilar "instantâneo"
+DECALOGUE_AXIS_SWAP_T = 2.0        # alterna o eixo travado a cada 2s
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -198,9 +213,6 @@ def spawn_enemy_bullet(world: "World", mm: MemoryManager, x: float, y: float,
     ev["tgt_x"][erow] = ev["tgt_y"][erow] = 0.0
     ev["stage"][erow] = 0
     return packed
-
-
-SHAPE_RECT, SHAPE_CIRCLE = 0, 1   # ouroboros.interfaces.renderer
 
 
 def add_shake(mm: MemoryManager, amount: float) -> None:
@@ -461,6 +473,43 @@ def spawn_hazard(world: "World", mm: MemoryManager, x: float, y: float,
     hv["self"][hrow] = np.uint64(packed)
     hv["radius"][hrow] = radius
     hv["t"][hrow] = ttl
+    return packed
+
+
+def spawn_laser(world: "World", mm: MemoryManager, axis: int, pos: float,
+                telegraph_t: float, fire_t: float) -> int:
+    """Spawna uma viga axis-aligned avulsa (LaserSystem cuida do resto —
+    telegraph_t=0 já nasce disparando, pra pilares 'instantâneos').
+    Retorna packed ou -1 (pool cheia)."""
+    lz = mm.get_pool("laser")
+    if lz.count >= lz.capacity:
+        return -1
+    packed = world.create_entity("laser")
+    idx = packed & 0xFFFFFFFF
+    lrow = lz.dense_row_of(idx); lv = lz.active_view()
+    lv["self"][lrow] = np.uint64(packed)
+    lv["axis"][lrow] = axis
+    lv["pos"][lrow] = pos
+    lv["half"][lrow] = LASER_HALF
+    lv["telegraph_t"][lrow] = telegraph_t
+    lv["fire_t"][lrow] = fire_t
+    t = mm.get_pool("transform")
+    trow = t.dense_row_of(idx); tv = t.active_view()
+    s = mm.get_pool("sprite")
+    srow = s.dense_row_of(idx); sv = s.active_view()
+    if axis == LASER_H:
+        tv["position_x"][trow] = SCREEN_W / 2
+        tv["position_y"][trow] = pos
+        tv["scale_x"][trow] = SCREEN_W / 8.0
+        tv["scale_y"][trow] = (LASER_HALF * 2 + 2) / 8.0
+    else:
+        tv["position_x"][trow] = pos
+        tv["position_y"][trow] = SCREEN_H / 2
+        tv["scale_x"][trow] = (LASER_HALF * 2 + 2) / 8.0
+        tv["scale_y"][trow] = SCREEN_H / 8.0
+    sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 130, 30, 45
+    sv["tint_a"][srow] = 255
+    sv["layer_z"][srow] = 8
     return packed
 LASER_TELEGRAPH, LASER_FIRE_DUR = 1.8, 0.65
 LASER_HALF = 6.0
@@ -1815,6 +1864,39 @@ class EmitterSystem(ISystem):
                 sv["tint_a"][srow] = 255
                 sv["layer_z"][srow] = 8
 
+        elif pat.emit == "laser_grid":     # DECALOGUE fase 0: grade H+V
+            n_h, n_v = pat.count, pat.arms     # reusa campos genéricos existentes
+            margin = 120.0
+            for j in range(n_h):
+                y = margin + (SCREEN_H - 2 * margin) * (j + 0.5) / max(1, n_h)
+                stagger = 0.0 if j % 2 == 0 else DECALOGUE_GRID_STAGGER
+                if spawn_laser(world, self._mm, LASER_H, y,
+                               LASER_TELEGRAPH + stagger, LASER_FIRE_DUR) < 0:
+                    return
+            for j in range(n_v):
+                x = margin + (SCREEN_W - 2 * margin) * (j + 0.5) / max(1, n_v)
+                stagger = DECALOGUE_GRID_STAGGER if j % 2 == 0 else 0.0
+                if spawn_laser(world, self._mm, LASER_V, x,
+                               LASER_TELEGRAPH + stagger, LASER_FIRE_DUR) < 0:
+                    return
+
+        elif pat.emit == "roll_stack":     # DECALOGUE fase 1: bolas empilham
+            seed = int(ev["shot_count"][k]); ev["shot_count"][k] += 1
+            n_lanes = max(1, pat.count)    # reusa 'count' como nº de raias
+            lane = seed % n_lanes
+            layer = (seed // n_lanes) % DECALOGUE_MAX_STACK
+            x = 100.0 + (SCREEN_W - 200.0) * lane / max(1, n_lanes - 1)
+            diameter = self._data.archetypes[pat.bullet].radius * 2.0
+            target_y = DECALOGUE_FLOOR_Y - layer * diameter
+            packed = self._spawn(world, pat, x, 10.0, math.pi / 2, px, py)
+            if packed is None:
+                return
+            idx = packed & 0xFFFFFFFF
+            erow = self._eb.dense_row_of(idx)
+            ebv = self._eb.active_view()
+            ebv["beh"][erow] = BEH_SETTLE
+            ebv["p1"][erow] = target_y
+
     def _spawn(self, world, pat: PatternDef, x, y, theta, px, py):
         return self._spawn_as(world, pat, pat.bullet, x, y, theta, px, py)
 
@@ -1836,7 +1918,7 @@ class EmitterSystem(ISystem):
         vv["linear_y"][vrow] = math.sin(theta) * pat.speed
         srow = self._sprite.dense_row_of(idx)
         sv = self._sprite.active_view()
-        sv["texture_id"][srow] = SHAPE_CIRCLE
+        sv["texture_id"][srow] = arch.shape
         r, g, b = PALETTE.get(arch.color, (255, 64, 90))
         sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
         sv["tint_a"][srow] = arch.alpha
@@ -1928,6 +2010,15 @@ class EnemyBulletBehaviorSystem(ISystem):
             d = np.sqrt(dx * dx + dy * dy) + 1e-6
             tv["position_x"][ptrow] -= float(np.sum(dx / d * eb["gravity"][g])) * delta_time
             tv["position_y"][ptrow] -= float(np.sum(dy / d * eb["gravity"][g])) * delta_time
+
+        # SETTLE → cai até p1 (target_y) e assenta lá, parada (DECALOGUE:
+        # bolas empilhando no chão — nunca são destruídas, o "empilhamento"
+        # emerge sozinho de várias bolas assentando em target_y diferentes)
+        settle = (eb["beh"] == BEH_SETTLE) & (by >= eb["p1"])
+        if settle.any():
+            vv["linear_x"][vrows[settle]] = 0.0
+            vv["linear_y"][vrows[settle]] = 0.0
+            tv["position_y"][trows[settle]] = eb["p1"][settle]
 
         # Máquina de estados STOP&GO / BOOMERANG / SLEEPER (vetorizada)
         beh = eb["beh"] != BEH_NONE
@@ -3218,6 +3309,20 @@ class BossGimmickSystem(ISystem):
                 bv["aux_angle"][brow] += wdt
                 if bv["aux_angle"][brow] >= MERCY_SURVIVE_T:
                     bv["hp"][brow] = 0.0               # sobreviveu -> vence a fase
+
+            elif gm == "decalogue_judge":              # DECALOGUE: Olho do Juiz
+                bv["invuln"][brow] = 0                 # pilar no X do jogador a 0.8s
+                bv["aux_angle"][brow] += wdt
+                if bv["aux_angle"][brow] >= DECALOGUE_JUDGE_PERIOD:
+                    bv["aux_angle"][brow] -= DECALOGUE_JUDGE_PERIOD
+                    spawn_laser(world, self._mm, LASER_V, px,
+                               0.0, DECALOGUE_JUDGE_FIRE_T)
+
+            elif gm == "decalogue_lockstep":           # DECALOGUE: Código Final
+                bv["invuln"][brow] = 0                 # axis_lock alterna X/Y
+                bv["aux_angle"][brow] += wdt
+                cycle = float(bv["aux_angle"][brow]) % (DECALOGUE_AXIS_SWAP_T * 2.0)
+                ck["axis_lock"][0] = 1 if cycle < DECALOGUE_AXIS_SWAP_T else 2
 
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0

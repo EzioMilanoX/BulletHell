@@ -323,6 +323,21 @@
 
     { "name": "mercy/mines", "_doc": "Misericórdia fase 1 (O Mártir): minas mortais (kind=3) enchendo a arena ao longo da sobrevivência de 20s.",
       "emit": "summon", "bullet": "std/normal",
-      "period": 1.0, "count": 1, "kind": 3, "hp": 2.0, "speed": 8.0 }
+      "period": 1.0, "count": 1, "kind": 3, "hp": 2.0, "speed": 8.0 },
+
+    { "name": "decalogue/law_grid",
+      "_doc": "DECALOGUE final fase 0 (O Decreto): grade de lasers H+V em padrão de tabuleiro — 'count' = nº de linhas H, 'arms' = nº de linhas V (campos genéricos reusados, sem mudar PatternDef). CD 1.5s (spec exata).",
+      "emit": "laser_grid", "bullet": "std/normal",
+      "period": 1.5, "count": 3, "arms": 3 },
+
+    { "name": "decalogue/roll_stack",
+      "_doc": "DECALOGUE final fase 1 (O Peso da Lei): bolas caem em 5 raias ('count') e assentam empilhando (BEH_SETTLE), 80px/s (spec exata).",
+      "emit": "roll_stack", "bullet": "decalogue/boulder",
+      "period": 0.3, "count": 5, "speed": 80.0 },
+
+    { "name": "decalogue/square_wave",
+      "_doc": "DECALOGUE final fase 3 (O Código Final): ondas expansivas 250px/s a cada 0.25s (spec exata) — anel denso de balas 'quadradas' aproxima a onda quadrada do espec.",
+      "emit": "ring", "bullet": "decalogue/wave",
+      "period": 0.25, "count": 16, "speed": 250.0 }
   ]
 }

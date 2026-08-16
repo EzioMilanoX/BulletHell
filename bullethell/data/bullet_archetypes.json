@@ -95,6 +95,15 @@
 
     { "name": "purity/red",
       "_doc": "Decálogo #6b — Pureza: bala vermelha — dano em dobro na metade azul da tela.",
-      "contact": "always", "color": 4, "radius": 4.0 }
+      "contact": "always", "color": 4, "radius": 4.0 },
+
+    { "name": "decalogue/boulder",
+      "_doc": "DECALOGUE final fase 1 (O Peso da Lei): bola esférica massiva (64px de diâmetro, spec exata) que cai e assenta empilhando (BEH_SETTLE — o target_y é escrito por EmitterSystem no spawn, não por behavior_params).",
+      "contact": "always", "color": 8, "radius": 32.0,
+      "behavior": "settle" },
+
+    { "name": "decalogue/wave",
+      "_doc": "DECALOGUE final fase 3 (O Código Final): onda expansiva 'quadrada' — shape rect aproxima o espec (ricochete circular real seria um emit type novo só pra isto).",
+      "contact": "always", "color": 10, "radius": 6.0, "shape": "rect" }
   ]
 }
