@@ -536,17 +536,56 @@ outros 9.
         fase 0; orbes caem ao longo do tempo na fase 1; coletar devolve
         stats; bala perto recua e reduz ttl). 6/6 smoke tests + 174
         pytest OK.
+      - **14g** — **Mercy** ("A Misericórdia"), passo 6 do plano (P4 —
+        o mais novo do arco inteiro, deixado quase por último de
+        propósito pra ter o máximo de precedente acumulado). Fase 0
+        (Escudo Vivo): 4 Inocentes (`MINION_INNOCENT` novo, 1 HP) já
+        na entrada da luta — reusa o campo `phase_def.minions` que o
+        Sloth já tinha, mas `spawn_boss()` precisou aprender a
+        consumi-lo também na fase INICIAL (antes só `_swap_emitters`,
+        chamado em TROCAS de fase, fazia isso — Sloth só usa em fase
+        1+, então esse gap nunca tinha aparecido). "Orbitam protegendo"
+        vira formação estática (mesmo esquema de posições do Sloth) —
+        simplificação documentada. Matar um Inocente chama o novo
+        `spawn_hazard()` (extraído do branch `"hazard"` do
+        `EmitterSystem`, mesma névoa SLOW da Luxúria, raio 70px, ttl
+        9999 = "permanente"); o componente BURN do espec original foi
+        deliberadamente omitido (dano ao jogador sempre foi binário no
+        jogo, ver Purity).
+        Fase 1 (O Mártir, gimmick `mercy_martyr`): boss fica
+        `invuln=1` e passivo — sobreviver 20s (mesmo acumulador em
+        `aux_angle` do `seventh_seal`/`berserk_body`) vence a fase
+        sozinho. Mas atirar tem custo: `PlayerBulletMagnetSystem` novo
+        atrai as balas do jogador pro boss (mesma matemática do bloco
+        GRAVITY do `EnemyBulletBehaviorSystem`, invertida — pra dentro
+        do boss); ao tocar, a bala é absorvida e empurra o boss na
+        direção do impacto (mais balas simultâneas = mais empurrão).
+        A arena enche de minas (`mercy/mines`, mesmo emit `"summon"`
+        que `sin/mines`/`greed/coins` já usam) — `MinionCombatSystem`
+        ganha um bloco novo (mina perto de um boss em `mercy_martyr`
+        soma dano ambiental + liga `BOSS_DTYPE.env_death`, campo novo)
+        e `BossPhaseSystem` checa essa flag ANTES de finalizar a morte:
+        se ligada, aplica hit-kill ao jogador (`lives=-1` +
+        `handle_player_death`, bypassando invuln/shield de propósito —
+        punição severa por DPS descontrolado) e limpa a flag, pra não
+        vazar pra uma morte normal futura do mesmo boss.
+        Entra no loop genérico (fase 0 é normalmente vulnerável; fase 1
+        congela o hp sob invuln, mas isso não afeta o critério de
+        "foi possível causar dano" do teste) + 5 asserts dedicados
+        (4 Inocentes na entrada; matar um deixa névoa; martírio trava
+        invuln e acumula o timer; mina mata o boss e o jogador leva
+        hit-kill; bala magnetizada empurra o boss e é absorvida). 6/6
+        smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Os 2 bosses restantes do Decálogo (Mercy, DECALOGUE final) —
-      design completo já em `.claude/plans/greedy-conjuring-knuth.md`,
-      implementação ainda pendente, boss a boss. Fase 2 do Ascetic
-      ("Renúncia") e fase 2 da Purity ("Contaminação") agora que a pool
-      `pickup` da Restitution existe.
+- [ ] O boss final do Decálogo (DECALOGUE) — design completo já em
+      `.claude/plans/greedy-conjuring-knuth.md`, implementação ainda
+      pendente. Fase 2 do Ascetic ("Renúncia") e fase 2 da Purity
+      ("Contaminação") agora que a pool `pickup` da Restitution existe.
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

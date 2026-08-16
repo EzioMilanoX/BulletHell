@@ -127,6 +127,7 @@ HUD_DTYPE = np.dtype([
 
 # minion.kind
 MINION_KAMIKAZE, MINION_SENTINEL, MINION_BUBBLE, MINION_MINE = 0, 1, 2, 3
+MINION_INNOCENT = 4          # Misericórdia: 1 HP, estático — explode em névoa SLOW
 MINION_DTYPE = np.dtype([        # lacaios: kamikaze (Invocador), sentinelas/
     ("self",  np.uint64),        # bolhas estáticas (Preguiça) e minas/moedas
     ("kind",  np.uint8),         # (Avareza/Pecado — explodem por proximidade;
@@ -160,6 +161,8 @@ BOSS_DTYPE = np.dtype([
     ("sw_t",      np.float32),   # Segundo Fôlego (EXPERT+): >0 = sobrevivendo com 1 HP
     ("sw_acc",    np.float32),   # Segundo Fôlego: acumulador da rajada periódica
     ("enrage_mult", np.float32), # Lineage: >1 = cadência/vel. de tiro acelerada
+    ("env_death",   np.uint8),   # Misericórdia: 1 = morreu por dano ambiental
+                                  # (mina), não pela bala do jogador
 ])
 
 PART_DTYPE = np.dtype([          # hitbox-filha de boss composto

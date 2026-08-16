@@ -91,6 +91,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.ScaledMovementSystem(mm))     # física com escalas de tempo
     world.register_system(gs.OrbitSystem(mm))              # pós-física: sobrescreve Transform
     world.register_system(gs.EnemyBulletBehaviorSystem(mm))
+    world.register_system(gs.PlayerBulletMagnetSystem(mm, data))  # Misericórdia
     world.register_system(gs.PlayerBulletHomingSystem(mm))
     world.register_system(gs.PlayerBulletDelaySystem(mm))  # BURST+
     world.register_system(gs.FuseSystem(mm, input_provider, data))      # FLAK
@@ -101,7 +102,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.GhostTintSystem(mm))          # mutador FANTASMA
     world.register_system(gs.PlayerHitSystem(mm, data))
     world.register_system(gs.PlayerBulletVsBossSystem(mm, data))
-    world.register_system(gs.MinionCombatSystem(mm))       # lacaios do Invocador
+    world.register_system(gs.MinionCombatSystem(mm, data))  # lacaios do Invocador
     world.register_system(gs.HudSystem(mm, data))
 
     _spawn_clock(world, mm, mutators, difficulty, arcade)

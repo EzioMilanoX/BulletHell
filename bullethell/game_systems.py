@@ -27,8 +27,8 @@ from bullethell.schemas import (
     BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
     CHAKRAM_FROZEN, CHAKRAM_OUT, CHAKRAM_RETURN,
     CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
-    LASER_H, LASER_V, MINION_BUBBLE, MINION_KAMIKAZE, MINION_MINE,
-    MINION_SENTINEL, ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
+    LASER_H, LASER_V, MINION_BUBBLE, MINION_INNOCENT, MINION_KAMIKAZE,
+    MINION_MINE, MINION_SENTINEL, ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
     SFX_BOOM, SFX_EMP, SFX_HIT, SFX_MINE, SFX_SHIELD, TETHER_NONE,
     PART_DECOY, PART_FAKE, PART_GUARD, PART_NORMAL, PART_REAL,
 )
@@ -124,12 +124,30 @@ RESTITUTION_ORB_SPAWN_T = 1.5      # intervalo entre drops (fase 1)
 RESTITUTION_BULLET_NEAR_R = 50.0   # bala do boss perto de um orb o afeta
 RESTITUTION_RECOIL_PUSH = 40.0     # px de empurrão ao "piscar e recuar"
 RESTITUTION_RECOIL_TTL_CUT = 1.0   # segundos a menos no ttl ao ser "atingido"
+# Misericórdia (Mercy): fase 0 (Escudo Vivo) — Inocentes estáticos (mesmo
+# mecanismo phase_def.minions do Sloth; "orbitam" simplificado pra formação
+# estática) explodem numa névoa SLOW permanente ao morrer (reusa o hazard da
+# Luxúria; sem o componente BURN do espec original — dano ao jogador sempre
+# foi binário, então a simplificação documentada mantém só o SLOW). Fase 1
+# (O Mártir) o boss fica invulnerável e passivo: sobreviver 20s vence a
+# fase; atirar magnetiza as balas do jogador pro boss e, ao tocarem, o
+# empurram — se cair numa mina (arena cheia delas), morre por dano
+# ambiental (env_death) e o jogador leva hit-kill como punição.
+MERCY_HAZARD_R = 70.0          # raio da névoa deixada por um Inocente morto
+MERCY_HAZARD_TTL = 9999.0      # "permanente" pro resto da luta
+MERCY_SURVIVE_T = 20.0         # segundos sobrevivendo sem atirar = vence a fase
+MERCY_MAGNET_STRENGTH = 260.0  # px/s de atração das balas do jogador pro boss
+MERCY_CONTACT_R = 22.0         # raio de "absorção" da bala pelo boss
+MERCY_PUSH_PER_HIT = 5.0       # px de empurrão no boss por bala absorvida no frame
+MERCY_MINE_NEAR_R = 45.0       # mesmo raio que MinionCombatSystem já usa pro jogador
+MERCY_MINE_DAMAGE = 60.0       # dano ao boss quando uma mina o atinge
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
     MINION_SENTINEL: (170, 170, 220),   # fantasmas da Preguiça
     MINION_BUBBLE:   (120, 200, 230),   # bolhas-sentinela
     MINION_MINE:     (255, 215, 0),     # moedas da Avareza / minas do Pecado
+    MINION_INNOCENT: (140, 220, 160),   # Inocentes da Misericórdia
 }
 
 
@@ -323,6 +341,7 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
     bv["tier"][brow] = 1                          # DDA: recalculado no 1º frame
     bv["sw_t"][brow] = bv["sw_acc"][brow] = 0.0    # Segundo Fôlego (EXPERT+)
     bv["enrage_mult"][brow] = 1.0                  # Lineage: 1 = ritmo normal
+    bv["env_death"][brow] = 0                      # Misericórdia: sem punição pendente
 
     part_indices = []
     pt = mm.get_pool("part")
@@ -355,6 +374,11 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
     apply_part_overrides(pt, idx, bdef.phases[0])
     spawn_emitters(world, mm.get_pool("emitter"), idx, bdef.phases[0],
                    tuple(part_indices))
+    n_min, kind0, hp0, speed0 = bdef.phases[0].minions   # Misericórdia: Inocentes
+    for j in range(int(n_min)):                          # já na entrada da luta
+        x = SCREEN_W * (0.25 + 0.25 * j)
+        y = 150.0 + (j * 97) % 250
+        spawn_minion(world, mm, x, y, int(kind0), float(hp0), float(speed0))
 
 
 def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
@@ -411,6 +435,32 @@ def spawn_pickup(world: "World", mm: MemoryManager, x: float, y: float) -> int:
     prow = pickup.dense_row_of(idx); pkv = pickup.active_view()
     pkv["self"][prow] = np.uint64(packed)
     pkv["ttl"][prow] = RESTITUTION_ORB_TTL
+    return packed
+
+
+def spawn_hazard(world: "World", mm: MemoryManager, x: float, y: float,
+                 radius: float, ttl: float) -> int:
+    """Spawna uma névoa SLOW (mesmo tipo da Luxúria). Retorna packed ou -1."""
+    hz = mm.get_pool("hazard")
+    if hz.count >= hz.capacity - 1:
+        return -1
+    packed = world.create_entity("hazard_entity")
+    idx = packed & 0xFFFFFFFF
+    t = mm.get_pool("transform")
+    trow = t.dense_row_of(idx); tv = t.active_view()
+    tv["position_x"][trow] = x
+    tv["position_y"][trow] = y
+    tv["scale_x"][trow] = tv["scale_y"][trow] = radius / 4.0
+    s = mm.get_pool("sprite")
+    srow = s.dense_row_of(idx); sv = s.active_view()
+    sv["texture_id"][srow] = SHAPE_CIRCLE
+    sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 200, 70, 130
+    sv["tint_a"][srow] = 80
+    sv["layer_z"][srow] = 2
+    hrow = hz.dense_row_of(idx); hv = hz.active_view()
+    hv["self"][hrow] = np.uint64(packed)
+    hv["radius"][hrow] = radius
+    hv["t"][hrow] = ttl
     return packed
 LASER_TELEGRAPH, LASER_FIRE_DUR = 1.8, 0.65
 LASER_HALF = 6.0
@@ -1080,6 +1130,14 @@ class BossPhaseSystem(ISystem):
                     continue                        # imortal enquanto durar
 
             if bv["hp"][brow] <= 0.0:
+                if bv["env_death"][brow]:      # Misericórdia: mina matou o
+                    bv["env_death"][brow] = 0  # boss (não o jogador) -> hit-kill
+                    pl = self._player.active_entity_indices()
+                    if pl.size:
+                        pprow = self._player.dense_row_of(int(pl[0]))
+                        pv = self._player.active_view()
+                        pv["lives"][pprow] = -1
+                        handle_player_death(pv, pprow, mods, self._stats.active_view())
                 if phase < len(bdef.phases) - 1:   # ainda há fases (Pecado:
                     bv["hp"][brow] = 1.0           # floor até o Sétimo Selo)
                     frac = 1.0 / float(bv["max_hp"][brow])
@@ -2432,6 +2490,54 @@ class PlayerBulletVsBossSystem(ISystem):
 
 
 # ===========================================================================
+class PlayerBulletMagnetSystem(ISystem):
+    """Martírio (Misericórdia, fase 1): enquanto o gimmick mercy_martyr
+    está ativo, as balas do jogador são atraídas pro boss (mesma
+    matemática do bloco GRAVITY de EnemyBulletBehaviorSystem, invertida —
+    pra dentro do boss em vez de pro jogador); ao tocar, a bala é
+    absorvida e empurra o boss na direção do impacto — mais balas
+    simultâneas empurram mais (punição por DPS descontrolado: a arena
+    está cheia de minas, ver MinionCombatSystem)."""
+
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+        self._data = data
+        self._boss = memory_manager.get_pool("boss")
+        self._transform = memory_manager.get_pool("transform")
+        self._pb_core = memory_manager.get_pool("pb_core")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        if self._pb_core.count == 0 or self._boss.count == 0:
+            return
+        tv = self._transform.active_view()
+        bv = self._boss.active_view()
+        pb_idx = self._pb_core.active_entity_indices()
+        pb_trows = self._transform.dense_rows_of(pb_idx)
+        for braw in self._boss.active_entity_indices():
+            bi = int(braw)
+            brow = self._boss.dense_row_of(bi)
+            bdef = self._data.bosses[int(bv["boss_id"][brow])]
+            ph = bdef.phases[int(bv["phase_idx"][brow])]
+            if ph.gimmick != "mercy_martyr":
+                continue
+            btrow = self._transform.dense_row_of(bi)
+            bx = float(tv["position_x"][btrow]); by = float(tv["position_y"][btrow])
+            dx = bx - tv["position_x"][pb_trows]
+            dy = by - tv["position_y"][pb_trows]
+            d = np.sqrt(dx * dx + dy * dy) + 1e-6
+            tv["position_x"][pb_trows] += dx / d * MERCY_MAGNET_STRENGTH * delta_time
+            tv["position_y"][pb_trows] += dy / d * MERCY_MAGNET_STRENGTH * delta_time
+            near = d <= MERCY_CONTACT_R
+            if near.any():
+                cv = self._pb_core.active_view()
+                push_x = float(np.sum((dx / d)[near]))
+                push_y = float(np.sum((dy / d)[near]))
+                for k in np.where(near)[0]:
+                    world.destroy_entity(int(cv["self"][k]))
+                tv["position_x"][btrow] += push_x * MERCY_PUSH_PER_HIT
+                tv["position_y"][btrow] += push_y * MERCY_PUSH_PER_HIT
+
+
+# ===========================================================================
 class PlayerBulletHomingSystem(ISystem):
     """TELEGUIADO: curva as balas com pb_homing em direção ao boss."""
 
@@ -3107,6 +3213,12 @@ class BossGimmickSystem(ISystem):
                             / 1000.0 * (SCREEN_H / 2.0 - 160.0)
                         spawn_pickup(world, self._mm, ox, oy)
 
+            elif gm == "mercy_martyr":                # Misericórdia: O Mártir
+                bv["invuln"][brow] = 1                # passivo — sobreviva 20s
+                bv["aux_angle"][brow] += wdt
+                if bv["aux_angle"][brow] >= MERCY_SURVIVE_T:
+                    bv["hp"][brow] = 0.0               # sobreviveu -> vence a fase
+
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0
         if not spotlight_on:                        # apaga o feixe
@@ -3317,11 +3429,13 @@ class MinionCombatSystem(ISystem):
     """Balas do jogador × lacaios (impacto consome; PLASMA aplica DPS sem
     consumir) e contato lacaio × jogador (kamikaze: explode no toque)."""
 
-    def __init__(self, memory_manager: MemoryManager) -> None:
+    def __init__(self, memory_manager: MemoryManager, data: GameData) -> None:
+        self._data = data
         self._mm = memory_manager
         self._minion = memory_manager.get_pool("minion")
         self._transform = memory_manager.get_pool("transform")
         self._player = memory_manager.get_pool("player")
+        self._boss = memory_manager.get_pool("boss")
         self._pb_core = memory_manager.get_pool("pb_core")
         self._pb_dot = memory_manager.get_pool("pb_dot")
         self._pb_pierce = memory_manager.get_pool("pb_pierce")
@@ -3384,6 +3498,11 @@ class MinionCombatSystem(ISystem):
                     pv["t"][prows[sel]] = pv["cd"][prows[sel]]
                 if mv["hp"][k] <= 0.0:
                     world.destroy_entity(int(mv["self"][k]))
+                    if int(mv["kind"][k]) == MINION_INNOCENT:  # Misericórdia:
+                        spawn_hazard(world, self._mm,          # névoa SLOW
+                                     float(tv["position_x"][m_trows[k]]),
+                                     float(tv["position_y"][m_trows[k]]),
+                                     MERCY_HAZARD_R, MERCY_HAZARD_TTL)
 
         # bolhas da Preguiça: estouram sozinhas num anel após 8s (mesmo
         # sem o jogador tocá-las — ETYPE_BUBBLE, BUBBLE_EXPLODE_T)
@@ -3401,6 +3520,33 @@ class MinionCombatSystem(ISystem):
                                            math.cos(a) * BUBBLE_BURST_SPD,
                                            math.sin(a) * BUBBLE_BURST_SPD)
                     world.destroy_entity(int(mv["self"][k]))
+
+        # minas perto do boss em mercy_martyr (Misericórdia): dano
+        # AMBIENTAL (não é o jogador atirando) + marca env_death pro
+        # BossPhaseSystem punir o jogador ao finalizar a morte
+        if self._boss.count:
+            bv = self._boss.active_view()
+            for braw in self._boss.active_entity_indices():
+                bi = int(braw)
+                brow = self._boss.dense_row_of(bi)
+                bdef = self._data.bosses[int(bv["boss_id"][brow])]
+                ph = bdef.phases[int(bv["phase_idx"][brow])]
+                if ph.gimmick != "mercy_martyr":
+                    continue
+                btrow = self._transform.dense_row_of(bi)
+                bx = float(tv["position_x"][btrow]); by = float(tv["position_y"][btrow])
+                bd2 = ((tv["position_x"][m_trows] - bx) ** 2
+                      + (tv["position_y"][m_trows] - by) ** 2)
+                near_boss = (mv["kind"] == MINION_MINE) & (bd2 <= MERCY_MINE_NEAR_R ** 2)
+                if near_boss.any():
+                    for k in np.where(near_boss)[0]:
+                        self._explode_mine(world,
+                                           float(tv["position_x"][m_trows[k]]),
+                                           float(tv["position_y"][m_trows[k]]),
+                                           int(mv["speed"][k]))
+                        world.destroy_entity(int(mv["self"][k]))
+                    bv["hp"][brow] -= MERCY_MINE_DAMAGE * int(near_boss.sum())
+                    bv["env_death"][brow] = 1
 
         # proximidade com o jogador: kamikaze explode em dano de contato;
         # minas/moedas explodem num anel de balas (sem hit direto)

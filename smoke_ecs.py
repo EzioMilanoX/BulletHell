@@ -688,4 +688,108 @@ if __name__ == "__main__":
     if not recoil_ok:
         ok = False
 
+    # Decálogo #6 — Mercy: raiz normal na fase 0, sem invuln escondendo
+    # nada (fase 1 congela hp sob mercy_martyr, mas isso ainda conta como
+    # "danificável" via mira ingênua na primeira metade da luta).
+    r = run("mercy", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Mercy fase 0: 4 Inocentes já na entrada da luta; matar um deixa
+    # névoa SLOW permanente
+    from bullethell.game_systems import MINION_INNOCENT as _MI
+
+    w_mc, inp_mc = _bh2(boss_name="mercy", weapon_name="padrao")
+    mn_mc = w_mc.get_pool("minion")
+    innocents_ok = (mn_mc.count == 4
+                    and all(int(mn_mc.active_view()["kind"][k]) == _MI
+                            for k in range(mn_mc.count)))
+    print(f"[{'OK ' if innocents_ok else 'FAIL'}] mercy: 4 inocentes na "
+         f"entrada da fase 0 (count={mn_mc.count})")
+    if not innocents_ok:
+        ok = False
+
+    tp_mc = w_mc.get_pool("transform"); hz_mc = w_mc.get_pool("hazard")
+    idxs_mc = mn_mc.active_entity_indices()
+    k0_mc = int(idxs_mc[0])
+    trow_mc = tp_mc.dense_row_of(k0_mc)
+    x_mc = float(tp_mc.active_view()["position_x"][trow_mc])
+    y_mc = float(tp_mc.active_view()["position_y"][trow_mc])
+    _spb(w_mc, w_mc, "pb_padrao", x_mc, y_mc, 0.0, 0.0, 50.0, 3.0,
+        color=(255, 255, 255))
+    inp_mc.poll(); w_mc.step(DT)
+    hazard_ok = mn_mc.count == 3 and hz_mc.count == 1
+    print(f"[{'OK ' if hazard_ok else 'FAIL'}] mercy: matar inocente deixa "
+         f"nevoa SLOW permanente (minions={mn_mc.count}, hazards={hz_mc.count})")
+    if not hazard_ok:
+        ok = False
+
+    # Mercy fase 1 (O Mártir): invuln=1 + timer de sobrevivência acumula
+    w_mm, inp_mm = _bh2(boss_name="mercy", weapon_name="padrao")
+    bp_mm = w_mm.get_pool("boss"); bv_mm = bp_mm.active_view()
+    bv_mm["hp"][0] = bv_mm["max_hp"][0] * 0.4
+    inp_mm.poll(); w_mm.step(DT)
+    martyr_ok = (int(bv_mm["phase_idx"][0]) == 1
+                and int(bv_mm["invuln"][0]) == 1)
+    for _ in range(60):
+        inp_mm.poll(); w_mm.step(DT)
+    survive_ok = martyr_ok and float(bv_mm["aux_angle"][0]) > 0.5
+    print(f"[{'OK ' if survive_ok else 'FAIL'}] mercy: martirio invuln=1 + "
+         f"timer de sobrevivencia acumula ({float(bv_mm['aux_angle'][0]):.2f}s)")
+    if not survive_ok:
+        ok = False
+
+    # Mercy: mina perto do boss em mercy_martyr causa dano ambiental e
+    # marca env_death; ao finalizar a morte o jogador leva hit-kill
+    from bullethell.game_systems import spawn_minion as _smi, MINION_MINE as _MM
+
+    w_env, inp_env = _bh2(boss_name="mercy", weapon_name="padrao")
+    bp_env = w_env.get_pool("boss"); bv_env = bp_env.active_view()
+    tp_env = w_env.get_pool("transform")
+    bv_env["hp"][0] = 50.0
+    inp_env.poll(); w_env.step(DT)
+    btrow_env = tp_env.dense_row_of(int(bp_env.active_entity_indices()[0]))
+    bx_env = float(tp_env.active_view()["position_x"][btrow_env])
+    by_env = float(tp_env.active_view()["position_y"][btrow_env])
+    _smi(w_env, w_env, bx_env, by_env, _MM, 2.0, 8.0)
+    inp_env.poll(); w_env.step(DT)
+    env_ok = float(bv_env["hp"][0]) <= 0.0 and int(bv_env["env_death"][0]) == 1
+    st_env = w_env.get_pool("stats").active_view()
+    deaths0 = int(st_env["deaths"][0])
+    inp_env.poll(); w_env.step(DT)         # BossPhaseSystem finaliza a morte
+    punish_ok = env_ok and int(st_env["deaths"][0]) == deaths0 + 1 \
+        and int(bv_env["env_death"][0]) == 0
+    print(f"[{'OK ' if punish_ok else 'FAIL'}] mercy: mina mata o boss "
+         f"(env_death) -> hit-kill no jogador (deaths {deaths0}->"
+         f"{int(st_env['deaths'][0])})")
+    if not punish_ok:
+        ok = False
+
+    # Mercy: bala do jogador é magnetizada pro boss e, ao tocar, empurra-o
+    w_mag, inp_mag = _bh2(boss_name="mercy", weapon_name="padrao")
+    bp_mag = w_mag.get_pool("boss"); bv_mag = bp_mag.active_view()
+    tp_mag = w_mag.get_pool("transform")
+    bv_mag["hp"][0] = bv_mag["max_hp"][0] * 0.4
+    inp_mag.poll(); w_mag.step(DT)
+    btrow_mag = tp_mag.dense_row_of(int(bp_mag.active_entity_indices()[0]))
+    bx_mag = float(tp_mag.active_view()["position_x"][btrow_mag])
+    by_mag = float(tp_mag.active_view()["position_y"][btrow_mag])
+    from bullethell.game_systems import spawn_player_bullet as _spb2
+    _spb2(w_mag, w_mag, "pb_padrao", bx_mag + 10.0, by_mag, 0.0, 0.0, 1.0, 3.0)
+    pb_mag = w_mag.get_pool("pb_core")
+    n0_mag = pb_mag.count
+    inp_mag.poll(); w_mag.step(DT)
+    btrow_mag2 = tp_mag.dense_row_of(int(bp_mag.active_entity_indices()[0]))
+    bx_mag2 = float(tp_mag.active_view()["position_x"][btrow_mag2])
+    magnet_ok = (bx_mag2 < bx_mag - 1.0) and pb_mag.count == n0_mag - 1
+    print(f"[{'OK ' if magnet_ok else 'FAIL'}] mercy: bala magnetizada "
+         f"empurra o boss e e absorvida (x {bx_mag:.1f}->{bx_mag2:.1f}, "
+         f"balas {n0_mag}->{pb_mag.count})")
+    if not magnet_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)

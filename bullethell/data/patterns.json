@@ -315,6 +315,14 @@
       "_doc": "Decálogo #8 — Restituição: colunas verticais do topo, como grades de prisão (150px/s, spec exata) — mesmo emit 'rain' do wall/rain.",
       "emit": "rain", "bullet": "std/normal",
       "period": 0.6, "count": 10, "gap": 0.25, "aim": "down",
-      "speed": 150.0 }
+      "speed": 150.0 },
+
+    { "name": "mercy/plea", "_doc": "Misericórdia fase 0 (Escudo Vivo): leque suave mirado — o boss pacifista ataca mais fraco que os outros do arco.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.5, "count": 4, "arc": 0.6, "aim": "player", "speed": 150.0 },
+
+    { "name": "mercy/mines", "_doc": "Misericórdia fase 1 (O Mártir): minas mortais (kind=3) enchendo a arena ao longo da sobrevivência de 20s.",
+      "emit": "summon", "bullet": "std/normal",
+      "period": 1.0, "count": 1, "kind": 3, "hp": 2.0, "speed": 8.0 }
   ]
 }

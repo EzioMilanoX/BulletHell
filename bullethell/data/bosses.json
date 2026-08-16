@@ -408,6 +408,20 @@
           "emitters": [ { "pattern": "restitution/prison_bars" } ] },
         { "hp_above": 0.0, "gimmick": "restitution_theft",
           "emitters": [ { "pattern": "restitution/prison_bars" } ] }
+      ] },
+
+    { "name": "mercy",
+      "_doc": "Decálogo #6 — A Misericórdia: fase 0 (Escudo Vivo) spawna 4 Inocentes (MINION_INNOCENT novo, 1 HP) já na entrada da luta (mesmo mecanismo `minions` do Sloth, agora também disparado por spawn_boss — não só em troca de fase); 'orbitam protegendo' é simplificado pra formação estática, mesmo esquema de posições do Sloth. Matar um Inocente deixa uma névoa SLOW permanente (spawn_hazard, raio 70px, ttl 9999 — reusa o hazard da Luxúria; o componente BURN do espec original foi deliberadamente omitido, já que dano ao jogador sempre foi binário no jogo). Fase 1 (O Mártir) o boss fica invulnerável e passivo (gimmick mercy_martyr): sobreviver 20s sem novidade vence a fase; MAS atirar magnetiza as balas do jogador pro boss (PlayerBulletMagnetSystem) e, ao tocarem, empurram-no — se cair numa mina (arena cheia delas via mercy/mines), morre por dano ambiental (env_death) e o BossPhaseSystem aplica hit-kill ao jogador antes de finalizar a derrota. Punição severa por DPS descontrolado.",
+      "hp": 360,
+      "hitbox": [20, 20],
+      "route": [[640, 90, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.5,
+          "minions": [4, 4, 1.0, 0.0],
+          "emitters": [ { "pattern": "mercy/plea" } ] },
+        { "hp_above": 0.0, "gimmick": "mercy_martyr",
+          "emitters": [ { "pattern": "mercy/mines" } ] }
       ] }
   ]
 }
