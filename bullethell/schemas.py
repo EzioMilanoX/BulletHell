@@ -147,6 +147,7 @@ BOSS_DTYPE = np.dtype([
     ("tier",      np.int8),      # DDA (Difficulty): 1/2/3 pelo HP ratio (>0.66/>0.33/resto)
     ("sw_t",      np.float32),   # Segundo Fôlego (EXPERT+): >0 = sobrevivendo com 1 HP
     ("sw_acc",    np.float32),   # Segundo Fôlego: acumulador da rajada periódica
+    ("enrage_mult", np.float32), # Lineage: >1 = cadência/vel. de tiro acelerada
 ])
 
 PART_DTYPE = np.dtype([          # hitbox-filha de boss composto

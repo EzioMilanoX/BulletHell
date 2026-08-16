@@ -258,6 +258,26 @@
       "_doc": "Icon fase 1 (Dança dos Falsos): adagas contínuas miradas enquanto os clones trocam de posição.",
       "emit": "arc", "bullet": "std/normal",
       "period": 0.35, "count": 1, "aim": "player",
-      "speed": 260.0 }
+      "speed": 260.0 },
+
+    { "name": "lineage/sol_rings",
+      "_doc": "Decálogo #5 — Lineage (Sol): anéis expansivos contínuos.",
+      "emit": "ring", "bullet": "std/normal",
+      "period": 1.1, "count": 16, "speed": 110.0 },
+
+    { "name": "lineage/lua_beam",
+      "_doc": "Decálogo #5 — Lineage (Lua): tiro único focado, mirado.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.5, "count": 1, "aim": "player", "speed": 280.0 },
+
+    { "name": "truth/ghost_spiral",
+      "_doc": "Decálogo #7 — Verdade: 8 dos 10 braços da espiral (80%) são fantasma — mesmo spin_speed/period da real, pra interlaçar.",
+      "emit": "spiral", "bullet": "truth/ghost",
+      "period": 0.05, "arms": 8, "spin_speed": 3.0, "speed": 140.0 },
+
+    { "name": "truth/real_spiral",
+      "_doc": "Decálogo #7 — Verdade: 2 dos 10 braços (20%) são reais — mesmo spin_speed/period da fantasma.",
+      "emit": "spiral", "bullet": "truth/real",
+      "period": 0.05, "arms": 2, "spin_speed": 3.0, "speed": 140.0 }
   ]
 }

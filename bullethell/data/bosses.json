@@ -308,6 +308,40 @@
       "phases": [
         { "hp_above": 0.0,
           "emitters": [ { "pattern": "twins/yang_rings" } ] }
+      ] },
+
+    { "name": "lineage_sol",
+      "_doc": "Decálogo #5 — Honra (metade Sol): anéis expansivos. Gimmick lineage_bond: se a diferença de HP com a Lua passar de 15%, quem tiver MAIS HP dobra a cadência (enrage_mult=2).",
+      "hp": 220,
+      "hitbox": [24, 24],
+      "route": [[420, 100, 2.2], [860, 100, 2.2]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.0, "gimmick": "lineage_bond",
+          "emitters": [ { "pattern": "lineage/sol_rings" } ] }
+      ] },
+
+    { "name": "lineage_lua",
+      "_doc": "Decálogo #5 — Honra (metade Lua): tiros focados. Mesmo gimmick lineage_bond que o Sol, checado independentemente por cada raiz.",
+      "hp": 220,
+      "hitbox": [24, 24],
+      "route": [[860, 160, 2.2], [420, 160, 2.2]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.0, "gimmick": "lineage_bond",
+          "emitters": [ { "pattern": "lineage/lua_beam" } ] }
+      ] },
+
+    { "name": "truth",
+      "_doc": "Decálogo #7 — A Verdade: espiral de 10 braços, 8 fantasma (contact=never, dim) + 2 reais, mesmo spin/period pra interlaçar. Gimmick truth_reveal sobe o alpha das fantasma perto do jogador (raio 90px).",
+      "hp": 360,
+      "hitbox": [20, 20],
+      "route": [[640, 90, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.0, "gimmick": "truth_reveal",
+          "emitters": [ { "pattern": "truth/ghost_spiral" },
+                        { "pattern": "truth/real_spiral" } ] }
       ] }
   ]
 }

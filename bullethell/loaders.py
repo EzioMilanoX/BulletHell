@@ -43,6 +43,7 @@ class BulletArchetypeDef:
     bounces: int
     fragment: bool
     tether: bool
+    alpha: int   # tint_a no spawn (255=opaco); Verdade usa baixo p/ balas fantasma
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +181,7 @@ def load_bullet_archetypes(path=DATA_DIR / "bullet_archetypes.json") -> Dict[int
             bounces=e.get("bounces", 0),
             fragment=e.get("fragment", False),
             tether=e.get("tether", False),
+            alpha=int(e.get("alpha", 255)),
         )
         out[sid(d.name)] = d
     return out

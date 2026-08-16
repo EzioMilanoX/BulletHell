@@ -144,17 +144,19 @@ BOSSES = [("classic", "CLÁSSICO", (128, 0, 0)),
           ("lust", "LUXÚRIA *", (220, 80, 160)),
           ("wrath", "IRA *", (220, 50, 20)),
           ("sin", "PECADO ORIGINAL **", (180, 0, 220)),
-          # Decálogo (piloto — só os 2 primeiros, ver PARITY_PLAN futuro):
-          # marcador "†" pra distinguir da linhagem dos Pecados ("*"/"**").
+          # Decálogo (em andamento, ver bullethell/MIGRATION.md): marcador
+          # "†" pra distinguir da linhagem dos Pecados ("*"/"**").
           ("monolith", "MONÓLITO †", (140, 130, 120)),
-          ("icon", "ÍDOLO †", (200, 170, 60))]
+          ("icon", "ÍDOLO †", (200, 170, 60)),
+          ("lineage", "LINHAGEM †", (255, 210, 90)),
+          ("truth", "VERDADE †", (230, 230, 230))]
 
 # Legado: SELECT_BOSS só lista CLASSIC_BOSS_IDS — os 8 pecados só são
 # jogáveis via SINS RUSH, "Mago do Tempo" (invenção do port) via BOSS RUSH.
 # Preservar a ordem de BOSSES já dá a ordem exata do legado (spec menus §6).
-# Monólito/Ídolo (Decálogo) ficam de fora de propósito — ainda não têm um
-# modo "rush" próprio (piloto de mecânica, ver bullethell/MIGRATION.md);
-# acessíveis só via --boss monolith/icon (CLI) e smoke_ecs.py por enquanto.
+# Decálogo fica de fora de propósito — ainda não tem um modo "rush" próprio
+# (arco em construção, ver bullethell/MIGRATION.md); acessível só via
+# --boss <nome> (CLI) e smoke_ecs.py por enquanto.
 CLASSIC_BOSS_NAMES = ("classic", "swarm", "wall", "twins", "summoner", "omega")
 CLASSIC_BOSSES = [b for b in BOSSES if b[0] in CLASSIC_BOSS_NAMES]
 
@@ -241,11 +243,15 @@ BOSS_INTROS = {
     "wrath": ("IRA *", "O mergulho cria ondas de choque. Nunca fique no chão."),
     "sin": ("PECADO ORIGINAL **",
            "Fase 4: invulnerável por 30 segundos. A única saída é sobreviver."),
-    # Decálogo (piloto): flavor autoral, sem equivalente no legado.
+    # Decálogo: flavor autoral, sem equivalente no legado.
     "monolith": ("MONÓLITO †",
                 "Os pilares são isca — atingi-los custa caro. Mire além deles."),
     "icon": ("ÍDOLO †",
             "Quatro rostos, um só real. Observe antes de atirar."),
+    "lineage": ("LINHAGEM †",
+               "Sol e Lua — fira um demais e o outro acorda com raiva."),
+    "truth": ("VERDADE †",
+             "A maioria do que você vê não pode te tocar. Confie no brilho."),
 }
 
 WIN_GOALS = {"classic": 1, "rush": len(RUSH_ORDERS[1]),

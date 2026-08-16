@@ -84,6 +84,10 @@ ICON_SWAP_PERMUTATIONS = (              # nenhuma é a identidade (sempre mexe)
     (1, 0, 3, 2), (2, 3, 0, 1), (3, 2, 1, 0),
     (1, 2, 3, 0), (3, 0, 1, 2),
 )
+# Verdade (Truth): balas fantasma (contact=never) ficam dimmed; um raio ao
+# redor do próprio jogador revela (tint_a sobe) as que estiverem perto.
+TRUTH_REVEAL_R = 90.0
+TRUTH_GHOST_ALPHA = 70    # deve bater com o "alpha" do arquétipo fantasma
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -236,6 +240,10 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
         spawn_boss(world, mm, data, "twin_yin")
         spawn_boss(world, mm, data, "twin_yang")
         return
+    if boss_name == "lineage":                    # Decálogo #5 — Sol + Lua
+        spawn_boss(world, mm, data, "lineage_sol")
+        spawn_boss(world, mm, data, "lineage_lua")
+        return
 
     bdef = data.bosses[sid(boss_name)]
     composite = len(bdef.parts) > 0
@@ -278,6 +286,7 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
     bv["invuln"][brow] = 0
     bv["tier"][brow] = 1                          # DDA: recalculado no 1º frame
     bv["sw_t"][brow] = bv["sw_acc"][brow] = 0.0    # Segundo Fôlego (EXPERT+)
+    bv["enrage_mult"][brow] = 1.0                  # Lineage: 1 = ritmo normal
 
     part_indices = []
     pt = mm.get_pool("part")
@@ -1406,8 +1415,11 @@ class EmitterSystem(ISystem):
             if pat.dda:
                 pat = self._dda_pattern(pat, int(ev["root"][k]), dda_bonus,
                                         ox, oy, px, py)
-            while ev["t"][k] >= pat.period:
-                ev["t"][k] -= pat.period
+            enrage = float(self._boss.active_view()["enrage_mult"][root_brow]) \
+                if root_brow >= 0 else 1.0
+            eff_period = pat.period / enrage if enrage > 0.0 else pat.period
+            while ev["t"][k] >= eff_period:
+                ev["t"][k] -= eff_period
                 self._emit(world, k, pat, ox, oy, px, py)
 
     # -- formas de emissão --------------------------------------------------
@@ -1695,7 +1707,7 @@ class EmitterSystem(ISystem):
         sv["texture_id"][srow] = SHAPE_CIRCLE
         r, g, b = PALETTE.get(arch.color, (255, 64, 90))
         sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = r, g, b
-        sv["tint_a"][srow] = 255
+        sv["tint_a"][srow] = arch.alpha
         sv["layer_z"][srow] = 10
         erow = self._eb.dense_row_of(idx)
         eb = self._eb.active_view()
@@ -2701,6 +2713,7 @@ class BossGimmickSystem(ISystem):
         self._hud = memory_manager.get_pool("hud")
         self._sprite = memory_manager.get_pool("sprite")
         self._part = memory_manager.get_pool("part")
+        self._eb = memory_manager.get_pool("enemy_bullet")
 
     def _update_beam(self, spot_x: float, player_inside: bool,
                      visible: bool) -> None:
@@ -2899,6 +2912,41 @@ class BossGimmickSystem(ISystem):
                             pvw["off_y"][prow_p] = oy + dy / dist * step
                         else:
                             pvw["off_x"][prow_p], pvw["off_y"][prow_p] = tx, ty
+
+            elif gm == "lineage_bond":               # Honra: enrage por Δhp>15%
+                bv["invuln"][brow] = 0
+                pair = (sid("lineage_sol"), sid("lineage_lua"))
+                other_brow = -1
+                for raw2 in self._boss.active_entity_indices():
+                    bi2 = int(raw2)
+                    if bi2 == bi:
+                        continue
+                    brow2 = self._boss.dense_row_of(bi2)
+                    if int(bv["boss_id"][brow2]) in pair:
+                        other_brow = brow2
+                        break
+                if other_brow >= 0:
+                    my_frac = float(bv["hp"][brow]) / float(bv["max_hp"][brow])
+                    other_frac = float(bv["hp"][other_brow]) / float(bv["max_hp"][other_brow])
+                    bv["enrage_mult"][brow] = 2.0 if (my_frac - other_frac) > 0.15 else 1.0
+                else:
+                    bv["enrage_mult"][brow] = 1.0
+
+            elif gm == "truth_reveal":               # Verdade: raio no jogador
+                bv["invuln"][brow] = 0
+                if self._eb.count:
+                    eb = self._eb.active_view()
+                    idxs = self._eb.active_entity_indices()
+                    ghost = eb["contact"] == CONTACT_NEVER
+                    if ghost.any():
+                        g_idx = idxs[ghost]
+                        trows_g = self._transform.dense_rows_of(g_idx)
+                        srows_g = self._sprite.dense_rows_of(g_idx)
+                        gx = tv["position_x"][trows_g]; gy = tv["position_y"][trows_g]
+                        near = (gx - px) ** 2 + (gy - py) ** 2 <= TRUTH_REVEAL_R ** 2
+                        sv2 = self._sprite.active_view()
+                        sv2["tint_a"][srows_g[near]] = 255
+                        sv2["tint_a"][srows_g[~near]] = TRUTH_GHOST_ALPHA
 
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0

@@ -79,6 +79,14 @@
     { "name": "classic/fracture",
       "_doc": "FRACTURE do Clássico: cresce devagar (FRAC_HOLD_SPEED=3px/s) por 1.8s (FRAC_FORM_TIME) e então dispara — aproximação: relança ao snapshot do jogador em vez de continuar na própria direção (reusa STOPGO).",
       "contact": "always", "color": 6, "radius": 4.0,
-      "behavior": "stopgo", "behavior_params": [1.8, 0.0, 175.0] }
+      "behavior": "stopgo", "behavior_params": [1.8, 0.0, 175.0] },
+
+    { "name": "truth/ghost",
+      "_doc": "Decálogo #7 — Verdade: fantasma, nunca dá dano, dim (mesma cor da real — só o alpha diferencia; revelado pelo raio ao redor do jogador via gimmick truth_reveal).",
+      "contact": "never", "color": 0, "radius": 4.0, "alpha": 70 },
+
+    { "name": "truth/real",
+      "_doc": "Decálogo #7 — Verdade: as poucas reais — dano normal, opacas.",
+      "contact": "always", "color": 0, "radius": 4.0 }
   ]
 }

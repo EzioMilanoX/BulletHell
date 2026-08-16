@@ -381,14 +381,52 @@ outros 9.
         propositalmente FICA de fora do loop genérico — "boss_damage=0"
         pra mira ingênua é o resultado esperado da mecânica de achar o
         alvo certo, não um bug). 6/6 smoke tests + 174 pytest OK.
+      - **14b** — Design completo dos 9 bosses restantes do Decálogo
+        planejado (3 agentes de investigação + escrito em
+        `.claude/plans/`), e implementados os 2 mais baratos:
+        **Lineage** ("Honra" — Sol + Lua) e **Truth** ("Verdade").
+        Achado central da investigação: ao contrário do piloto, a
+        maioria dos 9 restantes precisa de mecânica sem NENHUM
+        precedente hoje (boss ferido por hazard ambiental, pickup,
+        ricochete em entidade, bala que assenta no chão) — o plano
+        prioriza primitivos compartilhados entre bosses e recomenda
+        simplificações explícitas nos pedaços mais caros (dano
+        zona×cor vira "2 vidas" em vez de HP float novo; rastreio de
+        causa de morte vira uma flag local em vez de proveniência
+        genérica). Ordem de implementação recomendada no próprio plano:
+        Lineage+Truth (feito) → Silence+Sabbath → Ascetic → Purity →
+        Restitution → Mercy → DECALOGUE final.
+        **Lineage**: reusa a arquitetura do `twins` (duas raízes 100%
+        independentes) sem nenhum campo novo pra "achar o irmão" —
+        filtra por conjunto de `boss_id` (mesma técnica que
+        `others_alive` já usava pra "alguém mais vivo"). Novo
+        `BOSS_DTYPE.enrage_mult` (genérico, não peculiar a Lineage):
+        se a diferença de HP entre Sol/Lua passar de 15%, o lado com
+        MAIS HP dobra a cadência de tiro (`EmitterSystem` divide
+        `pat.period` por `enrage_mult`) até reequilibrar.
+        **Truth**: `BulletArchetypeDef` ganha `alpha` (default 255,
+        zero regressão) — `tint_a` já fluía ponta-a-ponta pro
+        renderer, só faltava um arquétipo pedir menos que opaco.
+        Espiral de 10 braços (8 fantasma + 2 reais, mesmo
+        spin_speed/period pra interlaçar) dá exatamente 80/20 sem
+        nenhum emit-type novo. Gimmick `truth_reveal` identifica
+        fantasma via `contact==CONTACT_NEVER` (o mesmo campo que já
+        as torna inofensivas) e sobe o `tint_a` das que estiverem a
+        90px do jogador.
+        `smoke_ecs.py`: os dois entram no loop genérico (raízes sempre
+        danificáveis, sem parte especial escondendo nada) + 4 asserts
+        dedicados (enrage liga/desliga certo; proporção 80/20 exata;
+        revelação por proximidade). 6/6 smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Os outros 9 bosses do Decálogo (restrição de input, dano por
-      zona, ímã de balas — mecânicas novas ainda não construídas)
+- [ ] Os 7 bosses restantes do Decálogo (Silence, Sabbath, Ascetic,
+      Purity, Restitution, Mercy, DECALOGUE final) — design completo
+      já em `.claude/plans/greedy-conjuring-knuth.md`, implementação
+      ainda pendente, boss a boss
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

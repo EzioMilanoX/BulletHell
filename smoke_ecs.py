@@ -313,4 +313,84 @@ if __name__ == "__main__":
     if not phase2_ok:
         ok = False
 
+    # Decálogo #5 — Lineage: Sol+Lua danificáveis via mira ingênua (raízes
+    # normais, sem invuln/parte especial) — entram no loop genérico.
+    r = run("lineage", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Decálogo #7 — Truth: espiral 80% fantasma, mas a raiz em si nunca é
+    # invulnerável — também entra no loop genérico.
+    r = run("truth", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Lineage: enrage dispara só no lado com MAIS hp quando a diferença
+    # passa de 15%, e desliga quando reequilibra
+    w_ln, inp_ln = _bh2(boss_name="lineage", weapon_name="padrao")
+    bp_ln = w_ln.get_pool("boss")
+    bv_ln = bp_ln.active_view()
+    bv_ln["hp"][0] = bv_ln["max_hp"][0] * 1.0
+    bv_ln["hp"][1] = bv_ln["max_hp"][1] * 0.80        # Δ = 20% > 15%
+    inp_ln.poll(); w_ln.step(DT)
+    enrage_ok = (abs(float(bv_ln["enrage_mult"][0]) - 2.0) < 1e-6
+                and abs(float(bv_ln["enrage_mult"][1]) - 1.0) < 1e-6)
+    print(f"[{'OK ' if enrage_ok else 'FAIL'}] lineage: diff hp>15% -> so o "
+         f"lado com mais hp enrage (sol={bv_ln['enrage_mult'][0]:.1f}, "
+         f"lua={bv_ln['enrage_mult'][1]:.1f})")
+    if not enrage_ok:
+        ok = False
+    bv_ln["hp"][1] = bv_ln["max_hp"][1] * 0.95         # reequilibra
+    inp_ln.poll(); w_ln.step(DT)
+    rebalance_ok = abs(float(bv_ln["enrage_mult"][0]) - 1.0) < 1e-6
+    print(f"[{'OK ' if rebalance_ok else 'FAIL'}] lineage: reequilibrado -> "
+         f"enrage volta a 1.0 (sol={bv_ln['enrage_mult'][0]:.1f})")
+    if not rebalance_ok:
+        ok = False
+
+    # Truth: proporção fantasma/real ~80/20 e revelação por raio no jogador
+    from bullethell.schemas import CONTACT_ALWAYS, CONTACT_NEVER
+    w_tr, inp_tr = _bh2(boss_name="truth", weapon_name="padrao")
+    eb_tr = w_tr.get_pool("enemy_bullet")
+    for _ in range(30):
+        inp_tr.poll(); w_tr.step(DT)
+    n_ghost = int((eb_tr.active_view()["contact"][:eb_tr.count] == CONTACT_NEVER).sum())
+    n_real = int((eb_tr.active_view()["contact"][:eb_tr.count] == CONTACT_ALWAYS).sum())
+    total = n_ghost + n_real
+    ratio = n_ghost / total if total else 0.0
+    ratio_ok = total > 0 and 0.70 <= ratio <= 0.90
+    print(f"[{'OK ' if ratio_ok else 'FAIL'}] truth: ~80% fantasma "
+         f"(ghost={n_ghost} real={n_real} ratio={ratio:.2f})")
+    if not ratio_ok:
+        ok = False
+
+    tp_tr = w_tr.get_pool("transform"); sp_tr = w_tr.get_pool("sprite")
+    idxs_tr = eb_tr.active_entity_indices()
+    ghost_rows = [k for k in range(eb_tr.count)
+                  if eb_tr.active_view()["contact"][k] == CONTACT_NEVER]
+    g_idx = int(idxs_tr[ghost_rows[0]])
+    g_trow = tp_tr.dense_row_of(g_idx)
+    gx = float(tp_tr.active_view()["position_x"][g_trow])
+    gy = float(tp_tr.active_view()["position_y"][g_trow])
+    pl_tr = w_tr.get_pool("player")
+    p_trow = tp_tr.dense_row_of(int(pl_tr.active_entity_indices()[0]))
+    tp_tr.active_view()["position_x"][p_trow] = gx
+    tp_tr.active_view()["position_y"][p_trow] = gy
+    inp_tr.poll(); w_tr.step(DT)
+    g_row_after = eb_tr.dense_row_of(g_idx)
+    reveal_ok = (g_row_after >= 0
+                and int(sp_tr.active_view()["tint_a"][sp_tr.dense_row_of(g_idx)]) == 255)
+    print(f"[{'OK ' if reveal_ok else 'FAIL'}] truth: fantasma perto do "
+         f"jogador revela (tint_a->255)")
+    if not reveal_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)
