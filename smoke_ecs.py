@@ -238,4 +238,79 @@ if __name__ == "__main__":
         if not (spawned and damaged):
             ok = False
         print(f"[{status}] {r}")
+
+    # Decálogo #1 — Monolith: 4 pilares-isca (nunca dão dano, revidam ao
+    # serem atingidos), fase 1 orbita rápido. Danificável via mira ingênua
+    # (aim "center") já que a raiz também tem hitbox — diferente do Icon.
+    r = run("monolith", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Decálogo #2 — Icon: propositalmente FORA do loop genérico acima — a
+    # mira ingênua (mira o x da raiz) nunca acerta os clones, que ficam
+    # deslocados; "boss_damage=0" aqui seria o resultado ESPERADO da
+    # mecânica (é um boss de "ache o alvo certo"), não um bug, então
+    # testamos os comportamentos específicos diretamente via pool.
+    from bullethell.composition import build_headless as _bh2
+    from bullethell.game_systems import spawn_player_bullet as _spb
+    from bullethell.game_systems import PART_FAKE as _PF, PART_REAL as _PR
+
+    w_ic, inp_ic = _bh2(boss_name="icon", weapon_name="padrao")
+    bp_ic = w_ic.get_pool("boss"); pt_ic = w_ic.get_pool("part")
+    tp_ic = w_ic.get_pool("transform"); eb_ic = w_ic.get_pool("enemy_bullet")
+    inp_ic.poll(); w_ic.step(DT)          # 1 frame: icon_hide liga o invuln
+    ok_icon_hide = int(bp_ic.active_view()["invuln"][0]) == 1
+    print(f"[{'OK ' if ok_icon_hide else 'FAIL'}] icon: invuln=1 na fase 0 "
+         f"(gimmick icon_hide)")
+    if not ok_icon_hide:
+        ok = False
+
+    part_idxs = pt_ic.active_entity_indices()
+    kinds_ic = pt_ic.active_view()["kind"]
+    fake_k = next(k for k in range(pt_ic.count) if int(kinds_ic[k]) == _PF)
+    real_k = next(k for k in range(pt_ic.count) if int(kinds_ic[k]) == _PR)
+
+    def _hit_part(k):
+        prow_t = tp_ic.dense_row_of(int(part_idxs[k]))
+        x = float(tp_ic.active_view()["position_x"][prow_t])
+        y = float(tp_ic.active_view()["position_y"][prow_t])
+        hp_before = float(bp_ic.active_view()["hp"][0])
+        eb_before = eb_ic.count
+        _spb(w_ic, w_ic, "pb_padrao", x, y, 0.0, 0.0, 5.0, 3.0,
+            color=(255, 255, 255))
+        inp_ic.poll(); w_ic.step(DT)
+        return hp_before, float(bp_ic.active_view()["hp"][0]), eb_before, eb_ic.count
+
+    hp0, hp1, eb0, eb1 = _hit_part(fake_k)
+    fake_ok = abs(hp1 - hp0) < 1e-6 and (eb1 - eb0) >= 14
+    print(f"[{'OK ' if fake_ok else 'FAIL'}] icon: clone falso atingido -> "
+         f"hp inalterado ({hp0:.0f}->{hp1:.0f}) + burst de {eb1 - eb0} balas")
+    if not fake_ok:
+        ok = False
+
+    hp0, hp1, eb0, eb1 = _hit_part(real_k)
+    real_ok = hp1 < hp0 - 1e-6
+    print(f"[{'OK ' if real_ok else 'FAIL'}] icon: clone real atingido -> "
+         f"hp cai ({hp0:.0f}->{hp1:.0f})")
+    if not real_ok:
+        ok = False
+
+    # força a fase 2 (33%) e confere a revelação: partes viram guard, raiz
+    # perde o invuln (via fallback normal — gimmick vazio nessa fase)
+    bp_ic.active_view()["hp"][0] = bp_ic.active_view()["max_hp"][0] * 0.32
+    for _ in range(3):                    # deixa o phase_idx cascatear 0->1->2
+        inp_ic.poll(); w_ic.step(DT)
+    phase2_ok = (int(bp_ic.active_view()["phase_idx"][0]) == 2
+                and int(bp_ic.active_view()["invuln"][0]) == 0
+                and all(int(pt_ic.active_view()["kind"][k]) == 4
+                        for k in range(pt_ic.count)))
+    print(f"[{'OK ' if phase2_ok else 'FAIL'}] icon: fase 2 revela a raiz "
+         f"(invuln=0) e vira guard nos 4 cantos")
+    if not phase2_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)

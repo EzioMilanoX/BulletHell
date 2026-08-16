@@ -13,6 +13,7 @@ from bullethell.ids import sid
 from bullethell.schemas import (
     BEH_BOOMERANG, BEH_NONE, BEH_SLEEPER, BEH_STOPGO,
     CONTACT_ALWAYS, CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER,
+    PART_DECOY, PART_FAKE, PART_GUARD, PART_NORMAL, PART_REAL,
 )
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -21,6 +22,8 @@ _CONTACT = {"always": CONTACT_ALWAYS, "if_moving": CONTACT_IF_MOVING,
             "if_still": CONTACT_IF_STILL, "never": CONTACT_NEVER}
 _BEH = {"none": BEH_NONE, "stopgo": BEH_STOPGO,
         "boomerang": BEH_BOOMERANG, "sleeper": BEH_SLEEPER}
+_PART_KIND = {"normal": PART_NORMAL, "real": PART_REAL, "decoy": PART_DECOY,
+              "fake": PART_FAKE, "guard": PART_GUARD}
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,20 +137,28 @@ class BossPhaseDef:
     # (pattern_sid, off_x, off_y, part_idx) — part_idx -1 = origem na raiz
     emitters: Tuple[Tuple[int, float, float, int], ...]
     force: Tuple[float, float]    # px/s empurrando o jogador (Gula/Soberba)
-    gimmick: str                  # "" | "spotlight" | "gate_minions"
+    gimmick: str                  # "" | "spotlight" | "gate_minions" | "icon_hide"
     # (n, kind, hp, speed) — lacaios spawnados na ENTRADA da fase
     minions: Tuple[int, int, float, float]
+    # PART_* por índice de parte (ordem de spawn); () = não altera nenhuma
+    part_kind: Tuple[int, ...]
+    # (off_x, off_y) por índice de parte; () = não altera nenhuma
+    part_offsets: Tuple[Tuple[float, float], ...]
 
 
 @dataclass(frozen=True, slots=True)
 class BossDef:
     name: str
     hp: float
-    motion: str          # "" | "swarm_orbit" | "descend" | "teleport" | "track_x"
+    motion: str          # "" | "swarm_orbit" | "descend" | "teleport" | "track_x" | "pillar_guard"
     motion_rate: float   # track_x: taxa do lerp em direção ao jogador
     hitbox: Tuple[float, float]   # semi-extensões da raiz (boss simples)
     route: Tuple[Tuple[float, float, float], ...]
     parts: Tuple[Tuple[float, float, float, float], ...]
+    # boss composto (parts != ()) cuja raiz TAMBÉM tem hitbox própria
+    # (Monolith/Icon) — sem isto, raiz de boss composto nunca tem sprite
+    # nem hitbox (caso de wall/swarm)
+    root_hitbox: bool
     phases: Tuple[BossPhaseDef, ...]
 
 
@@ -229,6 +240,7 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
             hitbox=tuple(map(float, e.get("hitbox", [24.0, 24.0]))),
             route=tuple(tuple(map(float, p)) for p in e.get("route", ())),
             parts=tuple(tuple(map(float, p)) for p in e.get("parts", ())),
+            root_hitbox=bool(e.get("root_hitbox", False)),
             phases=tuple(
                 BossPhaseDef(
                     hp_above=float(ph["hp_above"]),
@@ -241,6 +253,9 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
                     force=tuple(map(float, ph.get("force", [0.0, 0.0]))),
                     gimmick=ph.get("gimmick", ""),
                     minions=tuple(ph.get("minions", [0, 0, 0.0, 0.0])),
+                    part_kind=tuple(_PART_KIND[k] for k in ph.get("part_kind", ())),
+                    part_offsets=tuple(tuple(map(float, o))
+                                       for o in ph.get("part_offsets", ())),
                 )
                 for ph in e["phases"]),
         )

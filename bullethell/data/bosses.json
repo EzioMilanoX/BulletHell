@@ -249,6 +249,45 @@
           "emitters": [] }
       ] },
 
+    { "name": "monolith",
+      "_doc": "Decálogo #1 — O Primeiro Mandamento. 4 pilares-isca (PART_DECOY) ao redor da tela: nunca dão dano, revidam com um sniper mirado se atingidos. Fase 0 estáticos + anéis lentos; fase 1 orbitam rápido (pillar_guard) + leques mirados — 'thread the needle' pelos vãos entre pilares.",
+      "hp": 380,
+      "hitbox": [30, 30],
+      "motion": "pillar_guard", "motion_rate": 1.0,
+      "route": [[640, 220, 1.0]],
+      "parts": [[-420, -180, 26, 50], [420, -180, 26, 50],
+                [-420, 180, 26, 50], [420, 180, 26, 50]],
+      "root_hitbox": true,
+      "phases": [
+        { "hp_above": 0.5,
+          "part_kind": ["decoy", "decoy", "decoy", "decoy"],
+          "emitters": [ { "pattern": "monolith/slow_ring" } ] },
+        { "hp_above": 0.0,
+          "part_kind": ["decoy", "decoy", "decoy", "decoy"],
+          "emitters": [ { "pattern": "monolith/spread_burst" } ] }
+      ] },
+
+    { "name": "icon",
+      "_doc": "Decálogo #2 — O Segundo Mandamento. 4 clones idênticos (parts); só 1 é PART_REAL (pisca sutilmente a cada 1.5s via gimmick icon_hide), os outros 3 são PART_FAKE (burst radial de 16 balas se atingidos, sem dano à raiz). Fase 1 os clones trocam de posição (icon_hide, mesmo gimmick, fase-gated); fase 2 revela a raiz (gimmick vazio → invuln cai pelo fallback normal) e os clones viram torres estáticas nos cantos (PART_GUARD).",
+      "hp": 380,
+      "hitbox": [22, 22],
+      "route": [[640, 200, 1.0]],
+      "parts": [[-70, -50, 18, 18], [70, -50, 18, 18],
+                [-70, 50, 18, 18], [70, 50, 18, 18]],
+      "root_hitbox": true,
+      "phases": [
+        { "hp_above": 0.66, "gimmick": "icon_hide",
+          "part_kind": ["real", "fake", "fake", "fake"],
+          "emitters": [ { "pattern": "classic/ring" } ] },
+        { "hp_above": 0.33, "gimmick": "icon_hide",
+          "emitters": [ { "pattern": "icon/daggers" } ] },
+        { "hp_above": 0.0,
+          "part_kind": ["guard", "guard", "guard", "guard"],
+          "part_offsets": [[-580, -140], [580, -140],
+                           [-580, 460], [580, 460]],
+          "emitters": [ { "pattern": "classic/laser_wave" } ] }
+      ] },
+
     { "name": "twin_yin",
       "_doc": "Metade Yin do 'twins': balas azuis (dano só em movimento).",
       "hp": 180,

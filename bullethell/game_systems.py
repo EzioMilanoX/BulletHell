@@ -30,6 +30,7 @@ from bullethell.schemas import (
     LASER_H, LASER_V, MINION_BUBBLE, MINION_KAMIKAZE, MINION_MINE,
     MINION_SENTINEL, ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
     SFX_BOOM, SFX_EMP, SFX_HIT, SFX_MINE, SFX_SHIELD, TETHER_NONE,
+    PART_DECOY, PART_FAKE, PART_GUARD, PART_NORMAL, PART_REAL,
 )
 
 if TYPE_CHECKING:
@@ -71,6 +72,18 @@ RUSH_ORDERS = {
     2: ("pride", "sloth", "envy", "gluttony", "greed", "lust", "wrath", "sin"),
 }
 SINS_RUSH_HP_SCALE = 1.15   # legado: hp_scale_per_stage do SINS Rush (spec §11)
+
+# Monolith (Decálogo #1): pilares-isca — nunca dão dano, revidam sozinhos
+MONOLITH_RETAL_SPEED = 450.0     # px/s do tiro sniper de revide
+PILLAR_ORBIT_BASE = 1.4          # rad/s base da órbita da fase 1 (× motion_rate)
+# Icon (Decálogo #2): clones-isca — só 1 é real, o resto pune ao ser atingido
+ICON_BURST_N, ICON_BURST_SPEED = 16, 180.0
+ICON_FLASH_PERIOD, ICON_FLASH_ON_T = 1.5, 0.25   # pisca do clone real
+ICON_SWAP_PERIOD, ICON_SWAP_SPEED = 2.0, 250.0   # troca de posição (fase 1)
+ICON_SWAP_PERMUTATIONS = (              # nenhuma é a identidade (sempre mexe)
+    (1, 0, 3, 2), (2, 3, 0, 1), (3, 2, 1, 0),
+    (1, 2, 3, 0), (3, 0, 1, 2),
+)
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -226,7 +239,8 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
 
     bdef = data.bosses[sid(boss_name)]
     composite = len(bdef.parts) > 0
-    packed = world.create_entity("boss_hidden" if composite else "boss")
+    packed = world.create_entity(
+        "boss_hidden" if (composite and not bdef.root_hitbox) else "boss")
     idx = packed & 0xFFFFFFFF
     t = mm.get_pool("transform")
     row = t.dense_row_of(idx); tv = t.active_view()
@@ -236,7 +250,7 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
         y0 = 30.0                                # entra pelo topo
     tv["position_x"][row] = x0
     tv["position_y"][row] = y0
-    if not composite:                            # raiz visível com hitbox
+    if not composite or bdef.root_hitbox:        # raiz visível com hitbox
         half_w, half_h = bdef.hitbox
         tv["scale_x"][row] = half_w / 4.0
         tv["scale_y"][row] = half_h / 4.0
@@ -290,8 +304,10 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
         pv["root"][prow] = idx
         pv["off_x"][prow] = dx
         pv["off_y"][prow] = dy
+        pv["kind"][prow] = PART_NORMAL          # default; fase 0 pode sobrepor
         part_indices.append(pidx)
 
+    apply_part_overrides(pt, idx, bdef.phases[0])
     spawn_emitters(world, mm.get_pool("emitter"), idx, bdef.phases[0],
                    tuple(part_indices))
 
@@ -1092,6 +1108,7 @@ class BossPhaseSystem(ISystem):
         for k in range(self._emitter.count):       # ≤32 emitters
             if int(ev["root"][k]) == boss_index:
                 world.destroy_entity(int(ev["self"][k]))
+        apply_part_overrides(self._part, boss_index, phase_def)
         spawn_emitters(world, self._emitter, boss_index, phase_def,
                        parts_of(self._part, boss_index))
         # lacaios de entrada da fase (Preguiça: 3 fantasmas espalhados)
@@ -1108,6 +1125,24 @@ def parts_of(part_pool, boss_index: int) -> tuple:
     idxs = part_pool.active_entity_indices()
     return tuple(int(idxs[k]) for k in range(part_pool.count)
                  if int(pv["root"][k]) == boss_index)
+
+
+def apply_part_overrides(part_pool, boss_index: int, phase_def) -> None:
+    """Aplica `phase_def.part_kind`/`part_offsets` (por índice de parte, na
+    ordem de spawn) às partes de `boss_index` — Monolith/Icon mudam kind
+    (decoy/fake/guard) e posição por fase; () em qualquer um = não altera
+    nenhuma parte (bosses sem essas colunas, ex. wall/swarm, ficam intactos)."""
+    if not phase_def.part_kind and not phase_def.part_offsets:
+        return
+    for i, pidx in enumerate(parts_of(part_pool, boss_index)):
+        prow = part_pool.dense_row_of(pidx)
+        pv = part_pool.active_view()
+        if i < len(phase_def.part_kind):
+            pv["kind"][prow] = phase_def.part_kind[i]
+        if i < len(phase_def.part_offsets):
+            ox, oy = phase_def.part_offsets[i]
+            pv["off_x"][prow] = ox
+            pv["off_y"][prow] = oy
 
 
 def spawn_emitters(world: "World", emitter_pool, boss_index: int, phase_def,
@@ -1169,6 +1204,9 @@ class BossMotionSystem(ISystem):
                                                  y + WALL_DESCENT_SPEED * delta_time)
             elif bdef.motion == "swarm_orbit":
                 bv["aux_angle"][brow] += SWARM_ORBIT_SPEED * delta_time
+            elif bdef.motion == "pillar_guard":      # Monolith: só orbita na fase 1+
+                if int(bv["phase_idx"][brow]) >= 1:
+                    bv["aux_angle"][brow] += PILLAR_ORBIT_BASE * bdef.motion_rate * delta_time
             elif bdef.motion == "track_x":          # persegue o x do jogador
                 pl_idx = world.get_pool("player").active_entity_indices()
                 if pl_idx.size:
@@ -1208,7 +1246,7 @@ class BossMotionSystem(ISystem):
             rx = float(tv["position_x"][rrow]); ry = float(tv["position_y"][rrow])
             ox = float(pv["off_x"][k]); oy = float(pv["off_y"][k])
             bdef = self._data.bosses[int(bv["boss_id"][brow])]
-            if bdef.motion == "swarm_orbit":
+            if bdef.motion == "swarm_orbit" or bdef.motion == "pillar_guard":
                 a = float(bv["aux_angle"][brow])
                 c, s = math.cos(a), math.sin(a)
                 ox, oy = ox * c - oy * s, ox * s + oy * c
@@ -2162,14 +2200,30 @@ class PlayerBulletVsBossSystem(ISystem):
         brow = self._boss.dense_row_of(boss_entity)
         if btrow < 0 or hrow < 0 or brow < 0:
             return
-        if self._boss.active_view()["invuln"][brow]:   # gimmick dos pecados
-            return
+
+        # Monolith/Icon: pilar-isca ou clone-isca nunca roteia dano à raiz
+        # nem é gateado pelo invuln DELA — reage sozinha (revide/burst).
+        # PART_REAL (Icon) tem que atravessar o invuln da raiz mesmo com
+        # ela escondida — é o próprio propósito da mecânica; só partes
+        # PART_NORMAL (wall/swarm) respeitam o invuln, igual sempre foi.
+        special_kind = PART_NORMAL
+        if hit_entity != boss_entity:
+            prow_part = self._part.dense_row_of(hit_entity)
+            if prow_part >= 0:
+                special_kind = int(self._part.active_view()["kind"][prow_part])
+
+        if special_kind == PART_NORMAL and self._boss.active_view()["invuln"][brow]:
+            return                                   # gimmick dos pecados
         hv = self._hitbox.active_view()
         cx = float(tv["position_x"][btrow]); cy = float(tv["position_y"][btrow])
         hw = float(hv["half_width"][hrow]); hh = float(hv["half_height"][hrow])
         inside = ((bxs >= cx - hw) & (bxs <= cx + hw) &
                   (bys >= cy - hh) & (bys <= cy + hh))
         if not inside.any():
+            return
+
+        if special_kind >= PART_DECOY:
+            self._handle_special_part(world, special_kind, cx, cy, inside, cv)
             return
 
         bv = self._boss.active_view()
@@ -2246,6 +2300,34 @@ class PlayerBulletVsBossSystem(ISystem):
                                 float(sv["dmg"][srow]), 3.0,
                                 color=(255, 200, 60))
                     world.destroy_entity(int(cv["self"][k]))
+
+    def _handle_special_part(self, world, kind: int, cx: float, cy: float,
+                             inside, cv) -> None:
+        """Pilar-isca (Monolith, PART_DECOY) ou clone-isca (Icon,
+        PART_FAKE/PART_GUARD): nunca dá dano à raiz — consome a(s) bala(s)
+        que acertaram e reage sozinha, sem depender de nenhum outro sistema
+        neste mesmo frame (revide mirado / burst radial / só absorve)."""
+        for row in np.where(inside)[0]:
+            world.destroy_entity(int(cv["self"][row]))
+        if kind == PART_GUARD:
+            return                              # só absorve, sem reação
+        if kind == PART_DECOY:
+            _, ptrow = _player_row(self._player, self._transform)
+            if ptrow < 0:
+                return
+            tv = self._transform.active_view()
+            px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+            dx, dy = px - cx, py - cy
+            d = math.hypot(dx, dy) or 1.0
+            spawn_enemy_bullet(world, self._mm, cx, cy,
+                               dx / d * MONOLITH_RETAL_SPEED,
+                               dy / d * MONOLITH_RETAL_SPEED, color=3)
+        elif kind == PART_FAKE:
+            for j in range(ICON_BURST_N):
+                a = j * (TWO_PI / ICON_BURST_N)
+                spawn_enemy_bullet(world, self._mm, cx, cy,
+                                   math.cos(a) * ICON_BURST_SPEED,
+                                   math.sin(a) * ICON_BURST_SPEED, color=1)
 
 
 # ===========================================================================
@@ -2618,6 +2700,7 @@ class BossGimmickSystem(ISystem):
         self._stats = memory_manager.get_pool("stats")
         self._hud = memory_manager.get_pool("hud")
         self._sprite = memory_manager.get_pool("sprite")
+        self._part = memory_manager.get_pool("part")
 
     def _update_beam(self, spot_x: float, player_inside: bool,
                      visible: bool) -> None:
@@ -2786,6 +2869,36 @@ class BossGimmickSystem(ISystem):
                 bv["aux_angle"][brow] = acc
                 if elapsed >= 30.0:                 # sobreviveu → boss cai
                     bv["hp"][brow] = 0.0
+
+            elif gm == "icon_hide":                 # Ídolo: fases 0-1
+                bv["invuln"][brow] = 1
+                # pisca o clone kind==PART_REAL a cada ICON_FLASH_PERIOD
+                bv["aux2"][brow] += wdt
+                flash_on = (bv["aux2"][brow] % ICON_FLASH_PERIOD) < ICON_FLASH_ON_T
+                part_idxs = parts_of(self._part, bi)
+                pvw = self._part.active_view()
+                for pidx in part_idxs:
+                    prow_p = self._part.dense_row_of(pidx)
+                    if int(pvw["kind"][prow_p]) == PART_REAL:
+                        srow = self._sprite.dense_row_of(pidx)
+                        sv = self._sprite.active_view()
+                        sv["tint_a"][srow] = 255 if flash_on else 160
+                if int(bv["phase_idx"][brow]) >= 1:  # fase 1: clones embaralham
+                    bv["aux_angle"][brow] += wdt
+                    swap_id = int(bv["aux_angle"][brow] // ICON_SWAP_PERIOD)
+                    perm = ICON_SWAP_PERMUTATIONS[swap_id % len(ICON_SWAP_PERMUTATIONS)]
+                    step = ICON_SWAP_SPEED * wdt
+                    for i, pidx in enumerate(part_idxs):
+                        prow_p = self._part.dense_row_of(pidx)
+                        tx, ty = bdef.parts[perm[i]][0], bdef.parts[perm[i]][1]
+                        ox = float(pvw["off_x"][prow_p]); oy = float(pvw["off_y"][prow_p])
+                        dx, dy = tx - ox, ty - oy
+                        dist = math.hypot(dx, dy)
+                        if dist > step and dist > 1e-6:
+                            pvw["off_x"][prow_p] = ox + dx / dist * step
+                            pvw["off_y"][prow_p] = oy + dy / dist * step
+                        else:
+                            pvw["off_x"][prow_p], pvw["off_y"][prow_p] = tx, ty
 
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0

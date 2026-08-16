@@ -337,11 +337,58 @@ Portado (fases 1–2):
         resta só Tela Cheia (fora de escopo) e a divergência
         deliberada de fire rate do SPREAD. 6/6 smoke tests OK.
 
-Fase 14 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
+Fase 14 — conteúdo novo, além da paridade: o "Decálogo" (10 bosses
+temáticos nos Mandamentos + 1 final, contraponto aos 7 Pecados), começando
+por um piloto de 2 bosses pra provar a mecânica antes de planejar os
+outros 9.
+      - **14a** — **Monolith** ("O Primeiro Mandamento") e **Icon** ("O
+        Segundo Mandamento"), só no port ECS (legado fica congelado).
+        Mecânica nova: `PART_DTYPE` ganha o campo `kind`
+        (`PART_NORMAL/REAL/DECOY/FAKE/GUARD`, `schemas.py`) — uma parte
+        de boss composto agora pode nunca dar dano à raiz e reagir
+        sozinha ao ser atingida, resolvido direto dentro de
+        `PlayerBulletVsBossSystem._collide_aabb` (sem flag entre
+        sistemas — o método já tem tudo que precisa no mesmo frame).
+        `BossDef.root_hitbox` (`loaders.py`) permite a raiz de um boss
+        composto também ter hitbox própria — gap real que nem `wall`
+        nem `swarm` precisavam até agora. `BossPhaseDef.part_kind`/
+        `part_offsets` + a função `apply_part_overrides()`
+        (`game_systems.py`) deixam o kind/posição de cada parte mudar
+        por fase, 100% data-driven (`bosses.json`).
+        **Monolith**: 4 pilares-isca (`PART_DECOY`) ao redor da tela —
+        nunca dão dano, revidam com um sniper mirado (450px/s) se
+        atingidos; fase 1 (50% HP) eles orbitam rápido (motion novo
+        `pillar_guard`, phase-gated) — "thread the needle" emerge só da
+        ordem de colisão existente (raiz primeiro, partes depois),
+        sem bala-bloqueio nenhum (decisão deliberada — a engine não tem
+        colisão contínua, seria mais engenharia que valor).
+        **Icon**: 4 clones idênticos, só 1 é `PART_REAL` (raiz fica
+        `invuln` via gimmick novo `icon_hide`, que também faz o clone
+        real piscar a cada 1.5s); os 3 `PART_FAKE` geram um burst de 16
+        balas se atingidos, sem dano. Fase 1 (66%) os clones trocam de
+        posição (mesmo gimmick, phase-gated); fase 2 (33%) revela a
+        raiz de graça (gimmick vazio → cai no fallback normal de
+        invuln) e as partes viram `PART_GUARD` nos 4 cantos.
+        Bug real achado testando: o `invuln` da raiz (pra esconder o
+        Icon) também bloqueava o clone `PART_REAL` de dar dano — só
+        partes `PART_NORMAL` (wall/swarm) devem respeitar esse invuln;
+        corrigido antes de qualquer coisa ir pro smoke test.
+        Nenhum dos dois entra em `CLASSIC_BOSS_NAMES` ainda (sem modo
+        "rush" próprio pro Decálogo) — acessíveis via
+        `--boss monolith`/`--boss icon` e smoke_ecs.py.
+        `smoke_ecs.py` ganhou Monolith no loop genérico (danificável via
+        mira ingênua) + 4 asserts dedicados do Icon (que
+        propositalmente FICA de fora do loop genérico — "boss_damage=0"
+        pra mira ingênua é o resultado esperado da mecânica de achar o
+        alvo certo, não um bug). 6/6 smoke tests + 174 pytest OK.
+
+Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
+- [ ] Os outros 9 bosses do Decálogo (restrição de input, dano por
+      zona, ímã de balas — mecânicas novas ainda não construídas)
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

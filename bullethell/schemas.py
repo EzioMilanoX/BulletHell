@@ -21,6 +21,10 @@ SCREEN_W, SCREEN_H = 1280, 720
 CONTACT_ALWAYS, CONTACT_IF_MOVING, CONTACT_IF_STILL, CONTACT_NEVER = 0, 1, 2, 3
 # enemy_bullet["beh"]
 BEH_NONE, BEH_STOPGO, BEH_BOOMERANG, BEH_SLEEPER = 0, 1, 2, 3
+# part["kind"] — comportamento ao ser atingida por bala do jogador.
+# NORMAL/REAL rotam dano pra raiz (comportamento de sempre); DECOY/FAKE/
+# GUARD nunca dão dano — reagem sozinhas em PlayerBulletVsBossSystem.
+PART_NORMAL, PART_REAL, PART_DECOY, PART_FAKE, PART_GUARD = 0, 1, 2, 3, 4
 
 PLAYER_DTYPE = np.dtype([
     ("lives",      np.int8),
@@ -150,6 +154,7 @@ PART_DTYPE = np.dtype([          # hitbox-filha de boss composto
     ("root",  np.int64),         # entity index do boss raiz (recebe o dano)
     ("off_x", np.float32),       # offset base em relação à raiz
     ("off_y", np.float32),
+    ("kind",  np.uint8),         # PART_NORMAL (0, default) por trás de tudo
 ])
 
 # laser.axis
@@ -281,7 +286,7 @@ GAME_POOL_CAPACITY: Dict[str, int] = {
     "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "wave": 1,
     "mastery": 1,
     "particle": 1024, "hud": 8, "minion": 64, "hazard": 8, "boss": 4,
-    "part": 8, "laser": 16, "waypoint": 4, "emitter": 32,
+    "part": 12, "laser": 16, "waypoint": 4, "emitter": 32,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

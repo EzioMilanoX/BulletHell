@@ -241,6 +241,23 @@
       "_doc": "Padrão DO JOGADOR: 5 estilhaços em leque de 40° centrado a -90°, 400 px/s, dano 0.4 cada (FLAK_*). Referenciado pelo componente Fuse.",
       "emit": "arc", "bullet": "std/normal",
       "period": 0, "count": 5, "arc": 0.698, "aim": "fixed",
-      "speed": 400.0 }
+      "speed": 400.0 },
+
+    { "name": "monolith/slow_ring",
+      "_doc": "Monolith fase 0: anel lento de 20 balas, 90px/s (Falso Panteão).",
+      "emit": "ring", "bullet": "std/normal",
+      "period": 1.8, "count": 20, "speed": 90.0 },
+
+    { "name": "monolith/spread_burst",
+      "_doc": "Monolith fase 1 (Foco Absoluto): leque de 5 balas mirado a cada 0.3s, enquanto os pilares orbitam rápido.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.3, "count": 5, "arc": 0.611, "aim": "player",
+      "speed": 200.0 },
+
+    { "name": "icon/daggers",
+      "_doc": "Icon fase 1 (Dança dos Falsos): adagas contínuas miradas enquanto os clones trocam de posição.",
+      "emit": "arc", "bullet": "std/normal",
+      "period": 0.35, "count": 1, "aim": "player",
+      "speed": 260.0 }
   ]
 }
