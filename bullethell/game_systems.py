@@ -97,6 +97,14 @@ SILENCE_SILENCE_T = 2.0
 # Sabbath: janela de "descanso" pune mover/atirar
 SABBATH_CYCLE_T = 4.0
 SABBATH_REST_T = 1.5
+# Abnegação (Ascetic): "buraco seguro" colapsa se o jogador ficar bem no
+# meio de um vazio cercado por um anel de balas — reaproveita o campo
+# `gravity` já existente (puxa o JOGADOR pras balas, não o contrário —
+# simplificação deliberada; o efeito de perigo é o mesmo).
+ASCETIC_HOLE_R = 40.0        # raio "vazio" checado ao redor do jogador
+ASCETIC_EDGE_R = 140.0       # raio da borda do buraco (anel de balas)
+ASCETIC_MIN_EDGE_N = 6       # nº mínimo de balas na borda pra contar como buraco
+ASCETIC_PULL_STRENGTH = 220.0
 
 _MINION_COLORS = {
     MINION_KAMIKAZE: (255, 120, 60),
@@ -3000,6 +3008,22 @@ class BossGimmickSystem(ISystem):
                     fired = self._input.is_action_held("fire")
                     if moved or fired:
                         self._hit_player(pv, prow)
+
+            elif gm == "ascetic_trap":               # Abnegação: buraco colapsa
+                bv["invuln"][brow] = 0
+                if self._eb.count:
+                    eb = self._eb.active_view()
+                    idxs = self._eb.active_entity_indices()
+                    trows_e = self._transform.dense_rows_of(idxs)
+                    bx = tv["position_x"][trows_e]; by = tv["position_y"][trows_e]
+                    d2 = (bx - px) ** 2 + (by - py) ** 2
+                    in_hole = d2 <= ASCETIC_HOLE_R ** 2
+                    near_edge = (d2 > ASCETIC_HOLE_R ** 2) & (d2 <= ASCETIC_EDGE_R ** 2)
+                    collapsing = (int(in_hole.sum()) == 0
+                                 and int(near_edge.sum()) >= ASCETIC_MIN_EDGE_N)
+                    eb["gravity"][:] = 0.0    # reset — só este gimmick mexe aqui
+                    if collapsing:
+                        eb["gravity"][near_edge] = ASCETIC_PULL_STRENGTH
 
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0

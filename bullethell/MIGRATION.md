@@ -449,16 +449,44 @@ outros 9.
         (skill travada + bolt + skill não ativa de verdade; arma
         silencia no ciclo certo; mover pune, ficar parado não). 6/6
         smoke tests + 174 pytest OK.
+      - **14d** — **Ascetic** ("A Abnegação"), passo 3 do plano (P2 —
+        força condicional por zona, variante via `gravity`). Gimmick
+        `ascetic_trap` reaproveita 100% o campo `gravity` que já existe
+        em `ENEMY_BULLET_DTYPE` (hoje só usado pelo arquétipo
+        `mod/gravity_well`): a cada frame, checa se o jogador está num
+        vazio (raio 40px sem bala nenhuma) cercado por um anel de balas
+        (raio 140px, ≥6 balas) — se sim, as balas do anel ganham
+        `gravity>0`, puxando o jogador pra fora do "buraco seguro".
+        Simplificação deliberada anotada explicitamente: o mecanismo
+        existente puxa o JOGADOR em direção às balas (não o contrário,
+        como o texto original descrevia "as balas aceleram pra
+        dentro") — o efeito de perigo pro jogador é equivalente, e
+        zero código de física novo foi necessário. Detecção 100%
+        geométrica ao vivo (raios ao redor da posição atual do
+        jogador) — não precisou de nenhuma coordenada de "buraco"
+        pré-autorada no padrão; qualquer bolsão de baixa densidade
+        que emergir do anel giratório (`gap`/`gap_step` já existentes)
+        já é pego. A fase 2 do design original ("Renúncia" — power-ups
+        falsos que congelam o jogador) fica pra depois de existir a
+        infraestrutura de pickup (chega em Restitution) — só a fase 0
+        ("A Tentação") foi implementada nesta rodada.
+        Testado com anel simétrico (confirma liga/desliga do
+        `gravity`) E assimétrico (confirma que o jogador é puxado de
+        verdade — um anel perfeitamente simétrico cancela a força,
+        como esperado fisicamente, não é bug). Entra no loop genérico
+        + 2 asserts dedicados (anel liga a armadilha; bala ocupando o
+        vazio desliga). 6/6 smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Os 5 bosses restantes do Decálogo (Ascetic, Purity, Restitution,
-      Mercy, DECALOGUE final) — design completo já em
+- [ ] Os 4 bosses restantes do Decálogo (Purity, Restitution, Mercy,
+      DECALOGUE final) — design completo já em
       `.claude/plans/greedy-conjuring-knuth.md`, implementação ainda
-      pendente, boss a boss
+      pendente, boss a boss. Fase 2 do Ascetic ("Renúncia") também
+      fica pra quando Restitution construir a pool de pickup.
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

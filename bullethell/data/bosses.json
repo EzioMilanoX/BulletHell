@@ -368,6 +368,17 @@
           "emitters": [ { "pattern": "sabbath/chaos_rain" } ] },
         { "hp_above": 0.0, "gimmick": "sabbath_rest",
           "emitters": [ { "pattern": "sabbath/chaos_rain" } ] }
+      ] },
+
+    { "name": "ascetic",
+      "_doc": "Decálogo #6 — A Abnegação: só a fase 'A Tentação' desta rodada (a 'Renúncia' com power-ups falsos fica pra depois de existir pickup, ver Restitution). Gimmick ascetic_trap: se o jogador ficar num vazio (raio 40px sem bala nenhuma) cercado por um anel de balas (raio 140px, ≥6 balas), essas balas da borda ganham gravity>0 — puxam o jogador pra fora do 'buraco seguro'.",
+      "hp": 360,
+      "hitbox": [20, 20],
+      "route": [[640, 90, 1.0]],
+      "parts": [],
+      "phases": [
+        { "hp_above": 0.0, "gimmick": "ascetic_trap",
+          "emitters": [ { "pattern": "ascetic/dense_ring" } ] }
       ] }
   ]
 }

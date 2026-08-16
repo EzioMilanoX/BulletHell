@@ -151,7 +151,8 @@ BOSSES = [("classic", "CLÁSSICO", (128, 0, 0)),
           ("lineage", "LINHAGEM †", (255, 210, 90)),
           ("truth", "VERDADE †", (230, 230, 230)),
           ("silence", "REVERÊNCIA †", (150, 100, 200)),
-          ("sabbath", "SABBATH †", (230, 190, 60))]
+          ("sabbath", "SABBATH †", (230, 190, 60)),
+          ("ascetic", "ABNEGAÇÃO †", (120, 140, 130))]
 
 # Legado: SELECT_BOSS só lista CLASSIC_BOSS_IDS — os 8 pecados só são
 # jogáveis via SINS RUSH, "Mago do Tempo" (invenção do port) via BOSS RUSH.
@@ -258,6 +259,8 @@ BOSS_INTROS = {
                "Não invoque nada. Só o corpo e o silêncio."),
     "sabbath": ("SABBATH †",
                "Quando a luz dourada acender, pare de vez."),
+    "ascetic": ("ABNEGAÇÃO †",
+               "O vazio perfeito é a armadilha mais cara."),
 }
 
 WIN_GOALS = {"classic": 1, "rush": len(RUSH_ORDERS[1]),

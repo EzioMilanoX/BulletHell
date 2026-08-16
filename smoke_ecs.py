@@ -466,4 +466,56 @@ if __name__ == "__main__":
     if not punish_ok:
         ok = False
 
+    # Decálogo #6 — Ascetic: raiz normal, sem invuln escondendo nada.
+    r = run("ascetic", "padrao", frames=1600, approach=False)
+    spawned = r["enemy_bullets_peak"] > 0
+    damaged = r["boss_damage"] > 0
+    status = "OK " if (spawned and damaged) else "FAIL"
+    if not (spawned and damaged):
+        ok = False
+    print(f"[{status}] {r}")
+
+    # Ascetic: anel assimétrico cercando um vazio -> gravity liga e puxa o
+    # jogador; bala ocupando o "buraco" -> gravity desliga
+    from bullethell.game_systems import spawn_enemy_bullet as _seb
+    import math as _math
+
+    w_as, inp_as = _bh2(boss_name="ascetic", weapon_name="padrao")
+    pl_as = w_as.get_pool("player"); tp_as = w_as.get_pool("transform")
+    prow_as = tp_as.dense_row_of(int(pl_as.active_entity_indices()[0]))
+    px_as = float(tp_as.active_view()["position_x"][prow_as])
+    py_as = float(tp_as.active_view()["position_y"][prow_as])
+    cx_as, cy_as = px_as + 15.0, py_as    # centro do anel deslocado (assimétrico)
+    for j in range(8):
+        a = j * (2 * _math.pi / 8)
+        _seb(w_as, w_as, cx_as + _math.cos(a) * 100.0,
+            cy_as + _math.sin(a) * 100.0, 0.0, 0.0, color=0)
+    inp_as.poll(); w_as.step(DT)
+    eb_as = w_as.get_pool("enemy_bullet")
+    n_pull = int((eb_as.active_view()["gravity"][:eb_as.count] > 0).sum())
+    trap_on_ok = n_pull >= 6
+    print(f"[{'OK ' if trap_on_ok else 'FAIL'}] ascetic: anel cercando vazio "
+         f"-> gravity liga ({n_pull}/{eb_as.count})")
+    if not trap_on_ok:
+        ok = False
+
+    w_as2, inp_as2 = _bh2(boss_name="ascetic", weapon_name="padrao")
+    pl_as2 = w_as2.get_pool("player"); tp_as2 = w_as2.get_pool("transform")
+    prow_as2 = tp_as2.dense_row_of(int(pl_as2.active_entity_indices()[0]))
+    px_as2 = float(tp_as2.active_view()["position_x"][prow_as2])
+    py_as2 = float(tp_as2.active_view()["position_y"][prow_as2])
+    for j in range(8):
+        a = j * (2 * _math.pi / 8)
+        _seb(w_as2, w_as2, px_as2 + _math.cos(a) * 100.0,
+            py_as2 + _math.sin(a) * 100.0, 0.0, 0.0, color=0)
+    _seb(w_as2, w_as2, px_as2, py_as2, 0.0, 0.0, color=0)  # ocupa o "buraco"
+    inp_as2.poll(); w_as2.step(DT)
+    eb_as2 = w_as2.get_pool("enemy_bullet")
+    n_pull2 = int((eb_as2.active_view()["gravity"][:eb_as2.count] > 0).sum())
+    trap_off_ok = n_pull2 == 0
+    print(f"[{'OK ' if trap_off_ok else 'FAIL'}] ascetic: bala ocupando o "
+         f"'buraco' -> gravity desligado ({n_pull2}/{eb_as2.count})")
+    if not trap_off_ok:
+        ok = False
+
     raise SystemExit(0 if ok else 1)

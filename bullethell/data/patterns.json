@@ -293,6 +293,12 @@
     { "name": "sabbath/chaos_rain",
       "_doc": "Decálogo #4 — Sabbath: chuva vertical caótica (aprox. 175px/s, faixa 110-240 do original simplificada num valor médio).",
       "emit": "rain", "bullet": "std/normal",
-      "period": 0.15, "count": 10, "gap": 0.3, "speed": 175.0 }
+      "period": 0.15, "count": 10, "gap": 0.3, "speed": 175.0 },
+
+    { "name": "ascetic/dense_ring",
+      "_doc": "Decálogo #6 — Abnegação: anel denso com um vão de fuga que gira devagar — os 'buracos' emergem naturalmente da rotação do vão + a densidade geral, checados ao vivo pelo gimmick ascetic_trap.",
+      "emit": "ring", "bullet": "std/normal",
+      "period": 1.3, "count": 22, "speed": 100.0,
+      "gap": 0.4, "gap_step": 0.3 }
   ]
 }
