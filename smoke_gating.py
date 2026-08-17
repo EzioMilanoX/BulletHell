@@ -55,6 +55,20 @@ if __name__ == "__main__":
                a._plus_unlocked("skill", "dash") is False
                and a._plus_unlocked("weapon", "padrao") is False)
 
+    # dev_mode (cheat): revela os 10 bosses do Decálogo em MENU_BOSS
+    from bullethell.scenes import CLASSIC_BOSSES, DECALOGO_BOSSES
+
+    a = app_with({})
+    names_off = [b[0] for b in a._boss_menu_list()]
+    ok &= check("dev_mode desligado: MENU_BOSS só lista os bosses clássicos",
+               len(names_off) == len(CLASSIC_BOSSES)
+               and "monolith" not in names_off)
+    a.dev_mode = True
+    names_on = [b[0] for b in a._boss_menu_list()]
+    ok &= check("dev_mode ligado: MENU_BOSS soma os 10 bosses do Decálogo",
+               len(names_on) == len(CLASSIC_BOSSES) + len(DECALOGO_BOSSES)
+               and "monolith" in names_on and "decalogue" in names_on)
+
     a = app_with({})
     a.sel["diff"] = "facil"
     a._apply_progression("win")

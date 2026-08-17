@@ -719,6 +719,61 @@ outros 9.
         todas as fases do espec original implementadas, acessíveis
         individualmente (`--boss <nome>`) e em sequência (modo Decálogo
         Rush). Nada pendente deste arco.
+      - **14k** — 3 bugs do Decálogo corrigidos a partir de feedback de
+        jogo real (não achados em teste automatizado): (1) Misericórdia
+        — `PlayerBulletMagnetSystem` empurrava o boss a cada bala
+        absorvida sem NENHUM clamp; escalava até sair da tela de vez.
+        Corrigido com um clamp GERAL em `MaintenanceSystem`
+        (`BOSS_SCREEN_MARGIN=20`) que trava a posição de QUALQUER boss
+        dentro da tela — rede de segurança, não um remendo pontual só
+        no Mercy (mesmo espírito do clamp que já existia só pro
+        jogador). (2) DECALOGUE (Olho do Juiz) — o pilar nascia com
+        `telegraph_t=0`: acertava no mesmo frame em que aparecia,
+        exatamente onde o jogador estava, sem aviso algum — impossível
+        de desviar por definição, não só "difícil". Corrigido pra um
+        aviso curto mas real (`DECALOGUE_JUDGE_TELEGRAPH=0.35`) antes de
+        disparar, igual todo outro laser do jogo já faz. (3) Purity
+        (Contaminação) — o puxão radial era 240px/s, mas
+        `PLAYER_SPEED=220`: matematicamente impossível de resistir,
+        não importava o input. Baixado pra `PURITY_CONTAM_PULL=210`
+        (ainda escala em cima da fase anterior, mas dentro do que dá
+        pra contestar com esforço). Os 3 ganharam teste dedicado que
+        trava o comportamento corrigido (não só verifica que "não
+        quebrou" — confirma a correção de verdade: boss não sai da tela
+        depois de 200 empurrões; fugir durante o aviso do pilar evita o
+        dano; correr na direção oposta ao puxão da Contaminação ganha
+        distância em vez de perder).
+
+        **Protótipo experimental "Bastion"** (fora de qualquer arco,
+        só `--boss bastion`): testa terreno sólido de verdade na arena
+        — resposta a uma ideia de melhoria de mapa discutida com o
+        usuário (câmera rolante vs. geometria/obstáculos na tela fixa;
+        geometria escolhida por preservar a leitura de uma tela só,
+        essencial em bullet hell). 2 paredes bloqueiam bala INIMIGA
+        (cobertura de verdade) e o movimento do jogador; bala do
+        jogador atravessa (simplificação deliberada, ajustável com
+        feedback). Pool `terrain` nova (só um marcador `self` — posição/
+        tamanho vêm de `transform`+`hitbox` genéricos da engine, sem
+        schema bespoke) + `TerrainCollisionSystem` novo. `BossDef` ganha
+        campo `terrain` (lista de paredes `(x,y,half_w,half_h)`,
+        mesmo formato de `parts`). 6/6 smoke tests + 174 pytest OK.
+      - **14l** — bosses do Decálogo acessíveis pelo menu normal com o
+        cheat (dev_mode, sequência secreta W W S S A D A D) ligado —
+        pedido do usuário pra não precisar lembrar a sintaxe do
+        `--boss` CLI. `MENU_BOSS` (tela de escolher boss no modo
+        CLÁSSICO) passa a listar `CLASSIC_BOSSES + DECALOGO_BOSSES`
+        (novo, os 10 bosses do arco filtrados de `BOSSES` pelo nome) em
+        vez de só `CLASSIC_BOSSES`, através de um método novo
+        `_boss_menu_list()` — usado tanto no render quanto em
+        `_boss_confirm`, então selecionar um boss do Decálogo funciona
+        exatamente como `--boss <nome>` (o motor nunca restringiu por
+        `CLASSIC_BOSS_NAMES`, isso sempre foi só filtro de UI). Nenhum
+        boss do Decálogo fica travado (`_boss_locked` só trata "omega"
+        por nome) — aparecem prontos pra jogar assim que o cheat liga.
+        Escopo deliberadamente contido: só os 10 bosses na tela de
+        seleção, NÃO o modo Decálogo Rush (continua exigindo vencer o
+        SINS RUSH) nem o "bastion" (prototipo separado, não faz parte
+        do arco). 6/6 smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,

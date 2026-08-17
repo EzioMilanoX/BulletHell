@@ -173,6 +173,14 @@ BOSSES = [("classic", "CLÁSSICO", (128, 0, 0)),
 CLASSIC_BOSS_NAMES = ("classic", "swarm", "wall", "twins", "summoner", "omega")
 CLASSIC_BOSSES = [b for b in BOSSES if b[0] in CLASSIC_BOSS_NAMES]
 
+# Decálogo: os 10 bosses do arco, escondidos do menu normal (sem modo
+# "rush" próprio ainda) mas reveláveis em MENU_BOSS com o cheat (dev_mode)
+# ligado — dá pra testar qualquer um sem lembrar a sintaxe do --boss CLI.
+DECALOGO_BOSS_NAMES = ("monolith", "icon", "lineage", "truth", "silence",
+                      "sabbath", "ascetic", "purity", "restitution",
+                      "mercy", "decalogue")
+DECALOGO_BOSSES = [b for b in BOSSES if b[0] in DECALOGO_BOSS_NAMES]
+
 SKILLS = [("none", "NENHUMA", ("Confie apenas nos reflexos.",), (64, 64, 64)),
           ("dash", "DASH",
           ("SHIFT — 6× velocidade por 0.18s.",), (80, 200, 255)),
@@ -532,12 +540,13 @@ class GameApp:
                        locked=[self._diff_locked(k) for k in range(len(DIFFS))],
                        step=1)
         elif s == MENU_BOSS:
-            self._menu([b[1] for b in CLASSIC_BOSSES], "BULLET HELL",
-                       colors=[b[2] for b in CLASSIC_BOSSES],
+            boss_list = self._boss_menu_list()
+            self._menu([b[1] for b in boss_list], "BULLET HELL",
+                       colors=[b[2] for b in boss_list],
                        descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
-                             for b in CLASSIC_BOSSES],
+                             for b in boss_list],
                        on_confirm=self._boss_confirm, back_to=MENU_DIFF,
-                       locked=[self._boss_locked(b[0]) for b in CLASSIC_BOSSES],
+                       locked=[self._boss_locked(b[0]) for b in boss_list],
                        step=2, crumb=self._crumb()[:1])
         elif s == MENU_SKILL:
             items = [n + (" +" if self.sel["skill_plus"] and k == self.cursor
@@ -619,6 +628,12 @@ class GameApp:
 
     def _boss_locked(self, name: str) -> bool:
         return name == "omega" and not self.save.get("omega_unlocked", False)
+
+    def _boss_menu_list(self) -> list:
+        """Lista exibida em MENU_BOSS — os bosses do Decálogo só aparecem
+        com o cheat (dev_mode) ligado (sequência secreta), pra testar
+        qualquer um sem lembrar a sintaxe do --boss CLI."""
+        return CLASSIC_BOSSES + DECALOGO_BOSSES if self.dev_mode else CLASSIC_BOSSES
 
     def _crumb(self) -> tuple:
         """Breadcrumb do assistente de seleção (legado: main.py `_mheader`).
@@ -970,9 +985,10 @@ class GameApp:
         self.cursor = 0
 
     def _boss_confirm(self, k: int) -> None:
-        if self._boss_locked(CLASSIC_BOSSES[k][0]):
+        boss_list = self._boss_menu_list()
+        if self._boss_locked(boss_list[k][0]):
             return
-        self.sel["boss"] = CLASSIC_BOSSES[k][0]
+        self.sel["boss"] = boss_list[k][0]
         self.state, self.cursor = MENU_SKILL, 0
 
     def _skill_confirm(self, k: int) -> None:
