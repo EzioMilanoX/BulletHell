@@ -45,13 +45,18 @@ No Windows também dá para usar o `run.bat` (legado).
 
 ## Conteúdo
 
-- **3 modos de jogo** — Clássico, Boss Rush e Wave Survival
+- **Modos de jogo** — Clássico, Boss Rush, SINS Rush e Wave Survival; o
+  port ECS soma um 5º, **Decálogo Rush** (exclusivo dele)
 - **Bosses** — Clássico, Enxame, Paredão, Mago do Tempo, Gêmeos, Invocador,
-  Ômega ★ (secreto) e os bosses SINS
+  Ômega ★ (secreto) e os bosses SINS; o port ECS soma o **Decálogo**
+  (10 bosses temáticos dos Mandamentos + 1 final), sem equivalente no legado
 - **10 armas**, cada uma com variante evoluída (**Arma+**) desbloqueável por maestria
 - **8 habilidades**, cada uma com variante **Habilidade+**
 - **Mutadores** de run (Predador, Fantasma, Canhão de Vidro, Claustrofobia…)
 - **Conquistas e progressão** persistentes (`save.json`, criado na primeira execução)
+- **Dev mode** (sequência secreta) — no port ECS, revela um botão "SEÇÃO DE
+  TESTE" no menu principal com acesso direto a qualquer boss difícil de
+  alcançar normalmente (Mago do Tempo, os pecados, o Decálogo)
 
 A documentação completa de mecânicas, arquitetura e balanceamento está em
 [`docs.html`](docs.html) — abra no navegador.

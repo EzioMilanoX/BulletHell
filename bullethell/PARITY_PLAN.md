@@ -331,6 +331,14 @@ alimentado, spec §9 do documento de jogador/meta).
   nenhum boss ficou inacessível, só a tela de seleção do modo Clássico
   ficou fiel ao roster original.
 
+  **Nota (Fase 14l):** essa fidelidade continua valendo pra jogo NORMAL.
+  A exceção deliberada é a "SEÇÃO DE TESTE" — um botão só visível com o
+  cheat (dev_mode) ligado, listando `TEST_BOSSES` (Mago do Tempo + os 8
+  pecados + os 11 do Decálogo, ver `bullethell/MIGRATION.md` Fase 14l).
+  Não contradiz esta decisão: é uma ferramenta de debug explícita, não
+  uma mudança na experiência de jogo normal — o roster do modo Clássico
+  em si (`CLASSIC_BOSSES`) permanece intocado.
+
 ### P1-5. Mutadores: ABISSAL misturado com os mutadores de verdade — ✅ resolvido (Fase 13a)
 
 Coberto em P0-2, mas vale registrar aqui como item de UI: a lista

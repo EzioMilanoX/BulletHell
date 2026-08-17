@@ -129,6 +129,17 @@ body {
 .nd-sin     { background: linear-gradient(90deg,#ff3c78,#7c50ff,#25a9ff); }
 .nd-arch    { background: #25a9ff; }
 .nd-save    { background: var(--gold); }
+.nd-monolith { background: #69615a; }
+.nd-icon     { background: #967f2d; }
+.nd-silence  { background: #704b96; }
+.nd-sabbath  { background: #ac8e2d; }
+.nd-lineage  { background: #bf9d43; }
+.nd-mercy    { background: #69a578; }
+.nd-purity   { background: #5a7fbf; }
+.nd-restitution { background: #ac8e43; }
+.nd-truth    { background: #acacac; }
+.nd-ascetic  { background: #5a6961; }
+.nd-decalogue { background: #b7b7b4; }
 
 /* ── MAIN ── */
 #main {
@@ -394,6 +405,17 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 .bc-lust    { color: #ff90c0; border-color: #ff60a0; }
 .bc-wrath   { color: #ff7040; border-color: #ff4020; }
 .bc-sin     { color: #ff50ff; border-color: #cc00cc; }
+.bc-monolith { color: #8c8278; border-color: #69615a; }
+.bc-icon     { color: #c8aa3c; border-color: #967f2d; }
+.bc-silence  { color: #9664c8; border-color: #704b96; }
+.bc-sabbath  { color: #e6be3c; border-color: #ac8e2d; }
+.bc-lineage  { color: #ffd25a; border-color: #bf9d43; }
+.bc-mercy    { color: #8cdca0; border-color: #69a578; }
+.bc-purity   { color: #78aaff; border-color: #5a7fbf; }
+.bc-restitution { color: #e6be5a; border-color: #ac8e43; }
+.bc-truth    { color: #e6e6e6; border-color: #acacac; }
+.bc-ascetic  { color: #788c82; border-color: #5a6961; }
+.bc-decalogue { color: #f5f5f0; border-color: #b7b7b4; }
 
 /* ── ARCHITECTURE DIAGRAM ── */
 .arch-box {
@@ -470,8 +492,24 @@ tr:hover td { background: rgba(255,255,255,0.02); }
       <a class="nav-link" href="#sinboss"><span class="nav-dot nd-sin"></span>SIN — Boss Final</a>
     </div>
     <div class="nav-group">
+      <span class="nav-group-label">O Decálogo <span style="opacity:.6">· ECS</span></span>
+      <a class="nav-link" href="#decalogo-intro"><span class="nav-dot"></span>Visão do Arco</a>
+      <a class="nav-link" href="#monolith"><span class="nav-dot nd-monolith"></span>Monólito</a>
+      <a class="nav-link" href="#icon"><span class="nav-dot nd-icon"></span>Ídolo</a>
+      <a class="nav-link" href="#silence"><span class="nav-dot nd-silence"></span>Reverência</a>
+      <a class="nav-link" href="#sabbath"><span class="nav-dot nd-sabbath"></span>Sabbath</a>
+      <a class="nav-link" href="#lineage"><span class="nav-dot nd-lineage"></span>Linhagem</a>
+      <a class="nav-link" href="#mercy"><span class="nav-dot nd-mercy"></span>Misericórdia</a>
+      <a class="nav-link" href="#purity"><span class="nav-dot nd-purity"></span>Pureza</a>
+      <a class="nav-link" href="#restitution"><span class="nav-dot nd-restitution"></span>Restituição</a>
+      <a class="nav-link" href="#truth"><span class="nav-dot nd-truth"></span>Verdade</a>
+      <a class="nav-link" href="#ascetic"><span class="nav-dot nd-ascetic"></span>Abnegação</a>
+      <a class="nav-link" href="#decalogue"><span class="nav-dot nd-decalogue"></span>DECALOGUE</a>
+    </div>
+    <div class="nav-group">
       <span class="nav-group-label">Modos &amp; Sistema</span>
       <a class="nav-link" href="#bossrush"><span class="nav-dot nd-arch"></span>Boss Rush</a>
+      <a class="nav-link" href="#decalogorush"><span class="nav-dot nd-decalogue"></span>Decálogo Rush</a>
       <a class="nav-link" href="#architecture"><span class="nav-dot nd-arch"></span>Arquitetura</a>
       <a class="nav-link" href="#save"><span class="nav-dot nd-save"></span>Save &amp; Conquistas</a>
       <a class="nav-link" href="#devmode"><span class="nav-dot"></span>Dev Mode</a>
@@ -1591,6 +1629,345 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   </div>
 </section>
 
+<!-- ═══════════════════════ DECÁLOGO — ARCO ═══════════════════════ -->
+<section class="section" id="decalogo-intro">
+  <div class="section-eyebrow">// arco — só no port ECS</div>
+  <h2 class="section-title">O Decálogo</h2>
+  <p class="section-desc">Segundo arco de bosses, exclusivo do port ECS (sem equivalente no jogo legado). Dez bosses temáticos dos Dez Mandamentos + um boss final, cada um introduzindo uma restrição ou mecânica nova de jogo. Acessíveis individualmente (<code>--boss &lt;nome&gt;</code>, ou pela <a href="#devmode">Seção de Teste</a> com o cheat ligado) ou em sequência pelo modo <a href="#decalogorush">DECÁLOGO RUSH</a>.</p>
+  <div class="section-divider"></div>
+</section>
+
+<!-- ═══════════════════════ MONOLITH ═══════════════════════ -->
+<section class="section" id="monolith">
+  <div class="section-eyebrow">// i. fidelidade · ID 16</div>
+  <h2 class="section-title">MonolithBoss — O Primeiro Mandamento</h2>
+  <p class="section-desc">"Não terás outros deuses diante de Mim." Punição por fogo amigo/distração — 4 pilares-isca nunca dão dano, revidam sozinhos se atingidos.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#69615a">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#8c8278">MONÓLITO †</span>
+      <span class="boss-id">BOSS_FIRST = 16 · Transições: 50% HP</span>
+    </div>
+    <p class="boss-tagline">4 pilares-isca (<code>PART_DECOY</code>) ao redor da tela — nunca dão dano ao serem atingidos, mas revidam com um tiro sniper mirado (450 px/s). O jogador precisa focar só na raiz.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Falso Panteão</div>
+      <div class="phase-desc">Pilares estáticos ao redor da tela. Anel lento na raiz (90 px/s, CD 1.8s).</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Foco Absoluto</div>
+      <div class="phase-desc">Pilares orbitam rápido (<code>pillar_guard</code>) — "thread the needle" pelas brechas. Leque de 5 balas mirado, 200 px/s, taxa 0.3s.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ ICON ═══════════════════════ -->
+<section class="section" id="icon">
+  <div class="section-eyebrow">// ii. ídolo · ID 17</div>
+  <h2 class="section-title">IconBoss — O Segundo Mandamento</h2>
+  <p class="section-desc">"Não farás para ti imagem de escultura." Punição por atacar ilusões — 4 clones idênticos, só 1 é real.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#967f2d">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#c8aa3c">ÍDOLO †</span>
+      <span class="boss-id">BOSS_ICON = 17 · Transições: 66% / 33% HP</span>
+    </div>
+    <p class="boss-tagline">Dano em <code>PART_NORMAL</code> é bloqueado pelo invuln da raiz — só o clone <code>PART_REAL</code> (pisca sutilmente a cada 1.5s) atravessa. Atirar num clone falso gera um burst radial de 16 balas (180 px/s) como punição.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Multiplicação</div>
+      <div class="phase-desc">4 clones idênticos (anel de 26 balas na raiz). Só o real dá dano; os 3 falsos rebatem burst de 16 balas.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Dança dos Falsos</div>
+      <div class="phase-desc">Clones trocam de posição continuamente (250 px/s, permutação sem identidade — sempre em movimento). Adagas contínuas miradas, 260 px/s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2</div>
+      <div class="phase-name">Quebra do Ídolo</div>
+      <div class="phase-desc">Raiz se revela (invuln cai); clones viram torres estáticas (<code>PART_GUARD</code>) nos 4 cantos, fecham a arena com laser wave.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ SILENCE ═══════════════════════ -->
+<section class="section" id="silence">
+  <div class="section-eyebrow">// iii. reverência · ID 18</div>
+  <h2 class="section-title">SilenceBoss — O Terceiro Mandamento</h2>
+  <p class="section-desc">"Não tomarás o nome do Senhor em vão." Restringe a habilidade ativa; punição por tentar usá-la ou pela arma primária.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#704b96">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#9664c8">REVERÊNCIA †</span>
+      <span class="boss-id">BOSS_SILENCE = 18 · Transições: 50% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">O Voto</div>
+      <div class="phase-desc">Habilidade travada por toda a fase. Tentar usá-la dispara um bolt homing inescapável do topo da tela (500 px/s, homing por 3s). Espiral densa de 8 braços, 120 px/s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Blasfêmia</div>
+      <div class="phase-desc">Arma primária silenciada por 2s a cada ciclo de 5s. Rajada 8-way periódica, 200 px/s.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ SABBATH ═══════════════════════ -->
+<section class="section" id="sabbath">
+  <div class="section-eyebrow">// iv. sabbath · ID 19</div>
+  <h2 class="section-title">SabbathBoss — O Quarto Mandamento</h2>
+  <p class="section-desc">"Lembra-te do dia de sábado, para o santificar." Punição por agir durante a janela de descanso do boss.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#ac8e2d">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#e6be3c">SABBATH †</span>
+      <span class="boss-id">BOSS_SABBATH = 19 · Transições: 50% HP</span>
+    </div>
+    <p class="boss-tagline">O boss reusa o mesmo <code>stun_t</code> do EMP do jogador pra pausar a própria arma/movimento durante o descanso — se o jogador se mover ou atirar nessa janela, toma um hit de vida imediato.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Trabalho</div>
+      <div class="phase-desc">Chuva vertical caótica, ~175 px/s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">O Descanso</div>
+      <div class="phase-desc">A cada 4s, 1.5s de janela dourada: o boss para de atirar e se mover. Mover-se ou atirar durante a janela custa 1 vida.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ LINEAGE ═══════════════════════ -->
+<section class="section" id="lineage">
+  <div class="section-eyebrow">// v. honra · ID 20</div>
+  <h2 class="section-title">LineageBoss — O Quinto Mandamento</h2>
+  <p class="section-desc">"Honra teu pai e tua mãe." Boss duplo (Sol + Lua) — desbalancear o dano entre os dois enfurece quem sobrar com mais HP.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#bf9d43">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#ffd25a">LINHAGEM †</span>
+      <span class="boss-id">BOSS_LINEAGE = 20 · 220 HP cada raiz (440 total) · sem transição de fase</span>
+    </div>
+    <p class="boss-tagline">Duas raízes independentes ligadas pelo gimmick <code>lineage_bond</code>: se a diferença de HP entre Sol e Lua passar de 15%, o lado com <strong>mais</strong> HP dobra a cadência de tiro (<code>enrage_mult = 2.0</code>) — o jogador precisa balancear o dano entre os dois.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">SOL</div>
+      <div class="phase-name">Anéis Expansivos</div>
+      <div class="phase-desc">Anéis contínuos de 16 balas, 110 px/s, taxa 1.1s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">LUA</div>
+      <div class="phase-name">Tiro Focado</div>
+      <div class="phase-desc">Tiro único mirado, 280 px/s, taxa 0.5s.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ MERCY ═══════════════════════ -->
+<section class="section" id="mercy">
+  <div class="section-eyebrow">// vi. misericórdia · ID 21</div>
+  <h2 class="section-title">MercyBoss — O Sexto Mandamento</h2>
+  <p class="section-desc">"Não matarás." Fase pacifista — punição severa por DPS descontrolado.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#69a578">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#8cdca0">MISERICÓRDIA †</span>
+      <span class="boss-id">BOSS_MERCY = 21 · Transições: 50% HP</span>
+    </div>
+    <p class="boss-tagline">Fase 1: o boss fica invulnerável e as balas do jogador são magnetizadas pra dentro dele — cada bala absorvida o empurra um pouco. Se ele for empurrado contra uma mina, morre por dano <em>ambiental</em> (não pelo jogador) e o jogador leva um hit-kill como punição.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">Escudo Vivo</div>
+      <div class="phase-desc">4 Inocentes (1 HP) já na entrada da luta. Matar um deixa uma névoa SLOW permanente na tela. Leque suave mirado, 150 px/s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">O Mártir</div>
+      <div class="phase-desc">Boss passivo e invulnerável. Sobreviver 20s sem atirar vence a fase. Arena enche de minas mortais (1 nova por segundo).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ PURITY ═══════════════════════ -->
+<section class="section" id="purity">
+  <div class="section-eyebrow">// vii. pureza · ID 22</div>
+  <h2 class="section-title">PurityBoss — O Sétimo Mandamento</h2>
+  <p class="section-desc">"Não adulterarás." Restrição de espaço e separação de elementos por zona.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#5a7fbf">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#78aaff">PUREZA †</span>
+      <span class="boss-id">BOSS_PURITY = 22 · Transições: 66% / 33% HP</span>
+    </div>
+    <p class="boss-tagline">Tela dividida em metade azul/vermelha. Bala azul na zona vermelha (ou vice-versa) tira 2 vidas em vez de 1 — dano ao jogador é binário no motor, então a "zona errada" é modelada como uma vida extra, não um multiplicador numérico.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0 — 100→66% HP</div>
+      <div class="phase-name">Separação</div>
+      <div class="phase-desc">Leques azul e vermelho mirados, 170 px/s cada, taxa 0.5s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1 — 66→33% HP</div>
+      <div class="phase-name">Laço Sagrado</div>
+      <div class="phase-desc">Anel de 120 px ao redor do boss. Fora dele, força de 180 px/s empurra o jogador pra baixo.</div>
+    </div>
+    <div class="phase-card" style="border-color:rgba(120,170,255,0.5); background:rgba(120,170,255,0.08)">
+      <div class="phase-label">FASE 2 — 33→0% HP</div>
+      <div class="phase-name">Contaminação</div>
+      <div class="phase-desc">O anel encolhe (130 px → 45 px em ~21s) e pulsa (±15 px). Fora dele, o jogador é puxado RADIALMENTE pro boss a 210 px/s — mais forte que a fase anterior, mas abaixo da velocidade do próprio jogador (220 px/s), pra sempre deixar alguma agência de resistir. Micro-padrões ultra-densos, taxa 0.15s.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ RESTITUTION ═══════════════════════ -->
+<section class="section" id="restitution">
+  <div class="section-eyebrow">// viii. restituição · ID 23</div>
+  <h2 class="section-title">RestitutionBoss — O Oitavo Mandamento</h2>
+  <p class="section-desc">"Não furtarás." Rouba os status do jogador ao entrar na luta; devolve aos poucos por coleta arriscada.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#ac8e43">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#e6be5a">RESTITUIÇÃO †</span>
+      <span class="boss-id">BOSS_RESTITUTION = 23 · Transições: 50% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">O Confisco</div>
+      <div class="phase-desc">Velocidade do jogador cai pra metade (×0.5) e a cadência de tiro despenca (×1.8) assim que a luta começa. Grades de prisão do topo, 150 px/s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">A Devolução</div>
+      <div class="phase-desc">Orbes dourados caem a cada 1.5s. Coletar um devolve os status aos poucos. Bala do boss perto de um orb o faz "piscar e recuar", arriscando a coleta.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ ASCETIC ═══════════════════════ -->
+<section class="section" id="ascetic">
+  <div class="section-eyebrow">// x. abnegação · ID 25</div>
+  <h2 class="section-title">AsceticBoss — O Décimo Mandamento</h2>
+  <p class="section-desc">"Não cobiçarás." Armadilhas nas zonas seguras e nos power-ups tentadores.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#5a6961">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#788c82">ABNEGAÇÃO †</span>
+      <span class="boss-id">BOSS_ASCETIC = 25 · Transições: 50% HP</span>
+    </div>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0</div>
+      <div class="phase-name">A Tentação</div>
+      <div class="phase-desc">Buraco vazio (raio 40 px, sem bala) cercado por um anel (raio 140 px, ≥6 balas) colapsa: as balas da borda puxam o jogador pra fora do "buraco seguro". Anel denso, 100 px/s.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1</div>
+      <div class="phase-name">Renúncia</div>
+      <div class="phase-desc">Corações falsos caem a cada 2.5s. Coletar um congela o jogador no lugar por 0.8s em meio a uma cruz de balas convergindo de 4 direções (220 px/s).</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ TRUTH ═══════════════════════ -->
+<section class="section" id="truth">
+  <div class="section-eyebrow">// ix. verdade · ID 24</div>
+  <h2 class="section-title">TruthBoss — O Nono Mandamento</h2>
+  <p class="section-desc">"Não dirás falso testemunho." Balas ilusórias — o terror da sobrecarga visual.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#acacac">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#e6e6e6">VERDADE †</span>
+      <span class="boss-id">BOSS_TRUTH = 24 · sem transição de fase</span>
+    </div>
+    <p class="boss-tagline">Espiral de 10 braços — 8 são fantasmas (não dão dano, translúcidos) e só 2 são reais, mesma velocidade/período pra interlaçar e confundir. Um raio ao redor do próprio jogador (90 px) revela — sobe o alfa — das fantasmas próximas.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">ÚNICA FASE</div>
+      <div class="phase-name">A Mentira</div>
+      <div class="phase-desc">Espiral dupla contínua (140 px/s, taxa 0.05s): 8 braços fantasma + 2 reais. Fantasmas perto do jogador ficam visíveis temporariamente.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════ DECALOGUE FINAL ═══════════════════════ -->
+<section class="section" id="decalogue">
+  <div class="section-eyebrow">// boss final do Decálogo · ID 26</div>
+  <h2 class="section-title">DECALOGUE — As Tábuas da Lei</h2>
+  <p class="section-desc">O ápice da ordem opressiva. 4 fases que usam quase todos os primitivos do arco inteiro.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#b7b7b4; background: linear-gradient(135deg, #1a1a2e 0%, #201f1a 100%)">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#f5f5f0">DECALOGUE</span>
+      <span class="boss-id">BOSS_LAW = 26 · Transições: 75% / 50% / 25% HP · Cores: Dourado e Branco</span>
+    </div>
+    <p class="boss-tagline">Um par de tábuas monolíticas (esquerda/direita, puro visual — dano sempre roteia pra raiz). Se unem no centro na Fase 2.</p>
+  </div>
+
+  <div class="boss-phases">
+    <div class="phase-card">
+      <div class="phase-label">FASE 0 — 100→75% HP</div>
+      <div class="phase-name">O Decreto</div>
+      <div class="phase-desc">Grade de lasers horizontais E verticais em padrão de tabuleiro (3+3 linhas, telegraph escalonado), CD 1.5s. Nenhuma curva — só ângulos de 90°.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 1 — 75→50% HP</div>
+      <div class="phase-name">O Peso da Lei</div>
+      <div class="phase-desc">Força incondicional pra baixo (120 px/s). Bolas esféricas caem em 5 raias e assentam empilhando em até 6 camadas (80 px/s) — o espaço seguro no topo encolhe com o tempo.</div>
+    </div>
+    <div class="phase-card">
+      <div class="phase-label">FASE 2 — 50→25% HP</div>
+      <div class="phase-name">O Olho do Juiz</div>
+      <div class="phase-desc">Tábuas se unem no centro. A cada 0.8s, um pilar de luz nasce no X atual do jogador — telegraph real de 0.35s antes de disparar, exige movimentação constante e ritmada.</div>
+    </div>
+    <div class="phase-card" style="border-color:rgba(245,245,240,0.5); background:rgba(245,245,240,0.08)">
+      <div class="phase-label">FASE 3 — 25→0% HP</div>
+      <div class="phase-name" style="color:#f5f5f0">O Código Final ⚠</div>
+      <div class="phase-desc"><strong>A Morte da Diagonal.</strong> O jogador só consegue se mover num eixo por vez (X ou Y, alterna a cada 2s). Ondas expansivas quadradas, 250 px/s, taxa 0.25s. Uma dança mecânica e rigorosa até o último hit.</div>
+    </div>
+  </div>
+</section>
+
 <!-- ═══════════════════════ BOSS RUSH ═══════════════════════ -->
 <section class="section" id="bossrush">
   <div class="section-eyebrow">// modo especial</div>
@@ -1641,6 +2018,43 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
   <div class="highlight-box gold">
     <strong>Desbloqueio Abissal:</strong> Completar BOSS RUSH SINS desbloqueia a dificuldade ABISSAL (ID 4).
+  </div>
+</section>
+
+<!-- ═══════════════════════ DECÁLOGO RUSH ═══════════════════════ -->
+<section class="section" id="decalogorush">
+  <div class="section-eyebrow">// modo especial — só no port ECS</div>
+  <h2 class="section-title">Decálogo Rush</h2>
+  <p class="section-desc">Os 11 bosses do Decálogo em sequência canônica — o desafio final da progressão.</p>
+  <div class="section-divider"></div>
+
+  <div class="boss-card" style="border-color:#b7b7b4">
+    <div class="boss-header">
+      <span class="boss-name" style="color:#f5f5f0">DECÁLOGO RUSH</span>
+    </div>
+    <p class="boss-tagline">Ordem fixa (canônica dos mandamentos, não a ordem de implementação) · Sem escala de HP (a dificuldade já vem da complexidade mecânica crescente de cada boss) · Travado atrás de vencer o SINS RUSH — mesmo flag que libera a dificuldade ABISSAL.</p>
+    <div class="pattern-strip">
+      <span class="pattern-chip bc-monolith">MONÓLITO</span>
+      <span class="pattern-chip bc-icon">ÍDOLO</span>
+      <span class="pattern-chip bc-silence">REVERÊNCIA</span>
+      <span class="pattern-chip bc-sabbath">SABBATH</span>
+      <span class="pattern-chip bc-lineage">LINHAGEM</span>
+      <span class="pattern-chip bc-mercy">MISERICÓRDIA</span>
+      <span class="pattern-chip bc-purity">PUREZA</span>
+      <span class="pattern-chip bc-restitution">RESTITUIÇÃO</span>
+      <span class="pattern-chip bc-truth">VERDADE</span>
+      <span class="pattern-chip bc-ascetic">ABNEGAÇÃO</span>
+      <span class="pattern-chip bc-decalogue">+ DECALOGUE</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">Notas de Implementação</div>
+    <ul style="color:var(--text-muted);font-size:13px;padding-left:1.2em;line-height:1.8">
+      <li>"Linhagem" spawna as 2 raízes (Sol + Lua) como um único estágio — o modo só avança quando ambas morrem.</li>
+      <li>Ao trocar de boss, entidades sem dono fixo (minas, Inocentes, névoas, orbes, lasers em voo) são varridas — nenhuma sobrevive pro próximo estágio.</li>
+      <li>Vencer concede a conquista <strong>O JUÍZO</strong> e a flag de save <code>decalogue_rush_cleared</code> (nada consome essa flag ainda — reservada pra progressão futura).</li>
+    </ul>
   </div>
 </section>
 
@@ -1897,6 +2311,11 @@ tr:hover td { background: rgba(255,255,255,0.02); }
 
   <div class="highlight-box">
     <strong>Ativação:</strong> Na tela de jogo, pressione <strong>W W S S A D A D</strong> em sequência. O canto superior esquerdo mostrará <em>"DEV"</em> quando ativo. Cheats de gameplay (F3–F7) só funcionam quando dev mode está ativo.
+  </div>
+
+  <div class="card">
+    <div class="card-title">Seção de Teste (só no port ECS)</div>
+    <p style="color:var(--text-muted);font-size:13px;margin-bottom:8px">Com o dev mode ligado no <strong>menu principal</strong>, um novo botão <strong>"SEÇÃO DE TESTE"</strong> aparece entre "JOGAR" e "CONQUISTAS". Ele lista os 20 bosses difíceis de alcançar normalmente sem replicar a condição especial de cada um: o Mago do Tempo (só via Boss Rush), os 8 pecados (só via SINS Rush) e os 11 do <a href="#decalogo-intro">Decálogo</a> (sem modo de seleção individual). Nenhum boss da lista fica travado — selecionar um joga como uma partida CLÁSSICA avulsa, com o fluxo normal de dificuldade/habilidade/arma/mutador.</p>
   </div>
 
   <div class="card">
