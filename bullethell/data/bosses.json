@@ -447,6 +447,18 @@
         { "hp_above": 0.0, "gimmick": "decalogue_lockstep",
           "part_offsets": [[0, 0], [0, 0]],
           "emitters": [ { "pattern": "decalogue/square_wave" } ] }
+      ] },
+
+    { "name": "bastion",
+      "_doc": "PROTÓTIPO de teste — terreno sólido de verdade na arena (não faz parte de nenhum arco). 2 pilares (x,y,half_w,half_h) entre o boss e o jogador: bloqueiam balas INIMIGAS (cobertura de verdade) e o movimento do jogador (não dá pra atravessar); balas do jogador atravessam. Reusa o padrão classic/spread sem gimmick — o objetivo é testar só a sensação da geometria da arena, não uma mecânica nova de boss.",
+      "hp": 300,
+      "hitbox": [30, 30],
+      "route": [[640, 100, 1.0]],
+      "parts": [],
+      "terrain": [[440, 400, 30, 100], [840, 400, 30, 100]],
+      "phases": [
+        { "hp_above": 0.0,
+          "emitters": [ { "pattern": "classic/spread" } ] }
       ] }
   ]
 }

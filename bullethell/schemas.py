@@ -153,6 +153,10 @@ PICKUP_DTYPE = np.dtype([        # orbes dourados (Restituição) / corações
     ("kind", np.uint8),          # PICKUP_KIND_* — dita o efeito da coleta
 ])
 
+TERRAIN_DTYPE = np.dtype([       # parede sólida estática (teste "Bastion")
+    ("self", np.uint64),         # posição/tamanho vêm de transform+hitbox
+])
+
 BOSS_DTYPE = np.dtype([
     ("self",      np.uint64),    # PackedEntityId (Boss Rush destrói/troca)
     ("boss_id",   np.uint32),    # sid em bosses.json
@@ -284,6 +288,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "minion":       MINION_DTYPE,
     "hazard":       HAZARD_DTYPE,
     "pickup":       PICKUP_DTYPE,
+    "terrain":      TERRAIN_DTYPE,
     "boss":         BOSS_DTYPE,
     "part":         PART_DTYPE,
     "laser":        LASER_DTYPE,
@@ -309,7 +314,7 @@ GAME_POOL_CAPACITY: Dict[str, int] = {
     "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "wave": 1,
     "mastery": 1,
     "particle": 1024, "hud": 8, "minion": 64, "hazard": 8, "pickup": 4, "boss": 4,
-    "part": 12, "laser": 16, "waypoint": 4, "emitter": 32,
+    "part": 12, "laser": 16, "waypoint": 4, "emitter": 32, "terrain": 6,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
     "pb_dot": 256, "pb_life": 256, "pb_homing": 256,

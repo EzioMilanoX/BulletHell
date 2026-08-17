@@ -32,7 +32,7 @@ from bullethell.schemas import (
     SFX_BOOM, SFX_EMP, SFX_HIT, SFX_MINE, SFX_SHIELD, TETHER_NONE,
     PART_DECOY, PART_FAKE, PART_GUARD, PART_NORMAL, PART_REAL,
     PICKUP_KIND_ASCETIC, PICKUP_KIND_RESTITUTION,
-    SHAPE_CIRCLE,
+    SHAPE_CIRCLE, SHAPE_RECT,
 )
 
 if TYPE_CHECKING:
@@ -44,6 +44,9 @@ PLAYER_HIT_R = 10.0
 PLAYER_GRAZE_R = 26.0
 PLAYER_INVULN = 1.5
 CULL_MARGIN = 24.0
+BOSS_SCREEN_MARGIN = 20.0    # nenhum boss pode ser empurrado pra fora da
+                             # tela (ex.: Mercy sendo empurrado por balas
+                             # absorvidas, sem limite antes desta correção)
 
 # constantes das armas special (legado)
 CHARGED_MAX_T = 2.5
@@ -137,7 +140,11 @@ PURITY_CONTAM_FLOOR_R = 45.0     # nunca encolhe além disso — sempre sobra
 PURITY_CONTAM_SHRINK_RATE = 4.0  # px/s — chega no piso em ~21s
 PURITY_CONTAM_PULSE_FREQ = 2.0   # rad/s do "pulsa"
 PURITY_CONTAM_PULSE_AMP = 15.0
-PURITY_CONTAM_PULL = 240.0       # mais forte que os 180 da fase 1 (escalada)
+PURITY_CONTAM_PULL = 210.0       # mais forte que os 180 da fase 1 (escalada),
+                                  # mas ABAIXO de PLAYER_SPEED=220 — 240
+                                  # original tirava toda agência do jogador
+                                  # (puxão mais rápido que o próprio jogador
+                                  # conseguiria correr, impossível de resistir)
 # Restituição (Restitution): confisca velocidade/cadência ao entrar na luta
 # (fase 0), devolve aos poucos coletando orbes dourados (fase 1). Balas do
 # boss perto de um orb o fazem "piscar e recuar" (nudge + reduz ttl) — no
@@ -181,7 +188,12 @@ DECALOGUE_GRID_STAGGER = 0.5       # atraso de telegraph das linhas ímpares
 DECALOGUE_MAX_STACK = 6            # camadas de bolas empilhando
 DECALOGUE_FLOOR_Y = SCREEN_H - 40.0
 DECALOGUE_JUDGE_PERIOD = 0.8       # spec exata: pilar a cada 0.8s
-DECALOGUE_JUDGE_FIRE_T = 0.15      # flash breve do pilar "instantâneo"
+# telegraph_t=0 (sem aviso) fazia o pilar acertar SEMPRE, no mesmo frame
+# em que nasce, exatamente na posição atual do jogador — impossível de
+# desviar por definição. Corrigido: aviso curto mas real (350ms) antes
+# do pilar disparar de verdade, igual todo outro laser do jogo já faz.
+DECALOGUE_JUDGE_TELEGRAPH = 0.35
+DECALOGUE_JUDGE_FIRE_T = 0.15      # duração do disparo em si, após o aviso
 DECALOGUE_AXIS_SWAP_T = 2.0        # alterna o eixo travado a cada 2s
 
 _MINION_COLORS = {
@@ -418,6 +430,28 @@ def spawn_boss(world: "World", mm: MemoryManager, data: GameData,
         x = SCREEN_W * (0.25 + 0.25 * j)
         y = 150.0 + (j * 97) % 250
         spawn_minion(world, mm, x, y, int(kind0), float(hp0), float(speed0))
+
+    for (wx, wy, whw, whh) in bdef.terrain:              # paredes (Bastion)
+        w_packed = world.create_entity("terrain_wall")
+        widx = w_packed & 0xFFFFFFFF
+        wtrow = t.dense_row_of(widx); wtv = t.active_view()
+        wtv["position_x"][wtrow] = wx
+        wtv["position_y"][wtrow] = wy
+        wtv["scale_x"][wtrow] = whw / 4.0
+        wtv["scale_y"][wtrow] = whh / 4.0
+        ws = mm.get_pool("sprite")
+        wsrow = ws.dense_row_of(widx); wsv = ws.active_view()
+        wsv["texture_id"][wsrow] = SHAPE_RECT
+        wsv["tint_r"][wsrow], wsv["tint_g"][wsrow], wsv["tint_b"][wsrow] = 110, 110, 120
+        wsv["tint_a"][wsrow] = 255
+        wsv["layer_z"][wsrow] = 6
+        wh = mm.get_pool("hitbox")
+        whrow = wh.dense_row_of(widx); whv = wh.active_view()
+        whv["half_width"][whrow] = whw
+        whv["half_height"][whrow] = whh
+        wtr = mm.get_pool("terrain")
+        wtrrow = wtr.dense_row_of(widx); wtrv = wtr.active_view()
+        wtrv["self"][wtrrow] = np.uint64(w_packed)
 
 
 def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
@@ -2120,6 +2154,7 @@ class MaintenanceSystem(ISystem):
         self._velocity = memory_manager.get_pool("velocity")
         self._sprite = memory_manager.get_pool("sprite")
         self._player = memory_manager.get_pool("player")
+        self._boss = memory_manager.get_pool("boss")
         self._mods = memory_manager.get_pool("run_mods")
         self._pb_core = memory_manager.get_pool("pb_core")
         self._pb_range = memory_manager.get_pool("pb_range")
@@ -2273,6 +2308,17 @@ class MaintenanceSystem(ISystem):
             my = SCREEN_H * 0.14 if mods["claustro"][0] else 9.0
             tv["position_x"][ptrow] = min(max(float(tv["position_x"][ptrow]), mx), SCREEN_W - mx)
             tv["position_y"][ptrow] = min(max(float(tv["position_y"][ptrow]), my), SCREEN_H - my)
+
+        # ---- clamp de bosses: nenhum pode ser empurrado pra fora da tela
+        # (rede de segurança geral — ex.: Mercy empurrado por balas
+        # absorvidas, sem limite algum antes desta correção) ----------------
+        if self._boss.count:
+            bidxs = self._boss.active_entity_indices()
+            btrows = self._transform.dense_rows_of(bidxs)
+            tv["position_x"][btrows] = np.clip(
+                tv["position_x"][btrows], BOSS_SCREEN_MARGIN, SCREEN_W - BOSS_SCREEN_MARGIN)
+            tv["position_y"][btrows] = np.clip(
+                tv["position_y"][btrows], BOSS_SCREEN_MARGIN, SCREEN_H - BOSS_SCREEN_MARGIN)
 
 
 # ===========================================================================
@@ -3377,7 +3423,7 @@ class BossGimmickSystem(ISystem):
                 if bv["aux_angle"][brow] >= DECALOGUE_JUDGE_PERIOD:
                     bv["aux_angle"][brow] -= DECALOGUE_JUDGE_PERIOD
                     spawn_laser(world, self._mm, LASER_V, px,
-                               0.0, DECALOGUE_JUDGE_FIRE_T)
+                               DECALOGUE_JUDGE_TELEGRAPH, DECALOGUE_JUDGE_FIRE_T)
 
             elif gm == "decalogue_lockstep":           # DECALOGUE: Código Final
                 bv["invuln"][brow] = 0                 # axis_lock alterna X/Y
@@ -3587,6 +3633,62 @@ class PickupSystem(ISystem):
 
         for h in pv["self"][dead]:
             world.destroy_entity(int(h))
+
+
+# ===========================================================================
+class TerrainCollisionSystem(ISystem):
+    """Paredes sólidas estáticas (protótipo 'Bastion', teste de melhorias
+    de mapa): empurram o jogador pra fora pelo eixo de menor penetração
+    (não dá pra atravessar) e destroem balas INIMIGAS que entrarem nelas
+    (cobertura de verdade). Balas do JOGADOR atravessam — simplificação
+    deliberada do protótipo, não uma regra final."""
+
+    def __init__(self, memory_manager: MemoryManager) -> None:
+        self._terrain = memory_manager.get_pool("terrain")
+        self._transform = memory_manager.get_pool("transform")
+        self._hitbox = memory_manager.get_pool("hitbox")
+        self._player = memory_manager.get_pool("player")
+        self._eb = memory_manager.get_pool("enemy_bullet")
+
+    def update(self, world: "World", delta_time: float) -> None:
+        n = self._terrain.count
+        if n == 0:
+            return
+        tv = self._transform.active_view()
+        hv = self._hitbox.active_view()
+        idxs = self._terrain.active_entity_indices()
+        trows = self._transform.dense_rows_of(idxs)
+        hrows = self._hitbox.dense_rows_of(idxs)
+        wx = tv["position_x"][trows].copy(); wy = tv["position_y"][trows].copy()
+        whw = hv["half_width"][hrows].copy(); whh = hv["half_height"][hrows].copy()
+
+        i, ptrow = _player_row(self._player, self._transform)
+        if ptrow >= 0:
+            px = float(tv["position_x"][ptrow]); py = float(tv["position_y"][ptrow])
+            for k in range(n):
+                dx = px - float(wx[k]); dy = py - float(wy[k])
+                ox = float(whw[k]) + PLAYER_HIT_R - abs(dx)
+                oy = float(whh[k]) + PLAYER_HIT_R - abs(dy)
+                if ox > 0.0 and oy > 0.0:            # sobreposição real
+                    if ox < oy:                       # empurra pelo eixo menor
+                        px = float(wx[k]) + math.copysign(float(whw[k]) + PLAYER_HIT_R, dx or 1.0)
+                    else:
+                        py = float(wy[k]) + math.copysign(float(whh[k]) + PLAYER_HIT_R, dy or 1.0)
+            tv["position_x"][ptrow] = px
+            tv["position_y"][ptrow] = py
+
+        if self._eb.count:
+            eidxs = self._eb.active_entity_indices()
+            erows = self._transform.dense_rows_of(eidxs)
+            ev = self._eb.active_view()
+            ex = tv["position_x"][erows]; ey = tv["position_y"][erows]
+            blocked = np.zeros(self._eb.count, dtype=bool)
+            for k in range(n):
+                blocked |= ((np.abs(ex - wx[k]) <= whw[k]) &
+                           (np.abs(ey - wy[k]) <= whh[k]))
+            if blocked.any():
+                for h in ev["self"][blocked]:
+                    world.destroy_entity(int(h))
 
 
 # ===========================================================================

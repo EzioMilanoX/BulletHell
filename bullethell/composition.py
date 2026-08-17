@@ -63,6 +63,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_archetype("minion", ("transform", "velocity", "sprite", "minion"))
     world.register_archetype("hazard_entity", ("transform", "sprite", "hazard"))
     world.register_archetype("pickup_entity", ("transform", "sprite", "pickup"))
+    world.register_archetype("terrain_wall", ("transform", "hitbox", "sprite", "terrain"))
     world.register_archetype("particle_entity", ("transform", "velocity",
                                                  "sprite", "particle"))
     world.register_archetype("emitter", ("emitter",))
@@ -89,6 +90,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.HazardSystem(mm))             # névoas SLOW (Luxúria)
     world.register_system(gs.PickupSystem(mm))              # orbes (Restituição)
     world.register_system(gs.ScaledMovementSystem(mm))     # física com escalas de tempo
+    world.register_system(gs.TerrainCollisionSystem(mm))   # paredes (protótipo Bastion)
     world.register_system(gs.OrbitSystem(mm))              # pós-física: sobrescreve Transform
     world.register_system(gs.EnemyBulletBehaviorSystem(mm))
     world.register_system(gs.PlayerBulletMagnetSystem(mm, data))  # Misericórdia

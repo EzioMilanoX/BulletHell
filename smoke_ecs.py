@@ -675,6 +675,24 @@ if __name__ == "__main__":
     if not shrink_ok:
         ok = False
 
+    # Purity: o puxao da Contaminacao NAO pode ser mais rapido que o
+    # proprio jogador (bug corrigido: 240px/s > PLAYER_SPEED=220 tirava
+    # toda agencia do jogador, era impossivel resistir por definicao)
+    tv_pc = tp_pc.active_view()
+    bx_pc = float(tv_pc["position_x"][btrow_pc]); by_pc = float(tv_pc["position_y"][btrow_pc])
+    tv_pc["position_x"][prow_pc] = bx_pc + 400.0     # bem fora do anel
+    tv_pc["position_y"][prow_pc] = by_pc
+    inp_pc.set_action_held("move_right", True)       # foge do boss, resistindo o puxao
+    x0_pc = float(tv_pc["position_x"][prow_pc])
+    inp_pc.poll(); w_pc.step(DT)
+    x1_pc = float(tp_pc.active_view()["position_x"][prow_pc])
+    resist_ok = x1_pc > x0_pc
+    print(f"[{'OK ' if resist_ok else 'FAIL'}] purity: puxao da "
+         f"contaminacao pode ser resistido correndo pro lado oposto "
+         f"(x {x0_pc:.1f}->{x1_pc:.1f})")
+    if not resist_ok:
+        ok = False
+
     # Decálogo #8 — Restitution: raiz normal, sem invuln escondendo nada.
     r = run("restitution", "padrao", frames=1600, approach=False)
     spawned = r["enemy_bullets_peak"] > 0
@@ -883,6 +901,32 @@ if __name__ == "__main__":
     if not magnet_ok:
         ok = False
 
+    # Mercy: empurroes repetidos NAO tiram o boss da tela (bug corrigido:
+    # o push nao tinha clamp nenhum antes, o boss podia fugir pra fora)
+    from bullethell.game_systems import BOSS_SCREEN_MARGIN as _BSM
+    from bullethell.schemas import SCREEN_W as _SW2
+
+    w_cl, inp_cl = _bh2(boss_name="mercy", weapon_name="padrao")
+    bp_cl = w_cl.get_pool("boss"); bv_cl = bp_cl.active_view()
+    tp_cl = w_cl.get_pool("transform")
+    bv_cl["hp"][0] = bv_cl["max_hp"][0] * 0.4
+    inp_cl.poll(); w_cl.step(DT)
+    for _ in range(200):
+        bidx_cl = int(bp_cl.active_entity_indices()[0])
+        btrow_cl = tp_cl.dense_row_of(bidx_cl)
+        bx_cl = float(tp_cl.active_view()["position_x"][btrow_cl])
+        by_cl = float(tp_cl.active_view()["position_y"][btrow_cl])
+        _spb2(w_cl, w_cl, "pb_padrao", bx_cl + 10.0, by_cl, 0.0, 0.0, 1.0, 3.0)
+        inp_cl.poll(); w_cl.step(DT)
+    x_final_cl = float(tp_cl.active_view()["position_x"][tp_cl.dense_row_of(
+        int(bp_cl.active_entity_indices()[0]))])
+    clamp_ok = x_final_cl >= _BSM - 0.5
+    print(f"[{'OK ' if clamp_ok else 'FAIL'}] mercy: 200 empurroes seguidos "
+         f"NAO tiram o boss da tela (x final={x_final_cl:.1f}, "
+         f"margem={_BSM}, tela={_SW2})")
+    if not clamp_ok:
+        ok = False
+
     # DECALOGUE final: root_hitbox=true, danificavel via mira ingenua.
     r = run("decalogue", "padrao", frames=1600, approach=False)
     spawned = r["enemy_bullets_peak"] > 0
@@ -938,7 +982,10 @@ if __name__ == "__main__":
     if not stack_ok:
         ok = False
 
-    # DECALOGUE fase 2 (O Olho do Juiz): pilar instantaneo no X do jogador
+    # DECALOGUE fase 2 (O Olho do Juiz): pilar mira o X do jogador e
+    # telegrafa de verdade antes de disparar (bug corrigido: era
+    # telegraph_t=0 -> acertava sempre, no mesmo frame, impossivel de
+    # desviar por definicao)
     w_jg, inp_jg = _bh2(boss_name="decalogue", weapon_name="padrao")
     bp_jg = w_jg.get_pool("boss"); bv_jg = bp_jg.active_view()
     bv_jg["hp"][0] = bv_jg["max_hp"][0] * 0.3       # cascateia ate fase 2
@@ -949,6 +996,7 @@ if __name__ == "__main__":
     px_jg = float(tp_jg.active_view()["position_x"][prow_jg])
     lz_jg = w_jg.get_pool("laser")
     found_pillar = False
+    telegraphs = False
     for _ in range(60):
         inp_jg.poll(); w_jg.step(DT)
         if lz_jg.count > 0:
@@ -956,10 +1004,36 @@ if __name__ == "__main__":
             found_pillar = (int(bv_jg["phase_idx"][0]) == 2
                             and int(lvv["axis"][0]) == LASER_V
                             and abs(float(lvv["pos"][0]) - px_jg) < 1.0)
+            telegraphs = float(lvv["telegraph_t"][0]) > 0.1
             break
-    print(f"[{'OK ' if found_pillar else 'FAIL'}] decalogue: pilar "
-         f"instantaneo mira o X do jogador ({px_jg:.1f})")
-    if not found_pillar:
+    pillar_ok = found_pillar and telegraphs
+    print(f"[{'OK ' if pillar_ok else 'FAIL'}] decalogue: pilar mira o X "
+         f"do jogador ({px_jg:.1f}) E telegrafa antes de disparar "
+         f"(reacao real, nao instantaneo)")
+    if not pillar_ok:
+        ok = False
+
+    # DECALOGUE fase 2: correr durante o aviso do pilar evita o dano
+    w_jg2, inp_jg2 = _bh2(boss_name="decalogue", weapon_name="padrao")
+    bp_jg2 = w_jg2.get_pool("boss"); bv_jg2 = bp_jg2.active_view()
+    bv_jg2["hp"][0] = bv_jg2["max_hp"][0] * 0.3
+    for _ in range(4):
+        inp_jg2.poll(); w_jg2.step(DT)
+    pl_jg2 = w_jg2.get_pool("player")
+    lives0_jg2 = int(pl_jg2.active_view()["lives"][0])
+    lz_jg2 = w_jg2.get_pool("laser")
+    warned = False
+    for _ in range(60):
+        if warned:
+            inp_jg2.set_action_held("move_right", True)
+        inp_jg2.poll(); w_jg2.step(DT)
+        if lz_jg2.count > 0 and not warned:
+            warned = True
+    lives1_jg2 = int(pl_jg2.active_view()["lives"][0])
+    dodge_ok = lives1_jg2 == lives0_jg2
+    print(f"[{'OK ' if dodge_ok else 'FAIL'}] decalogue: fugir durante o "
+         f"aviso do pilar evita o dano (vidas {lives0_jg2}->{lives1_jg2})")
+    if not dodge_ok:
         ok = False
 
     # DECALOGUE fase 3 (O Codigo Final): axis_lock alterna X/Y e trava

@@ -168,6 +168,11 @@ class BossDef:
     # (Monolith/Icon) — sem isto, raiz de boss composto nunca tem sprite
     # nem hitbox (caso de wall/swarm)
     root_hitbox: bool
+    # paredes sólidas estáticas da arena (teste "Bastion"): (x, y, half_w,
+    # half_h) em coordenadas absolutas de tela — bloqueiam balas inimigas
+    # e o movimento do jogador; balas do JOGADOR atravessam (simplificação
+    # deliberada do protótipo)
+    terrain: Tuple[Tuple[float, float, float, float], ...]
     phases: Tuple[BossPhaseDef, ...]
 
 
@@ -252,6 +257,7 @@ def load_bosses(path=DATA_DIR / "bosses.json") -> Dict[int, BossDef]:
             route=tuple(tuple(map(float, p)) for p in e.get("route", ())),
             parts=tuple(tuple(map(float, p)) for p in e.get("parts", ())),
             root_hitbox=bool(e.get("root_hitbox", False)),
+            terrain=tuple(tuple(map(float, t)) for t in e.get("terrain", ())),
             phases=tuple(
                 BossPhaseDef(
                     hp_above=float(ph["hp_above"]),
