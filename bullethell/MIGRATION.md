@@ -672,16 +672,59 @@ outros 9.
         + simulação de menu completa (`GameApp` com `NullInputProvider`,
         do MENU_MODE até PLAYING) confirmando que o boss inicial é
         mesmo o Monolith. 6/6 smoke tests + 174 pytest OK.
+      - **14j** — **Ascetic "Renúncia"** (2ª fase) + **Purity
+        "Contaminação"** (3ª fase) — os 2 últimos itens pendentes do
+        Decálogo, adiados desde a implementação original até existir a
+        pool `pickup` (Restituição, Fase 14f).
+        Ascetic ganha fase 1 (`hp_above: 0.5`→`0.0`, "A Tentação"
+        continua igual): gimmick `ascetic_renounce` novo derruba
+        corações falsos (mesmo esquema hash-determinístico de
+        `restitution_theft`). A pool `pickup` ganha `kind: uint8`
+        (`PICKUP_KIND_RESTITUTION`/`PICKUP_KIND_ASCETIC`) — só virou
+        necessário agora que existem 2 efeitos de coleta genuinamente
+        diferentes; `spawn_pickup()` ganha o parâmetro com default que
+        preserva a única chamada anterior intocada. `PLAYER_DTYPE` ganha
+        `freeze_t` (mesma família de `invuln_t`); `PlayerControlSystem`
+        zera a velocidade recém-escrita quando `freeze_t>0` (0.8s, spec
+        exata) — mesmo ponto de interceptação que `fire_locked_t` já usa
+        no `WeaponFireSystem`. Bug pego e corrigido testando de
+        verdade: as 4 balas da cruz nasciam EM CIMA do jogador (mesmo
+        ponto da coleta) e `PlayerHitSystem` as destruía no MESMO frame,
+        virando dano instantâneo sem nenhuma bala visível — corrigido
+        pra nascerem afastadas (`ASCETIC_CROSS_OFFSET=60px`) convergindo
+        pro centro, um bombardeio de verdade em vez de um hit invisível.
+        Purity resliça de 2 pra 3 fases (corte 66%/33%/0%, mesmo padrão
+        de Pride/Gluttony/etc. — confirmado que o teste antigo, que
+        força `hp=0.4×max_hp` num só step, continua caindo na MESMA
+        fase 1 sob o corte novo). Sem gimmick novo — mesma disciplina de
+        "1 string, phase-gated por dentro" — `"purity_zones"` (que só
+        era um marcador sem branch próprio) ganha um branch dedicado: nas
+        fases 0-1 só limpa o invuln (igual o fallback fazia); na fase 2
+        computa um raio que encolhe (130px→45px em ~21s) e pulsa
+        (seno, ±15px), puxando o jogador RADIALMENTE pro boss quando fora
+        dele (240px/s) — deliberadamente DIFERENTE do `force` incondicional
+        de direção fixa das fases 1 anteriores, já que "ficar colado no
+        boss" pede puxão pro centro, não empurrão numa direção só. 2
+        patterns novos (`purity/micro_blue`/`micro_red`, período 0.15s)
+        pros "micro-padrões ultra-densos" da fase.
+        Testes dedicados por mecânica (coração cai periodicamente + coletar
+        congela e dispara a cruz de verdade; raio da Contaminação
+        genuinamente encolhe — mesmo ponto a 100px do boss é seguro em
+        t~0 e perigoso em t~15s) + confirmado que TODOS os testes já
+        existentes de ambos os bosses continuam verdes sem alteração
+        (o ponto mais arriscado desta mudança, dado o reslice de fases
+        da Purity). 6/6 smoke tests + 174 pytest OK.
+
+        **Arco do Decálogo 100% completo**: os 9 bosses + o final, com
+        todas as fases do espec original implementadas, acessíveis
+        individualmente (`--boss <nome>`) e em sequência (modo Decálogo
+        Rush). Nada pendente deste arco.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
       fora de escopo deste port.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
-- [ ] Fase 2 do Ascetic ("Renúncia") e fase 2 da Purity
-      ("Contaminação"), deferidas quando a pool `pickup` da
-      Restitution foi construída — infra já existe, falta desenhar e
-      implementar as duas fases extras.
 
 O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
 paralelo até a paridade.

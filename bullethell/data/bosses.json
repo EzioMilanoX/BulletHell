@@ -371,30 +371,35 @@
       ] },
 
     { "name": "ascetic",
-      "_doc": "Decálogo #6 — A Abnegação: só a fase 'A Tentação' desta rodada (a 'Renúncia' com power-ups falsos fica pra depois de existir pickup, ver Restitution). Gimmick ascetic_trap: se o jogador ficar num vazio (raio 40px sem bala nenhuma) cercado por um anel de balas (raio 140px, ≥6 balas), essas balas da borda ganham gravity>0 — puxam o jogador pra fora do 'buraco seguro'.",
+      "_doc": "Decálogo #6 — A Abnegação: fase 0 'A Tentação' — gimmick ascetic_trap: se o jogador ficar num vazio (raio 40px sem bala nenhuma) cercado por um anel de balas (raio 140px, ≥6 balas), essas balas da borda ganham gravity>0 — puxam o jogador pra fora do 'buraco seguro'. Fase 1 'Renúncia' — gimmick ascetic_renounce: corações falsos (pool `pickup`, kind=ASCETIC) caem periodicamente; coletar um congela o jogador (freeze_t, 0.8s) em meio a uma cruz 4-way de balas (220px/s) — mesma pool de pickup da Restituição, agora com um `kind` pra discriminar o efeito.",
       "hp": 360,
       "hitbox": [20, 20],
       "route": [[640, 90, 1.0]],
       "parts": [],
       "phases": [
-        { "hp_above": 0.0, "gimmick": "ascetic_trap",
+        { "hp_above": 0.5, "gimmick": "ascetic_trap",
+          "emitters": [ { "pattern": "ascetic/dense_ring" } ] },
+        { "hp_above": 0.0, "gimmick": "ascetic_renounce",
           "emitters": [ { "pattern": "ascetic/dense_ring" } ] }
       ] },
 
     { "name": "purity",
-      "_doc": "Decálogo #6b — A Pureza: só as fases 'Separação'+'Laço Sagrado' desta rodada (a 'Contaminação' — anel encolhendo — fica pra depois). Gimmick purity_zones é só um MARCADOR lido por PlayerHitSystem (metade esquerda=azul/direita=vermelha da tela; bala da cor errada na zona errada tira 1 vida a mais) — não faz nada sozinho em BossGimmickSystem. Fase 1 soma force_radius=120: gravidade forte (180px/s) só fora do anel de 120px ao redor do boss.",
+      "_doc": "Decálogo #6b — A Pureza, 3 fases (66%/33%/0%, mesmo corte de Pride/Gluttony/etc.). Gimmick purity_zones (mesma string nas 3 fases, phase-gated por dentro) é um MARCADOR lido por PlayerHitSystem (metade esquerda=azul/direita=vermelha da tela; bala da cor errada na zona errada tira 1 vida a mais) nas fases 0-1. Fase 1 soma force_radius=120: gravidade forte (180px/s) só fora do anel de 120px. Fase 2 'Contaminação': o MESMO gimmick ganha um anel que encolhe (130px→45px em ~21s) e pulsa, puxando o jogador RADIALMENTE pro boss se sair dele (240px/s — mais forte que a fase 1, e um puxão de verdade pro centro, não um empurrão de direção fixa) + micro-padrões ultra-densos (purity/micro_blue e purity/micro_red).",
       "hp": 360,
       "hitbox": [20, 20],
       "route": [[640, 90, 1.0]],
       "parts": [],
       "phases": [
-        { "hp_above": 0.5, "gimmick": "purity_zones",
+        { "hp_above": 0.66, "gimmick": "purity_zones",
+          "emitters": [ { "pattern": "purity/blue_shots" },
+                        { "pattern": "purity/red_shots" } ] },
+        { "hp_above": 0.33, "gimmick": "purity_zones",
+          "force": [0, 180], "force_radius": 120,
           "emitters": [ { "pattern": "purity/blue_shots" },
                         { "pattern": "purity/red_shots" } ] },
         { "hp_above": 0.0, "gimmick": "purity_zones",
-          "force": [0, 180], "force_radius": 120,
-          "emitters": [ { "pattern": "purity/blue_shots" },
-                        { "pattern": "purity/red_shots" } ] }
+          "emitters": [ { "pattern": "purity/micro_blue" },
+                        { "pattern": "purity/micro_red" } ] }
       ] },
 
     { "name": "restitution",

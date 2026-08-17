@@ -55,6 +55,7 @@ PLAYER_DTYPE = np.dtype([
     # frame como speed_mult/fr_mult (só muda no confisco e ao coletar orbs)
     ("speed_debuff", np.float32),
     ("fr_debuff",    np.float32),
+    ("freeze_t", np.float32),    # Ascético (Renúncia): >0 = congelado no lugar
 ])
 
 CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
@@ -144,9 +145,12 @@ HAZARD_DTYPE = np.dtype([        # zonas de névoa SLOW (Luxúria)
     ("t",      np.float32),      # tempo de vida restante
 ])
 
-PICKUP_DTYPE = np.dtype([        # orbes dourados da Restituição (Fase 1)
-    ("self", np.uint64),
+# pickup.kind
+PICKUP_KIND_RESTITUTION, PICKUP_KIND_ASCETIC = 0, 1
+PICKUP_DTYPE = np.dtype([        # orbes dourados (Restituição) / corações
+    ("self", np.uint64),         # falsos (Ascético "Renúncia")
     ("ttl",  np.float32),        # tempo de vida restante; despawna ao zerar
+    ("kind", np.uint8),          # PICKUP_KIND_* — dita o efeito da coleta
 ])
 
 BOSS_DTYPE = np.dtype([

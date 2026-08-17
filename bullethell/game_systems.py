@@ -31,6 +31,7 @@ from bullethell.schemas import (
     MINION_MINE, MINION_SENTINEL, ORBIT_GEM, ORBIT_HELD, PALETTE, SCREEN_H, SCREEN_W,
     SFX_BOOM, SFX_EMP, SFX_HIT, SFX_MINE, SFX_SHIELD, TETHER_NONE,
     PART_DECOY, PART_FAKE, PART_GUARD, PART_NORMAL, PART_REAL,
+    PICKUP_KIND_ASCETIC, PICKUP_KIND_RESTITUTION,
     SHAPE_CIRCLE,
 )
 
@@ -111,11 +112,32 @@ ASCETIC_HOLE_R = 40.0        # raio "vazio" checado ao redor do jogador
 ASCETIC_EDGE_R = 140.0       # raio da borda do buraco (anel de balas)
 ASCETIC_MIN_EDGE_N = 6       # nº mínimo de balas na borda pra contar como buraco
 ASCETIC_PULL_STRENGTH = 220.0
+# Ascetic fase 2 (Renúncia): corações falsos — coletar congela o jogador
+# em meio a um bombardeio de cruz 4-way (mesma pool `pickup` da Restituição,
+# agora com um `kind` pra discriminar o efeito da coleta).
+ASCETIC_HEART_SPAWN_T = 2.5   # intervalo entre corações falsos
+ASCETIC_HEART_TTL = 6.0       # despawna se não coletado
+ASCETIC_FREEZE_T = 0.8        # spec exata: congela no lugar
+ASCETIC_CROSS_SPEED = 220.0   # spec exata: cruz 4-way
+ASCETIC_CROSS_OFFSET = 60.0   # nasce afastado e converge — spawnar em cima
+                              # do jogador o destruiria no mesmo frame
+                              # (PlayerHitSystem), virando dano instantâneo
 # Pureza (Purity): metade azul (x<SCREEN_W/2) / metade vermelha da tela —
 # bala da cor errada na zona errada tira 1 vida A MAIS (ver PlayerHitSystem,
-# gimmick "purity_zones" só marca a fase ativa, não faz nada sozinho).
+# gimmick "purity_zones" só marca a fase ativa nas fases 0-1, não faz nada
+# sozinho ali; na fase 2 (Contaminação) o MESMO gimmick ganha um anel que
+# encolhe e pulsa, puxando o jogador RADIALMENTE pro boss se ele sair dele
+# — diferente do force incondicional/direção-fixa das fases anteriores,
+# "ficar colado no boss" pede puxão pro centro, não empurrão fixo).
 PURITY_BLUE_COLOR = 1        # reusa a cor "yin azul" já existente na PALETTE
 PURITY_RED_COLOR = 4         # reusa a cor "tether" (rosa/vermelho) da PALETTE
+PURITY_CONTAM_START_R = 130.0
+PURITY_CONTAM_FLOOR_R = 45.0     # nunca encolhe além disso — sempre sobra
+                                  # um bolsão "colado no boss"
+PURITY_CONTAM_SHRINK_RATE = 4.0  # px/s — chega no piso em ~21s
+PURITY_CONTAM_PULSE_FREQ = 2.0   # rad/s do "pulsa"
+PURITY_CONTAM_PULSE_AMP = 15.0
+PURITY_CONTAM_PULL = 240.0       # mais forte que os 180 da fase 1 (escalada)
 # Restituição (Restitution): confisca velocidade/cadência ao entrar na luta
 # (fase 0), devolve aos poucos coletando orbes dourados (fase 1). Balas do
 # boss perto de um orb o fazem "piscar e recuar" (nudge + reduz ttl) — no
@@ -431,8 +453,10 @@ def spawn_minion(world: "World", mm: MemoryManager, x: float, y: float,
     return packed
 
 
-def spawn_pickup(world: "World", mm: MemoryManager, x: float, y: float) -> int:
-    """Spawna um orb dourado da Restituição. Retorna packed ou -1 (pool cheia)."""
+def spawn_pickup(world: "World", mm: MemoryManager, x: float, y: float,
+                 kind: int = PICKUP_KIND_RESTITUTION) -> int:
+    """Spawna um orb dourado da Restituição ou um coração falso do Ascético
+    (Renúncia). Retorna packed ou -1 (pool cheia)."""
     pickup = mm.get_pool("pickup")
     if pickup.count >= pickup.capacity:
         return -1
@@ -446,12 +470,18 @@ def spawn_pickup(world: "World", mm: MemoryManager, x: float, y: float) -> int:
     s = mm.get_pool("sprite")
     srow = s.dense_row_of(idx); sv = s.active_view()
     sv["texture_id"][srow] = SHAPE_CIRCLE
-    sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 255, 210, 60
+    if kind == PICKUP_KIND_ASCETIC:
+        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 255, 90, 130
+        ttl = ASCETIC_HEART_TTL
+    else:
+        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = 255, 210, 60
+        ttl = RESTITUTION_ORB_TTL
     sv["tint_a"][srow] = 255
     sv["layer_z"][srow] = 14
     prow = pickup.dense_row_of(idx); pkv = pickup.active_view()
     pkv["self"][prow] = np.uint64(packed)
-    pkv["ttl"][prow] = RESTITUTION_ORB_TTL
+    pkv["ttl"][prow] = ttl
+    pkv["kind"][prow] = kind
     return packed
 
 
@@ -914,6 +944,10 @@ class PlayerControlSystem(ISystem):
         vv = self._velocity.active_view()
         vv["linear_x"][vrow] = dx * speed
         vv["linear_y"][vrow] = dy * speed
+        if pv["freeze_t"][prow] > 0.0:             # Ascético (Renúncia)
+            vv["linear_x"][vrow] = 0.0
+            vv["linear_y"][vrow] = 0.0
+            pv["freeze_t"][prow] -= delta_time
         if pv["invuln_t"][prow] > 0.0:
             pv["invuln_t"][prow] -= delta_time
         if pv["fire_cd"][prow] > 0.0:
@@ -3303,6 +3337,18 @@ class BossGimmickSystem(ISystem):
                     if collapsing:
                         eb["gravity"][near_edge] = ASCETIC_PULL_STRENGTH
 
+            elif gm == "ascetic_renounce":            # Abnegação: Renúncia (fase 2)
+                bv["invuln"][brow] = 0
+                bv["aux_angle"][brow] += wdt
+                if bv["aux_angle"][brow] >= ASCETIC_HEART_SPAWN_T:
+                    bv["aux_angle"][brow] -= ASCETIC_HEART_SPAWN_T
+                    seed = int(bv["aux2"][brow]); bv["aux2"][brow] += 1
+                    hx = SCREEN_W / 2.0 + (((seed * 2654435761) % 2000) - 1000) \
+                        / 1000.0 * (SCREEN_W / 2.0 - 120.0)
+                    hy = SCREEN_H / 2.0 + (((seed * 2654435761 + 12345) % 2000) - 1000) \
+                        / 1000.0 * (SCREEN_H / 2.0 - 160.0)
+                    spawn_pickup(world, self._mm, hx, hy, kind=PICKUP_KIND_ASCETIC)
+
             elif gm == "restitution_theft":          # Restituição: confisco + devolução
                 bv["invuln"][brow] = 0
                 if int(bv["phase_idx"][brow]) == 0:  # O Confisco: reafirma toda frame
@@ -3338,6 +3384,23 @@ class BossGimmickSystem(ISystem):
                 bv["aux_angle"][brow] += wdt
                 cycle = float(bv["aux_angle"][brow]) % (DECALOGUE_AXIS_SWAP_T * 2.0)
                 ck["axis_lock"][0] = 1 if cycle < DECALOGUE_AXIS_SWAP_T else 2
+
+            elif gm == "purity_zones":                # Pureza: marcador (fases 0-1)
+                bv["invuln"][brow] = 0                 # lido por PlayerHitSystem
+                if int(bv["phase_idx"][brow]) == 2:    # Contaminação: anel encolhe
+                    bv["aux_angle"][brow] += wdt       # e pulsa, puxando pro boss
+                    t = float(bv["aux_angle"][brow])
+                    shrink = PURITY_CONTAM_START_R - t * PURITY_CONTAM_SHRINK_RATE
+                    pulse = math.sin(t * PURITY_CONTAM_PULSE_FREQ) * PURITY_CONTAM_PULSE_AMP
+                    radius = max(PURITY_CONTAM_FLOOR_R, shrink + pulse)
+                    btrow = self._transform.dense_row_of(bi)
+                    bx = float(tv["position_x"][btrow]); by = float(tv["position_y"][btrow])
+                    ddx, ddy = bx - px, by - py
+                    d2 = ddx * ddx + ddy * ddy
+                    if d2 > radius * radius:
+                        d = math.sqrt(d2) or 1.0
+                        tv["position_x"][ptrow] += ddx / d * PURITY_CONTAM_PULL * delta_time
+                        tv["position_y"][ptrow] += ddy / d * PURITY_CONTAM_PULL * delta_time
 
             elif bv["sw_t"][brow] <= 0.0:            # preserva o Segundo Fôlego
                 bv["invuln"][brow] = 0
@@ -3451,6 +3514,7 @@ class PickupSystem(ISystem):
     nenhum do jogo."""
 
     def __init__(self, memory_manager: MemoryManager) -> None:
+        self._mm = memory_manager
         self._pickup = memory_manager.get_pool("pickup")
         self._transform = memory_manager.get_pool("transform")
         self._player = memory_manager.get_pool("player")
@@ -3473,15 +3537,34 @@ class PickupSystem(ISystem):
             dx = tv["position_x"][trows] - px
             dy = tv["position_y"][trows] - py
             collected = (~dead) & (dx * dx + dy * dy <= RESTITUTION_ORB_R ** 2)
-            n_collected = int(collected.sum())
-            if n_collected:
+            if collected.any():
                 prow = self._player.dense_row_of(i)
                 plv = self._player.active_view()
-                plv["speed_debuff"][prow] = min(1.0, float(plv["speed_debuff"][prow])
-                                                + RESTITUTION_RESTORE_SPEED * n_collected)
-                plv["fr_debuff"][prow] = max(1.0, float(plv["fr_debuff"][prow])
-                                             - RESTITUTION_RESTORE_FR * n_collected)
+                kinds = pv["kind"]
+                rest_hit = collected & (kinds == PICKUP_KIND_RESTITUTION)
+                asc_hit = collected & (kinds == PICKUP_KIND_ASCETIC)
+                n_rest = int(rest_hit.sum())
+                if n_rest:
+                    plv["speed_debuff"][prow] = min(1.0, float(plv["speed_debuff"][prow])
+                                                    + RESTITUTION_RESTORE_SPEED * n_rest)
+                    plv["fr_debuff"][prow] = max(1.0, float(plv["fr_debuff"][prow])
+                                                 - RESTITUTION_RESTORE_FR * n_rest)
+                if asc_hit.any():                    # Renúncia: congela + cruz 4-way
+                    plv["freeze_t"][prow] = ASCETIC_FREEZE_T
+                    for k in np.where(asc_hit)[0]:
+                        hx = float(tv["position_x"][trows[k]])
+                        hy = float(tv["position_y"][trows[k]])
+                        for j in range(4):
+                            a = j * (math.pi / 2)
+                            spawn_enemy_bullet(world, self._mm,
+                                               hx + math.cos(a) * ASCETIC_CROSS_OFFSET,
+                                               hy + math.sin(a) * ASCETIC_CROSS_OFFSET,
+                                               -math.cos(a) * ASCETIC_CROSS_SPEED,
+                                               -math.sin(a) * ASCETIC_CROSS_SPEED,
+                                               color=3)
                 dead = dead | collected
+                if asc_hit.any():   # spawnou balas acima — tv anterior expirou
+                    tv = self._transform.active_view()
 
         if self._eb.count:
             eidxs = self._eb.active_entity_indices()

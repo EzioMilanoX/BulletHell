@@ -528,6 +528,53 @@ if __name__ == "__main__":
     if not trap_off_ok:
         ok = False
 
+    # Ascetic fase 1 (Renúncia): corações falsos caem periodicamente
+    from bullethell.game_systems import PICKUP_KIND_ASCETIC as _PKA
+
+    w_ar, inp_ar = _bh2(boss_name="ascetic", weapon_name="padrao")
+    bp_ar = w_ar.get_pool("boss"); bv_ar = bp_ar.active_view()
+    bv_ar["hp"][0] = bv_ar["max_hp"][0] * 0.4     # forca fase 1
+    pu_ar = w_ar.get_pool("pickup")
+    max_pu_ar = 0
+    for _ in range(200):
+        inp_ar.poll(); w_ar.step(DT)
+        max_pu_ar = max(max_pu_ar, pu_ar.count)
+    drop_ok_ar = max_pu_ar > 0 and int(bv_ar["phase_idx"][0]) == 1
+    print(f"[{'OK ' if drop_ok_ar else 'FAIL'}] ascetic: fase 1 (Renuncia) "
+         f"derruba coracoes falsos (pico={max_pu_ar})")
+    if not drop_ok_ar:
+        ok = False
+
+    # Ascetic: coletar um coração falso congela o jogador (mesmo com input
+    # segurado) e dispara uma cruz 4-way
+    from bullethell.game_systems import spawn_pickup as _spu3
+
+    w_af, inp_af = _bh2(boss_name="ascetic", weapon_name="padrao")
+    bp_af = w_af.get_pool("boss"); bv_af = bp_af.active_view()
+    bv_af["hp"][0] = bv_af["max_hp"][0] * 0.4
+    inp_af.poll(); w_af.step(DT)
+    pl_af = w_af.get_pool("player"); tp_af = w_af.get_pool("transform")
+    pidx_af = int(pl_af.active_entity_indices()[0])
+    prow_af = pl_af.dense_row_of(pidx_af); trow_af = tp_af.dense_row_of(pidx_af)
+    px_af = float(tp_af.active_view()["position_x"][trow_af])
+    py_af = float(tp_af.active_view()["position_y"][trow_af])
+    eb_af = w_af.get_pool("enemy_bullet")
+    eb0_af = eb_af.count
+    _spu3(w_af, w_af, px_af, py_af, kind=_PKA)
+    inp_af.set_action_held("move_right", True)
+    inp_af.poll(); w_af.step(DT)               # coleta + spawna a cruz
+    cross_ok = eb_af.count >= eb0_af + 4
+    inp_af.poll(); w_af.step(DT)               # freeze_t reafirmado -> aplica
+    vv_af = w_af.get_pool("velocity").active_view()
+    vrow_af = w_af.get_pool("velocity").dense_row_of(pidx_af)
+    frozen_ok = float(vv_af["linear_x"][vrow_af]) == 0.0
+    freeze_ok = cross_ok and frozen_ok
+    print(f"[{'OK ' if freeze_ok else 'FAIL'}] ascetic: coletar coracao "
+         f"congela (vx={float(vv_af['linear_x'][vrow_af]):.1f} com move_right "
+         f"segurado) e dispara cruz 4-way (balas {eb0_af}->{eb_af.count})")
+    if not freeze_ok:
+        ok = False
+
     # Decálogo #6b — Purity: raiz normal, sem invuln escondendo nada.
     r = run("purity", "padrao", frames=1600, approach=False)
     spawned = r["enemy_bullets_peak"] > 0
@@ -592,6 +639,40 @@ if __name__ == "__main__":
     print(f"[{'OK ' if force_ok else 'FAIL'}] purity: fora do anel -> "
          f"força empurra pra baixo (y {y0:.1f}->{y1:.1f})")
     if not force_ok:
+        ok = False
+
+    # Purity fase 2 (Contaminação): o anel encolhe de verdade com o tempo —
+    # 100px do boss é seguro em t~0 (raio inicial 130) mas vira perigoso em
+    # t~15s (raio já encolheu abaixo de 100)
+    def _purity_contam_pull_active(world_, inp_, prow_, btrow_, dist):
+        tv_ = world_.get_pool("transform").active_view()
+        bx_ = float(tv_["position_x"][btrow_]); by_ = float(tv_["position_y"][btrow_])
+        tv_["position_x"][prow_] = bx_ + dist
+        tv_["position_y"][prow_] = by_
+        x0_ = float(tv_["position_x"][prow_])
+        inp_.poll(); world_.step(DT)
+        x1_ = float(world_.get_pool("transform").active_view()["position_x"][prow_])
+        return x1_ < x0_ - 0.01
+
+    w_pc, inp_pc = _bh2(boss_name="purity", weapon_name="padrao")
+    bp_pc = w_pc.get_pool("boss"); bv_pc = bp_pc.active_view()
+    bv_pc["hp"][0] = bv_pc["max_hp"][0] * 0.1     # cascateia ate fase 2
+    for _ in range(4):
+        inp_pc.poll(); w_pc.step(DT)
+    pl_pc = w_pc.get_pool("player"); tp_pc = w_pc.get_pool("transform")
+    pidx_pc = int(pl_pc.active_entity_indices()[0])
+    prow_pc = tp_pc.dense_row_of(pidx_pc)
+    btrow_pc = tp_pc.dense_row_of(int(bp_pc.active_entity_indices()[0]))
+    phase2_ok_pc = int(bv_pc["phase_idx"][0]) == 2
+
+    safe_early = not _purity_contam_pull_active(w_pc, inp_pc, prow_pc, btrow_pc, 100.0)
+    for _ in range(14 * 60):
+        inp_pc.poll(); w_pc.step(DT)
+    pulled_late = _purity_contam_pull_active(w_pc, inp_pc, prow_pc, btrow_pc, 100.0)
+    shrink_ok = phase2_ok_pc and safe_early and pulled_late
+    print(f"[{'OK ' if shrink_ok else 'FAIL'}] purity: contaminacao encolhe "
+         f"de verdade (100px seguro em t~0, puxa em t~15s)")
+    if not shrink_ok:
         ok = False
 
     # Decálogo #8 — Restitution: raiz normal, sem invuln escondendo nada.

@@ -311,6 +311,16 @@
       "emit": "arc", "bullet": "purity/red",
       "period": 0.5, "count": 3, "arc": 0.5, "aim": "player", "speed": 170.0 },
 
+    { "name": "purity/micro_blue",
+      "_doc": "Decálogo #6b — Pureza fase 2 (Contaminação): micro-padrão azul ultra-denso — bem mais rápido que blue_shots.",
+      "emit": "arc", "bullet": "purity/blue",
+      "period": 0.15, "count": 2, "arc": 0.25, "aim": "player", "speed": 200.0 },
+
+    { "name": "purity/micro_red",
+      "_doc": "Decálogo #6b — Pureza fase 2 (Contaminação): micro-padrão vermelho ultra-denso — bem mais rápido que red_shots.",
+      "emit": "arc", "bullet": "purity/red",
+      "period": 0.15, "count": 2, "arc": 0.25, "aim": "player", "speed": 200.0 },
+
     { "name": "restitution/prison_bars",
       "_doc": "Decálogo #8 — Restituição: colunas verticais do topo, como grades de prisão (150px/s, spec exata) — mesmo emit 'rain' do wall/rain.",
       "emit": "rain", "bullet": "std/normal",
