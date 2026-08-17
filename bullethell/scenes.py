@@ -27,7 +27,7 @@ from bullethell.schemas import SCREEN_H, SCREEN_W
 # ---------------------------------------------------------------------------
 (MENU_MAIN, MENU_MODE, MENU_DIFF, MENU_BOSS, MENU_SKILL, MENU_WEAPON,
  MENU_MUT, PLAYING, WIN, GAMEOVER, MENU_ACH, MENU_RECORDS,
- MENU_SETTINGS, REPLAYING) = range(14)
+ MENU_SETTINGS, REPLAYING, MENU_TEST) = range(15)
 
 # Conquistas persistidas em save_ecs.json: (id, nome, descrição, recompensa,
 # secreta, progresso). `progresso` = (chave, alvo) para as com barra —
@@ -173,13 +173,15 @@ BOSSES = [("classic", "CLÁSSICO", (128, 0, 0)),
 CLASSIC_BOSS_NAMES = ("classic", "swarm", "wall", "twins", "summoner", "omega")
 CLASSIC_BOSSES = [b for b in BOSSES if b[0] in CLASSIC_BOSS_NAMES]
 
-# Decálogo: os 10 bosses do arco, escondidos do menu normal (sem modo
-# "rush" próprio ainda) mas reveláveis em MENU_BOSS com o cheat (dev_mode)
-# ligado — dá pra testar qualquer um sem lembrar a sintaxe do --boss CLI.
-DECALOGO_BOSS_NAMES = ("monolith", "icon", "lineage", "truth", "silence",
-                      "sabbath", "ascetic", "purity", "restitution",
-                      "mercy", "decalogue")
-DECALOGO_BOSSES = [b for b in BOSSES if b[0] in DECALOGO_BOSS_NAMES]
+# "Seção de teste": QUALQUER boss fora de CLASSIC_BOSS_NAMES — não é uma
+# lista de nomes fixa, é o complemento genérico. Cobre o Mago do Tempo
+# (só via Boss Rush), os 8 pecados (só via SINS Rush) e os 10 do Decálogo
+# (sem modo "rush" próprio ainda) — todos difíceis de alcançar normalmente
+# ou que exigem condições chatas de replicar (vencer um Rush inteiro só
+# pra testar 1 boss específico). Só visível com o cheat (dev_mode)
+# ligado, num botão próprio no menu principal — não mistura com
+# CLASSIC_BOSSES (ver MENU_TEST/_main_items).
+TEST_BOSSES = [b for b in BOSSES if b[0] not in CLASSIC_BOSS_NAMES]
 
 SKILLS = [("none", "NENHUMA", ("Confie apenas nos reflexos.",), (64, 64, 64)),
           ("dash", "DASH",
@@ -540,14 +542,19 @@ class GameApp:
                        locked=[self._diff_locked(k) for k in range(len(DIFFS))],
                        step=1)
         elif s == MENU_BOSS:
-            boss_list = self._boss_menu_list()
-            self._menu([b[1] for b in boss_list], "BULLET HELL",
-                       colors=[b[2] for b in boss_list],
+            self._menu([b[1] for b in CLASSIC_BOSSES], "BULLET HELL",
+                       colors=[b[2] for b in CLASSIC_BOSSES],
                        descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
-                             for b in boss_list],
+                             for b in CLASSIC_BOSSES],
                        on_confirm=self._boss_confirm, back_to=MENU_DIFF,
-                       locked=[self._boss_locked(b[0]) for b in boss_list],
+                       locked=[self._boss_locked(b[0]) for b in CLASSIC_BOSSES],
                        step=2, crumb=self._crumb()[:1])
+        elif s == MENU_TEST:
+            self._menu([b[1] for b in TEST_BOSSES], "SEÇÃO DE TESTE",
+                       colors=[b[2] for b in TEST_BOSSES],
+                       descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
+                             for b in TEST_BOSSES],
+                       on_confirm=self._test_boss_confirm, back_to=MENU_MAIN)
         elif s == MENU_SKILL:
             items = [n + (" +" if self.sel["skill_plus"] and k == self.cursor
                           and self._has_plus(SKILLS[k][0], self._data.skills)
@@ -628,12 +635,6 @@ class GameApp:
 
     def _boss_locked(self, name: str) -> bool:
         return name == "omega" and not self.save.get("omega_unlocked", False)
-
-    def _boss_menu_list(self) -> list:
-        """Lista exibida em MENU_BOSS — os bosses do Decálogo só aparecem
-        com o cheat (dev_mode) ligado (sequência secreta), pra testar
-        qualquer um sem lembrar a sintaxe do --boss CLI."""
-        return CLASSIC_BOSSES + DECALOGO_BOSSES if self.dev_mode else CLASSIC_BOSSES
 
     def _crumb(self) -> tuple:
         """Breadcrumb do assistente de seleção (legado: main.py `_mheader`).
@@ -765,9 +766,20 @@ class GameApp:
         r.draw_text(SCREEN_W / 2, 688, hint, 13, (58, 58, 80, 255),
                     anchor="center")
 
+    def _main_items(self) -> list:
+        """Itens do menu principal — "SEÇÃO DE TESTE" só aparece com o
+        cheat (dev_mode) ligado: acesso direto a qualquer boss difícil
+        de alcançar normalmente (Mago do Tempo, os 8 pecados, os 10 do
+        Decálogo), sem precisar replicar a condição especial de cada um."""
+        items = list(MAIN_ITEMS)
+        if self.dev_mode:
+            items.insert(1, ("test", "SEÇÃO DE TESTE", (255, 60, 200)))
+        return items
+
     def _main_menu_screen(self) -> None:
         inp = self._input
-        n = len(MAIN_ITEMS)
+        items = self._main_items()
+        n = len(items)
         if inp.is_action_pressed("move_up"):
             self.cursor = (self.cursor - 1) % n
             self._play("ui_move", 0.25)
@@ -786,7 +798,7 @@ class GameApp:
                     anchor="center")
         card_w, ih, gap = 360, 62, 12
         top = 240
-        for k, (_, label, col) in enumerate(MAIN_ITEMS):
+        for k, (_, label, col) in enumerate(items):
             y = top + k * (ih + gap)
             sel = k == self.cursor
             bg = (22, 22, 40, 255) if sel else (12, 12, 20, 255)
@@ -802,9 +814,11 @@ class GameApp:
                     14, MUTED, anchor="center")
 
     def _main_confirm(self, k: int) -> None:
-        dest = MAIN_ITEMS[k][0]
+        dest = self._main_items()[k][0]
         if dest == "play":
             self.state, self.cursor = MENU_MODE, 0
+        elif dest == "test":
+            self.state, self.cursor = MENU_TEST, 0
         elif dest == "ach":
             self.state, self.cursor = MENU_ACH, 0
         elif dest == "records":
@@ -985,10 +999,17 @@ class GameApp:
         self.cursor = 0
 
     def _boss_confirm(self, k: int) -> None:
-        boss_list = self._boss_menu_list()
-        if self._boss_locked(boss_list[k][0]):
+        if self._boss_locked(CLASSIC_BOSSES[k][0]):
             return
-        self.sel["boss"] = boss_list[k][0]
+        self.sel["boss"] = CLASSIC_BOSSES[k][0]
+        self.state, self.cursor = MENU_SKILL, 0
+
+    def _test_boss_confirm(self, k: int) -> None:
+        """Seção de teste (dev_mode): joga o boss escolhido como uma
+        partida CLÁSSICA avulsa — nenhum boss aqui fica travado, é
+        acesso direto pra testar sem replicar a condição especial."""
+        self.sel["mode"] = "classic"
+        self.sel["boss"] = TEST_BOSSES[k][0]
         self.state, self.cursor = MENU_SKILL, 0
 
     def _skill_confirm(self, k: int) -> None:

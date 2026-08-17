@@ -757,23 +757,35 @@ outros 9.
         schema bespoke) + `TerrainCollisionSystem` novo. `BossDef` ganha
         campo `terrain` (lista de paredes `(x,y,half_w,half_h)`,
         mesmo formato de `parts`). 6/6 smoke tests + 174 pytest OK.
-      - **14l** — bosses do Decálogo acessíveis pelo menu normal com o
-        cheat (dev_mode, sequência secreta W W S S A D A D) ligado —
-        pedido do usuário pra não precisar lembrar a sintaxe do
-        `--boss` CLI. `MENU_BOSS` (tela de escolher boss no modo
-        CLÁSSICO) passa a listar `CLASSIC_BOSSES + DECALOGO_BOSSES`
-        (novo, os 10 bosses do arco filtrados de `BOSSES` pelo nome) em
-        vez de só `CLASSIC_BOSSES`, através de um método novo
-        `_boss_menu_list()` — usado tanto no render quanto em
-        `_boss_confirm`, então selecionar um boss do Decálogo funciona
-        exatamente como `--boss <nome>` (o motor nunca restringiu por
-        `CLASSIC_BOSS_NAMES`, isso sempre foi só filtro de UI). Nenhum
-        boss do Decálogo fica travado (`_boss_locked` só trata "omega"
-        por nome) — aparecem prontos pra jogar assim que o cheat liga.
-        Escopo deliberadamente contido: só os 10 bosses na tela de
-        seleção, NÃO o modo Decálogo Rush (continua exigindo vencer o
-        SINS RUSH) nem o "bastion" (prototipo separado, não faz parte
-        do arco). 6/6 smoke tests + 174 pytest OK.
+      - **14l** — "SEÇÃO DE TESTE": novo botão no menu principal, só
+        visível com o cheat (dev_mode, sequência secreta W W S S A D A
+        D) ligado — pedido do usuário pra acessar QUALQUER boss difícil
+        de alcançar normalmente sem precisar replicar a condição
+        especial (vencer um Rush inteiro, ou lembrar a sintaxe do
+        `--boss` CLI). Primeira versão desta feature (commit anterior,
+        já revertida aqui) tinha misturado os bosses do Decálogo direto
+        em `MENU_BOSS` — o usuário corrigiu o escopo: não é sobre um
+        arco específico, é sobre QUALQUER boss de difícil acesso,
+        Decálogo incluso mas não só ele.
+        Novo estado `MENU_TEST` + `TEST_BOSSES` (não é uma lista de
+        nomes fixa — é o complemento genérico `[b for b in BOSSES if
+        b[0] not in CLASSIC_BOSS_NAMES]`, então cobre automaticamente
+        o Mago do Tempo (só via Boss Rush), os 8 pecados (só via SINS
+        RUSH) E os 10 do Decálogo — 20 bosses no total, sem duplicar
+        nada do menu clássico, e sem precisar de manutenção quando um
+        boss novo entrar no jogo fora de `CLASSIC_BOSS_NAMES`).
+        `_main_items()` novo insere `("test", "SEÇÃO DE TESTE", cor)`
+        na lista do menu principal quando `dev_mode` está ligado (`
+        _main_menu_screen`/`_main_confirm` passam a usar esse método em
+        vez da constante `MAIN_ITEMS` direto). `_test_boss_confirm`
+        seta `mode="classic"` + o boss escolhido e segue pro fluxo
+        normal de skill/arma/mutador — joga exatamente como `--boss
+        <nome>` jogaria. Nenhum boss da seção fica travado (acesso
+        direto, sem replicar a condição de verdade). Escopo contido:
+        só a lista de bosses, NÃO o modo Decálogo Rush (continua
+        exigindo vencer o SINS RUSH de verdade) nem o "bastion"
+        (protótipo separado, fora de qualquer arco). 6/6 smoke tests +
+        174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,

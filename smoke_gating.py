@@ -55,19 +55,23 @@ if __name__ == "__main__":
                a._plus_unlocked("skill", "dash") is False
                and a._plus_unlocked("weapon", "padrao") is False)
 
-    # dev_mode (cheat): revela os 10 bosses do Decálogo em MENU_BOSS
-    from bullethell.scenes import CLASSIC_BOSSES, DECALOGO_BOSSES
+    # dev_mode (cheat): revela o botão "SEÇÃO DE TESTE" no menu principal —
+    # acesso direto a qualquer boss difícil de alcançar normalmente
+    # (Mago do Tempo, os 8 pecados, os 10 do Decálogo)
+    from bullethell.scenes import TEST_BOSSES
 
     a = app_with({})
-    names_off = [b[0] for b in a._boss_menu_list()]
-    ok &= check("dev_mode desligado: MENU_BOSS só lista os bosses clássicos",
-               len(names_off) == len(CLASSIC_BOSSES)
-               and "monolith" not in names_off)
+    ok &= check("dev_mode desligado: menu principal sem SEÇÃO DE TESTE",
+               "test" not in [i[0] for i in a._main_items()])
     a.dev_mode = True
-    names_on = [b[0] for b in a._boss_menu_list()]
-    ok &= check("dev_mode ligado: MENU_BOSS soma os 10 bosses do Decálogo",
-               len(names_on) == len(CLASSIC_BOSSES) + len(DECALOGO_BOSSES)
-               and "monolith" in names_on and "decalogue" in names_on)
+    ok &= check("dev_mode ligado: menu principal ganha SEÇÃO DE TESTE",
+               "test" in [i[0] for i in a._main_items()])
+    names_test = [b[0] for b in TEST_BOSSES]
+    ok &= check("SEÇÃO DE TESTE cobre Mago do Tempo, os 8 pecados e os 10 "
+               "do Decálogo (20 no total, nada duplicado do menu clássico)",
+               len(TEST_BOSSES) == 20 and "timemage" in names_test
+               and "sin" in names_test and "decalogue" in names_test
+               and "omega" not in names_test)
 
     a = app_with({})
     a.sel["diff"] = "facil"
