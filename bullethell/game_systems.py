@@ -272,33 +272,27 @@ def add_sfx(mm: MemoryManager, bit: int) -> None:
 def spawn_particles(world: "World", mm: MemoryManager, x: float, y: float,
                     color, n: int, speed: float = 160.0,
                     ttl: float = 0.45, seed: int = 0) -> None:
-    """Explosão radial de partículas (círculos que somem em fade)."""
-    pt = mm.get_pool("particle")
-    for j in range(n):
-        if pt.count >= pt.capacity - 1:
-            return
-        packed = world.create_entity("particle_entity")
-        idx = packed & 0xFFFFFFFF
-        a = ((seed * 2654435761 + j * 97561) % 6283) / 1000.0
-        spd = speed * (0.4 + ((seed * 40503 + j * 131) % 601) / 1000.0)
-        t = mm.get_pool("transform")
-        trow = t.dense_row_of(idx); tv = t.active_view()
-        tv["position_x"][trow] = x
-        tv["position_y"][trow] = y
-        tv["scale_x"][trow] = tv["scale_y"][trow] = 0.75
-        v = mm.get_pool("velocity")
-        vrow = v.dense_row_of(idx); vv = v.active_view()
-        vv["linear_x"][vrow] = math.cos(a) * spd
-        vv["linear_y"][vrow] = math.sin(a) * spd
-        s = mm.get_pool("sprite")
-        srow = s.dense_row_of(idx); sv = s.active_view()
-        sv["texture_id"][srow] = SHAPE_CIRCLE
-        sv["tint_r"][srow], sv["tint_g"][srow], sv["tint_b"][srow] = color
-        sv["tint_a"][srow] = 255
-        sv["layer_z"][srow] = 18
-        prow = pt.dense_row_of(idx); pv = pt.active_view()
-        pv["self"][prow] = np.uint64(packed)
-        pv["ttl"][prow] = pv["ttl0"][prow] = ttl
+    """Enfileira UM pedido de burst radial (mesmo idioma de add_shake/add_sfx:
+    escreve um evento numa pool compartilhada; GameApp._drain_particle_requests()
+    e o UNICO consumidor, uma vez por frame, quem de fato emite na ParticleStorage
+    e calcula o angulo/velocidade de cada particula -- o hash deterministico
+    por (seed, indice) que antes rodava aqui em Python, por particula, foi
+    preservado tal e qual, so que vetorizado la (critico pra replay).
+    Assinatura inalterada -- nenhum dos chamadores precisa mudar."""
+    pr = mm.get_pool("particle_request")
+    if pr.count >= pr.capacity:
+        return
+    packed = world.create_entity("particle_request_entity")
+    idx = packed & 0xFFFFFFFF
+    row = pr.dense_row_of(idx)
+    view = pr.active_view()
+    view["x"][row] = x
+    view["y"][row] = y
+    view["color_r"][row], view["color_g"][row], view["color_b"][row] = color
+    view["n"][row] = n
+    view["speed"][row] = speed
+    view["ttl"][row] = ttl
+    view["seed"][row] = seed
 
 
 def handle_player_death(pv, prow, mods_view, stats_view) -> bool:
@@ -310,31 +304,6 @@ def handle_player_death(pv, prow, mods_view, stats_view) -> bool:
         return True
     pv["lives"][prow] = 0 if mods_view["glass"][0] else 3
     return False
-
-
-class ParticleSystem(ISystem):
-    """Fade + gravidade leve + expiração das partículas (kernel NumPy)."""
-
-    def __init__(self, memory_manager: MemoryManager) -> None:
-        self._pt = memory_manager.get_pool("particle")
-        self._velocity = memory_manager.get_pool("velocity")
-        self._sprite = memory_manager.get_pool("sprite")
-
-    def update(self, world: "World", delta_time: float) -> None:
-        n = self._pt.count
-        if n == 0:
-            return
-        pv = self._pt.active_view()
-        pv["ttl"] -= delta_time
-        idxs = self._pt.active_entity_indices()
-        vrows = self._velocity.dense_rows_of(idxs)
-        self._velocity.active_view()["linear_y"][vrows] += 220.0 * delta_time
-        srows = self._sprite.dense_rows_of(idxs)
-        frac = np.clip(pv["ttl"] / np.maximum(pv["ttl0"], 1e-3), 0.0, 1.0)
-        self._sprite.active_view()["tint_a"][srows] = (frac * 255).astype(np.uint8)
-        dead = pv["ttl"] <= 0.0
-        for h in pv["self"][dead]:
-            world.destroy_entity(int(h))
 
 
 def spawn_boss(world: "World", mm: MemoryManager, data: GameData,

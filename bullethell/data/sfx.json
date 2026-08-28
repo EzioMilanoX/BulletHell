@@ -1,0 +1,9 @@
+{
+  "hit": {"type": "tone", "kind": "noise", "freq": 220.0, "duration": 0.16},
+  "boom": {"type": "tone", "kind": "sweep", "freq": 190.0, "duration": 0.45},
+  "emp": {"type": "tone", "kind": "zap", "freq": 260.0, "duration": 0.35},
+  "shield": {"type": "tone", "kind": "square", "freq": 660.0, "duration": 0.10},
+  "mine": {"type": "tone", "kind": "noise", "freq": 330.0, "duration": 0.22},
+  "ui_move": {"type": "tone", "kind": "square", "freq": 520.0, "duration": 0.04},
+  "ui_ok": {"type": "tone", "kind": "square", "freq": 780.0, "duration": 0.08}
+}

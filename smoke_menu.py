@@ -58,6 +58,12 @@ if __name__ == "__main__":
     press(app, inp, "confirm")
     ok &= check("toggle Mostrar Hitbox persiste em save['settings']",
                app.save["settings"]["show_hitbox"] is True)
+    press(app, inp, "move_down")
+    press(app, inp, "confirm")
+    ok &= check("toggle Tela Cheia persiste em save['settings']",
+               app.save["settings"]["fullscreen"] is True)
+    ok &= check("toggle Tela Cheia chama set_fullscreen no renderer real",
+               app._r._is_fullscreen is True)
     press(app, inp, "back")
     ok &= check("ESC em SISTEMA -> MENU_MAIN", app.state == MENU_MAIN)
 

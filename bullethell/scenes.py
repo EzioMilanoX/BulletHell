@@ -13,7 +13,10 @@ import time
 
 import numpy as np
 
+from ouroboros.bootstrap.audio_bank_loader import load_audio_bank
+from ouroboros.bootstrap.screen_shake import ScreenShake
 from ouroboros.core.memory.component_pool import intersect_entity_indices
+from ouroboros.core.particle_storage import ParticleStorage
 
 from bullethell.composition import build_world
 from bullethell.game_systems import PLAYER_HIT_R, RUSH_ORDERS
@@ -335,6 +338,8 @@ class GameApp:
                     "weapon": "padrao", "weapon_plus": False,
                     "muts": set()}
         self.world = None
+        self._screen_shake = ScreenShake()  # recriado a cada start_game() -- ver ali
+        self._particles = ParticleStorage(capacity=1024)  # idem
         self.intro_t = 0.0
         self.intro_boss = "classic"
         self.run_t = 0.0
@@ -342,6 +347,15 @@ class GameApp:
         self.totals = {"kills": 0, "deaths": 0, "graze": 0, "runs": 0,
                        "parries": 0}
         self.save = save_data or {}
+        # Tela Cheia (SISTEMA): aplica o valor salvo assim que o renderer
+        # ja existe -- `setdefault` cobre tanto um save novo (sem a chave
+        # "settings" ainda) quanto um save ANTIGO que ja tem "settings" mas
+        # foi salvo antes deste toggle existir (sem a chave "fullscreen").
+        settings = self.save.setdefault(
+            "settings", {"screen_shake": True, "show_hitbox": False, "fullscreen": False})
+        settings.setdefault("fullscreen", False)
+        if self._r is not None:
+            self._r.set_fullscreen(bool(settings["fullscreen"]))
         self.replay_frames: list = []   # [(bitmask, dt), ...] da run atual
         self._last_cfg: dict | None = None
         self._replay_input: ReplayInputProvider | None = None
@@ -360,14 +374,8 @@ class GameApp:
         # PRÓXIMA partida — não repatcha sistemas de uma run já em curso.
         self._data_mtime = self._data_dir_mtime()
         self._reload_check_t = 0.0
-        if self._audio is not None:                  # SFX procedurais (M4)
-            self._audio.register_tone("hit", "noise", 220.0, 0.16)
-            self._audio.register_tone("boom", "sweep", 190.0, 0.45)
-            self._audio.register_tone("emp", "zap", 260.0, 0.35)
-            self._audio.register_tone("shield", "square", 660.0, 0.10)
-            self._audio.register_tone("mine", "noise", 330.0, 0.22)
-            self._audio.register_tone("ui_move", "square", 520.0, 0.04)
-            self._audio.register_tone("ui_ok", "square", 780.0, 0.08)
+        if self._audio is not None:                  # SFX data-driven (bullethell/data/sfx.json)
+            load_audio_bank(self._audio, str(DATA_DIR / "sfx.json"))
 
     def _play(self, sound_id: str, volume: float = 0.5) -> None:
         if self._audio is not None:
@@ -864,14 +872,12 @@ class GameApp:
                     (35, 35, 50, 255), anchor="center")
 
     def _settings_screen(self) -> None:
-        """Só 2 dos 3 toggles do legado: Tela Cheia exigiria um método
-        novo no IRenderer da engine (fora do escopo deste port agora) —
-        melhor não expor um toggle que não faz nada de verdade."""
         inp = self._input
-        settings = self.save.setdefault(
-            "settings", {"screen_shake": True, "show_hitbox": False})
+        defaults = {"screen_shake": True, "show_hitbox": False, "fullscreen": False}
+        settings = self.save.setdefault("settings", dict(defaults))
         items = [("screen_shake", "Screen Shake"),
-                 ("show_hitbox", "Mostrar Hitbox")]
+                 ("show_hitbox", "Mostrar Hitbox"),
+                 ("fullscreen", "Tela Cheia")]
         n = len(items)
         if inp.is_action_pressed("move_up"):
             self.cursor = (self.cursor - 1) % n
@@ -881,7 +887,9 @@ class GameApp:
             self._play("ui_move", 0.25)
         if inp.is_action_pressed("confirm") or inp.is_action_pressed("fire"):
             key = items[self.cursor][0]
-            settings[key] = not settings.get(key, key != "show_hitbox")
+            settings[key] = not settings.get(key, defaults[key])
+            if key == "fullscreen":
+                self._r.set_fullscreen(settings[key])
             self._play("ui_ok", 0.3)
         if inp.is_action_pressed("back") or inp.is_action_pressed("move_left"):
             self.state, self.cursor = MENU_MAIN, 0
@@ -896,7 +904,7 @@ class GameApp:
         for k, (key, label) in enumerate(items):
             y = top + k * (ih + gap)
             sel = k == self.cursor
-            on = bool(settings.get(key, key != "show_hitbox"))
+            on = bool(settings.get(key, defaults[key]))
             bg = (20, 28, 44, 255) if sel else (12, 12, 20, 255)
             r.draw_ui_rect(180, y, SCREEN_W - 360, ih, bg)
             r.draw_ui_rect(180, y, 4, ih,
@@ -1062,6 +1070,12 @@ class GameApp:
             weapon_name=weapon, skill_name=skill,
             mutators=muts, mode=self.sel["mode"],
             difficulty=self.sel["diff"], arcade=True)
+        # ScreenShake/ParticleStorage sao estado por-run (o antigo clock.shake
+        # e a pool "particle" nasciam zerados a cada World novo) -- sem isto,
+        # shake/particulas ainda ativos no instante do fim de uma run vazariam
+        # pros primeiros frames da PROXIMA.
+        self._screen_shake = ScreenShake()
+        self._particles = ParticleStorage(capacity=1024)
         mode = self.sel["mode"]
         self.intro_boss = (RUSH_ORDERS[1][0] if mode == "rush" else
                            RUSH_ORDERS[2][0] if mode == "sins" else
@@ -1087,7 +1101,9 @@ class GameApp:
         w.step(dt)
         self._pump_sfx()
         self._apply_shake(dt)
+        self._drain_particle_requests(dt)
         self._render_world()
+        self._render_particles()
         self._render_hud()
         if self.intro_t > 0.0:
             self.intro_t -= dt
@@ -1136,7 +1152,9 @@ class GameApp:
         w.step(dt)
         self._pump_sfx()
         self._apply_shake(dt)
+        self._drain_particle_requests(dt)
         self._render_world()
+        self._render_particles()
         self._render_hud()
         self._render_replay_tag()
 
@@ -1361,13 +1379,27 @@ class GameApp:
                 self.save["best_time_dificil"] = self.run_t
 
     def _apply_shake(self, dt: float) -> None:
+        """`add_shake()` (game_systems.py) continua escrevendo em clock.shake
+        exatamente como antes -- nao muda nenhum dos varios ISystems que a
+        chamam. Aqui, o UNICO consumidor, e onde clock.shake vira um evento
+        PENDENTE somado (com teto 18.0) ao ScreenShake ja em andamento via
+        current_magnitude() (nao um novo trigger que substituiria o shake
+        atual). A formula de dx/dy (hash deterministico de run_t, critico
+        pra replay byte-a-byte) fica INALTERADA -- so a contabilidade de
+        decaimento/teto migrou pro ScreenShake; o offset em si nunca vem do
+        retorno de ScreenShake.update() (que decai ANTES de calcular,
+        divergindo da ordem leitura-antes-de-decair daqui)."""
         ck = self.world.get_pool("clock")
         if not ck.count:
             return
         cv = ck.active_view()
-        amt = float(cv["shake"][0])
-        if amt > 0.0:
-            cv["shake"][0] = max(0.0, amt - 26.0 * dt)
+        pending = float(cv["shake"][0])
+        if pending > 0.0:
+            new_total = min(self._screen_shake.current_magnitude() + pending, 18.0)
+            self._screen_shake.trigger(new_total, new_total / 26.0)
+            cv["shake"][0] = 0.0
+
+        amt = self._screen_shake.current_magnitude()
         shake_on = self.save.get("settings", {}).get("screen_shake", True)
         if amt > 0.0 and shake_on:
             j = int(self.run_t * 997)
@@ -1376,6 +1408,69 @@ class GameApp:
             self._r.set_camera_offset(dx, dy)
         else:
             self._r.set_camera_offset(0.0, 0.0)
+        self._screen_shake.update(dt)
+
+    def _drain_particle_requests(self, dt: float) -> None:
+        """Consome os pedidos de burst gravados por spawn_particles() (pool
+        'particle_request' -- mesmo idioma de clock.shake/clock.sfx: varios
+        ISystems escrevem um evento cada, este e o UNICO consumidor, uma vez
+        por frame) e emite de fato na ParticleStorage compartilhada.
+
+        O angulo/velocidade por particula usa a MESMA formula de hash
+        deterministico por (seed, indice) que antes rodava num laco Python
+        dentro de spawn_particles() -- aqui, vetorizada sobre `np.arange(n)`
+        -- byte-a-byte identica pro mesmo (seed, n), o que importa pra
+        replay. A gravidade constante (220 px/s^2) e aplicada aqui porque
+        ParticleStorage.update() so integra posicao/decrementa ttl -- nao
+        sabe nada de gravidade (generico de proposito, ver seu docstring)."""
+        w = self.world
+        pr = w.get_pool("particle_request")
+        if pr.count:
+            view = pr.active_view()
+            indices = pr.active_entity_indices()
+            pending = pr.count
+            for row in range(pending):
+                x = float(view["x"][row])
+                y = float(view["y"][row])
+                n = int(view["n"][row])
+                speed = float(view["speed"][row])
+                ttl = float(view["ttl"][row])
+                seed = int(view["seed"][row])
+                color_r = int(view["color_r"][row])
+                color_g = int(view["color_g"][row])
+                color_b = int(view["color_b"][row])
+
+                j = np.arange(n, dtype=np.int64)
+                a = ((seed * 2654435761 + j * 97561) % 6283) / 1000.0
+                spd = speed * (0.4 + ((seed * 40503 + j * 131) % 601) / 1000.0)
+                position_x = np.full(n, x, dtype=np.float32)
+                position_y = np.full(n, y, dtype=np.float32)
+                velocity_x = (np.cos(a) * spd).astype(np.float32)
+                velocity_y = (np.sin(a) * spd).astype(np.float32)
+                ttl_seconds = np.full(n, ttl, dtype=np.float32)
+                size = np.full(n, 6.0, dtype=np.float32)  # ~ 8*0.75 (scale antigo) de diametro
+                tint_rgba = np.tile(
+                    np.array([color_r, color_g, color_b, 255], dtype=np.uint8), (n, 1))
+                self._particles.emit_burst(position_x, position_y, velocity_x,
+                                          velocity_y, ttl_seconds, size, tint_rgba)
+
+            for index in indices[:pending].tolist():
+                w.destroy_entity(w.pack_current(int(index)))
+
+        if self._particles.count:
+            self._particles.active_view()["velocity_y"] += 220.0 * dt
+        self._particles.update(dt)
+
+    def _render_particles(self) -> None:
+        if not self._particles.count:
+            return
+        view = self._particles.active_view()
+        positions_xy = np.stack([view["position_x"], view["position_y"]], axis=1)
+        frac = np.clip(view["ttl_seconds"] / np.maximum(view["ttl0_seconds"], 1e-3), 0.0, 1.0)
+        tint_rgba = np.stack(
+            [view["tint_r"], view["tint_g"], view["tint_b"], (frac * 255).astype(np.uint8)],
+            axis=1)
+        self._r.draw_particles(positions_xy, view["size"], tint_rgba, self._particles.count)
 
     def _render_world(self) -> None:
         t = self.world.get_pool("transform")

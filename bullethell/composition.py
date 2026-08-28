@@ -64,8 +64,7 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_archetype("hazard_entity", ("transform", "sprite", "hazard"))
     world.register_archetype("pickup_entity", ("transform", "sprite", "pickup"))
     world.register_archetype("terrain_wall", ("transform", "hitbox", "sprite", "terrain"))
-    world.register_archetype("particle_entity", ("transform", "velocity",
-                                                 "sprite", "particle"))
+    world.register_archetype("particle_request_entity", ("particle_request",))
     world.register_archetype("emitter", ("emitter",))
     world.register_archetype("enemy_bullet", ("transform", "velocity", "sprite",
                                               "enemy_bullet"))
@@ -99,7 +98,6 @@ def build_world(data: GameData, input_provider, boss_name: str = "classic",
     world.register_system(gs.FuseSystem(mm, input_provider, data))      # FLAK
     world.register_system(gs.ChakramSystem(mm, input_provider, data))   # CHAKRAM
     world.register_system(gs.AutoLaunchSystem(mm, data))   # SATÉLITE+
-    world.register_system(gs.ParticleSystem(mm))           # juice
     world.register_system(gs.MaintenanceSystem(mm))
     world.register_system(gs.GhostTintSystem(mm))          # mutador FANTASMA
     world.register_system(gs.PlayerHitSystem(mm, data))

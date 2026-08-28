@@ -43,7 +43,7 @@ def _load_save() -> dict:
             "unlocked_mutators": [], "omega_unlocked": False,
             "skill_plus_unlocked": [], "weapon_plus_unlocked": [],
             "best_time_dificil": 0.0,
-            "settings": {"screen_shake": True, "show_hitbox": False}}
+            "settings": {"screen_shake": True, "show_hitbox": False, "fullscreen": False}}
     # save principal, senão o .bak (gravado pelo _persist() anterior) antes
     # de aceitar os defaults — protege contra escrita interrompida no meio
     # (queda de energia, disco cheio) corromper o JSON

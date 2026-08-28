@@ -70,11 +70,13 @@ CLOCK_DTYPE = np.dtype([         # escalas de tempo do frame (1 linha)
 # clock.sfx — bits de eventos (a cena toca e limpa)
 SFX_HIT, SFX_BOOM, SFX_EMP, SFX_SHIELD, SFX_MINE = 1, 2, 4, 8, 16
 
-PARTICLE_DTYPE = np.dtype([      # partículas de juice (hits/explosões)
-    ("self", np.uint64),
-    ("ttl",  np.float32),
-    ("ttl0", np.float32),        # para o fade (alpha = ttl/ttl0)
-])
+PARTICLE_REQUEST_DTYPE = np.dtype([  # pedido de burst de particulas (juice) --
+    ("x", np.float32), ("y", np.float32),             # mesmo idioma de clock.shake/
+    ("color_r", np.uint8), ("color_g", np.uint8),     # clock.sfx: quem gera o evento
+    ("color_b", np.uint8),                            # so escreve um pedido aqui; um
+    ("n", np.int32), ("speed", np.float32),           # unico consumidor (GameApp.
+    ("ttl", np.float32), ("seed", np.int64),          # _drain_particle_requests) drena
+])                                                     # por frame na ParticleStorage real
 
 RUN_MODS_DTYPE = np.dtype([      # mutadores da run (1 linha, imutável)
     ("predator", np.uint8),      # boss mira 0.5s à frente do jogador
@@ -283,7 +285,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
     "stats":        STATS_DTYPE,
     "wave":         WAVE_DTYPE,
     "mastery":      MASTERY_DTYPE,
-    "particle":     PARTICLE_DTYPE,
+    "particle_request": PARTICLE_REQUEST_DTYPE,
     "hud":          HUD_DTYPE,
     "minion":       MINION_DTYPE,
     "hazard":       HAZARD_DTYPE,
@@ -313,7 +315,7 @@ GAME_SCHEMAS: Dict[str, np.dtype] = {
 GAME_POOL_CAPACITY: Dict[str, int] = {
     "player": 2, "clock": 1, "run_mods": 1, "stats": 1, "wave": 1,
     "mastery": 1,
-    "particle": 1024, "hud": 8, "minion": 64, "hazard": 8, "pickup": 4, "boss": 4,
+    "particle_request": 64, "hud": 8, "minion": 64, "hazard": 8, "pickup": 4, "boss": 4,
     "part": 12, "laser": 16, "waypoint": 4, "emitter": 32, "terrain": 6,
     "enemy_bullet": 5000,
     "pb_core": 256, "pb_pierce": 256, "pb_range": 256, "pb_bounce": 256,
