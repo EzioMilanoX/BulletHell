@@ -108,8 +108,11 @@ def main() -> None:
     from ouroboros.adapters.pygame_backend.pygame_audio_engine import PygameAudioEngine
     from ouroboros.adapters.pygame_backend.pygame_input_provider import PygameInputProvider
     from ouroboros.adapters.pygame_backend.pygame_renderer import PygameRenderer
+    from ouroboros.bootstrap.game_loop import GameLoop
+    from ouroboros.core.memory.memory_manager import MemoryManager
+    from ouroboros.core.world import World
     from bullethell.loaders import DATA_DIR, load_all
-    from bullethell.scenes import GameApp
+    from bullethell.scenes import GameApp, MainMenuScene
     from bullethell.schemas import SCREEN_H, SCREEN_W
 
     data = load_all()
@@ -118,8 +121,19 @@ def main() -> None:
     renderer.initialize(SCREEN_W, SCREEN_H, "BULLET HELL — OuroborosEngine")
     input_provider = PygameInputProvider()
     input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
-    app = GameApp(renderer, input_provider, PygameAudioEngine(), data,
-                  save_data=save)
+    audio = PygameAudioEngine()
+    app = GameApp(renderer, input_provider, audio, data, save_data=save)
+
+    # GameLoop (ROADMAP M8c) e quem possui o loop principal agora, nao mais
+    # GameApp.run(). Precisa de um World logo de cara -- este placeholder
+    # nunca e de fato atualizado/desenhado: reset_scenes() troca a cena base
+    # por MainMenuScene ANTES do primeiro frame (game_loop.run() abaixo).
+    # start_game()/_start_replay() trocam por um World de verdade depois,
+    # via replace_world().
+    placeholder_world = World(MemoryManager(entity_capacity=1))
+    game_loop = GameLoop(placeholder_world, renderer, input_provider, audio)
+    app.game_loop = game_loop
+    game_loop.reset_scenes(MainMenuScene(app))
 
     app.sel["mode"] = args.mode
     app.sel["diff"] = args.diff
@@ -133,7 +147,7 @@ def main() -> None:
         app.start_game()
 
     try:
-        app.run()
+        game_loop.run()
     finally:
         _persist(save, app.totals, app.achieved)
         renderer.shutdown()

@@ -1,14 +1,14 @@
 """
 Composition root do BulletHell: monta World + pools + arquétipos +
-sistemas na ordem correta, cria as entidades iniciais e devolve um
-GameLoop pronto. Espelha o papel de `ouroboros.bootstrap.CompositionRoot`,
+sistemas na ordem correta, cria as entidades iniciais e devolve um World
+pronto (`build_world`). Espelha o papel de `ouroboros.bootstrap.CompositionRoot`,
 registrando por cima o vocabulário do produto (como a docstring de lá
-prescreve).
+prescreve). Quem possui o `GameLoop` é `main_ecs.py`/`bullethell.scenes`
+(ROADMAP M8c) — não este módulo.
 """
 from __future__ import annotations
 
 
-from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.core.components.schemas import COMPONENT_SCHEMAS
 from ouroboros.core.memory.memory_manager import MemoryManager
 from ouroboros.core.world import World
@@ -221,26 +221,6 @@ def _spawn_player(world: World, mm: MemoryManager, data: GameData,
 
 def _spawn_boss(world: World, mm: MemoryManager, data: GameData, boss_name: str) -> None:
     gs.spawn_boss(world, mm, data, boss_name)   # runtime também usa (Boss Rush)
-
-
-def build_game(boss_name: str = "classic", weapon_name: str = "padrao",
-               skill_name: str = "none", mutators: frozenset = frozenset(),
-               mode: str = "classic"):
-    """Composição com janela pygame. Retorna (GameLoop, World) — o World
-    permite ler as estatísticas após o run() para persistir o save."""
-    from ouroboros.adapters.pygame_backend.pygame_audio_engine import PygameAudioEngine
-    from ouroboros.adapters.pygame_backend.pygame_input_provider import PygameInputProvider
-    from ouroboros.adapters.pygame_backend.pygame_renderer import PygameRenderer
-    from bullethell.loaders import DATA_DIR
-
-    data = load_all()
-    renderer = PygameRenderer()
-    renderer.initialize(SCREEN_W, SCREEN_H, "BULLET HELL — OuroborosEngine")
-    input_provider = PygameInputProvider()
-    input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
-    world = build_world(data, input_provider, boss_name, weapon_name,
-                        skill_name, mutators, mode)
-    return GameLoop(world, renderer, input_provider, PygameAudioEngine()), world
 
 
 def build_headless(boss_name: str = "classic", weapon_name: str = "padrao",

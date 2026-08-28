@@ -10,10 +10,13 @@ import os
 
 
 import bullethell  # noqa: F401 — engine no sys.path
+from ouroboros.bootstrap.game_loop import GameLoop
+from ouroboros.core.memory.memory_manager import MemoryManager
+from ouroboros.core.world import World
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 from ouroboros.interfaces.null.null_renderer import NullRenderer
 from bullethell.loaders import DATA_DIR, load_all
-from bullethell.scenes import GameApp, PLAYING
+from bullethell.scenes import GameApp, MainMenuScene, PLAYING
 
 DATA = load_all()
 
@@ -33,7 +36,12 @@ def check(label: str, cond: bool) -> bool:
 if __name__ == "__main__":
     ok = True
     inp = NullInputProvider()
-    app = GameApp(NullRenderer(), inp, None, DATA, save_data={})
+    renderer = NullRenderer()
+    renderer.initialize(800, 600, "smoke")
+    app = GameApp(renderer, inp, None, DATA, save_data={})
+    game_loop = GameLoop(World(MemoryManager(entity_capacity=1)), renderer, inp, None)
+    app.game_loop = game_loop
+    game_loop.reset_scenes(MainMenuScene(app))
 
     # sequência secreta: W W S S A D A D
     for action in ("move_up", "move_up", "move_down", "move_down",

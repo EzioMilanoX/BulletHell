@@ -9,11 +9,10 @@ inteiro dentro de World.step().
 """
 from __future__ import annotations
 
-import time
-
 import numpy as np
 
 from ouroboros.bootstrap.audio_bank_loader import load_audio_bank
+from ouroboros.bootstrap.scene import IScene
 from ouroboros.bootstrap.screen_shake import ScreenShake
 from ouroboros.core.memory.component_pool import intersect_entity_indices
 from ouroboros.core.particle_storage import ParticleStorage
@@ -329,15 +328,21 @@ class GameApp:
         self._input = input_provider
         self._audio = audio_engine
         self._data = data
-        self.state = MENU_MAIN
-        self.cursor = 0
+        # `game_loop` e setado externamente logo apos a construcao (main_ecs.py/
+        # smoke scripts) -- so entao `state`/`cursor`/`world` (properties abaixo)
+        # passam a refletir a cena/World reais. `state`/`cursor` NAO sao mais
+        # atributos simples: cada cena de menu tem seu proprio `cursor`, e
+        # "estado" e derivado de QUAL cena esta no topo da pilha do GameLoop --
+        # nunca mais reatribuidos direto (`self.state = X`), de proposito: um
+        # site esquecido na migracao quebra alto e cedo (AttributeError), nao
+        # silenciosamente.
+        self.game_loop = None
         # dificuldade/skill inicial = a única sempre destravada (legado:
         # main.py — estado inicial sel_diff=EASY, sel_skill=NONE)
         self.sel = {"mode": "classic", "diff": "facil", "boss": "classic",
                     "skill": "none", "skill_plus": False,
                     "weapon": "padrao", "weapon_plus": False,
                     "muts": set()}
-        self.world = None
         self._screen_shake = ScreenShake()  # recriado a cada start_game() -- ver ali
         self._particles = ParticleStorage(capacity=1024)  # idem
         self.intro_t = 0.0
@@ -361,7 +366,6 @@ class GameApp:
         self._replay_input: ReplayInputProvider | None = None
         self.achieved: set = set(self.save.get("achievements", []))
         self.new_achievements: list = []
-        self._running = True
         # dev overlay (legado: sequência secreta W W S S A D A D, main.py:
         # 1719-1734) — F9/F10 em qualquer estado; F5/F3/F4/F7 só em PLAYING
         self.dev_mode = False
@@ -376,6 +380,33 @@ class GameApp:
         self._reload_check_t = 0.0
         if self._audio is not None:                  # SFX data-driven (bullethell/data/sfx.json)
             load_audio_bank(self._audio, str(DATA_DIR / "sfx.json"))
+
+    @property
+    def world(self):
+        """Espelho somente-leitura de `game_loop.world` -- a autoridade e o
+        `GameLoop` (via `replace_world`), nao um atributo separado aqui que
+        poderia dessincronizar."""
+        return self.game_loop.world if self.game_loop is not None else None
+
+    @property
+    def state(self) -> int:
+        """Deriva o estado antigo (MENU_MAIN, PLAYING, etc.) de QUAL cena
+        esta no topo da pilha do GameLoop -- `WizardScene`/`EndScreenScene`
+        cobrem mais de um estado antigo cada (7 passos do assistente; WIN
+        ou GAMEOVER), entao expõem seu proprio `.step`/`.which` em vez de
+        mapear 1:1 por tipo."""
+        scene = self.game_loop.current_scene
+        if isinstance(scene, WizardScene):
+            return scene.step
+        if isinstance(scene, EndScreenScene):
+            return scene.which
+        return _SCENE_STATE.get(type(scene), MENU_MAIN)
+
+    @property
+    def cursor(self) -> int:
+        """Repasse pro `cursor` proprio da cena atual (cada cena de menu
+        tem o seu, em vez de um `self.cursor` compartilhado como antes)."""
+        return getattr(self.game_loop.current_scene, "cursor", 0)
 
     def _play(self, sound_id: str, volume: float = 0.5) -> None:
         if self._audio is not None:
@@ -506,110 +537,15 @@ class GameApp:
             r.draw_text(px + 46, y, desc, 12, (160, 160, 180, 255))
 
     # ------------------------------------------------------------------
-    def run(self) -> None:
-        last = time.perf_counter()
-        while self._running and not self._input.wants_quit():
-            self._input.poll()
-            now = time.perf_counter()
-            dt = min(now - last, 1 / 30)
-            last = now
-            self._r.begin_frame()
-            self.tick(dt)
-            self._r.end_frame()
-            elapsed = time.perf_counter() - now
-            if elapsed < 1 / 60:
-                time.sleep(1 / 60 - elapsed)
-
+    # Compatibilidade: `tick(dt)` continua existindo com o mesmo nome/
+    # assinatura (smoke scripts chamam assim) -- so repassa pro GameLoop
+    # real agora. O antigo dispatch de 15 estados (if/elif em `state`) foi
+    # substituido pelas IScenes no fim deste arquivo; dev-mode/overlay
+    # cross-cutting viram uma chamada explicita no inicio/fim de cada
+    # update()/render() de cena, em vez de um wrapper unico aqui.
     # ------------------------------------------------------------------
     def tick(self, dt: float) -> None:
-        self._update_dev_mode(dt)
-        s = self.state
-        if s == PLAYING:
-            self._tick_playing(dt)
-        elif s == REPLAYING:
-            self._tick_replaying()
-        elif s == MENU_MAIN:
-            self._main_menu_screen()
-        elif s == MENU_ACH:
-            self._achievements_screen()
-        elif s == MENU_RECORDS:
-            self._records_screen()
-        elif s == MENU_SETTINGS:
-            self._settings_screen()
-        elif s == MENU_MODE:
-            self._menu([m[1] for m in MODES], "MODO DE JOGO",
-                       colors=[m[3] for m in MODES],
-                       descs=[m[2] for m in MODES],
-                       on_confirm=self._mode_confirm, back_to=MENU_MAIN,
-                       locked=[self._mode_locked(k) for k in range(len(MODES))])
-        elif s == MENU_DIFF:
-            self._menu([d[1] for d in DIFFS], "BULLET HELL",
-                       colors=[d[3] for d in DIFFS],
-                       descs=[d[2] for d in DIFFS],
-                       on_confirm=self._diff_confirm, back_to=MENU_MODE,
-                       locked=[self._diff_locked(k) for k in range(len(DIFFS))],
-                       step=1)
-        elif s == MENU_BOSS:
-            self._menu([b[1] for b in CLASSIC_BOSSES], "BULLET HELL",
-                       colors=[b[2] for b in CLASSIC_BOSSES],
-                       descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
-                             for b in CLASSIC_BOSSES],
-                       on_confirm=self._boss_confirm, back_to=MENU_DIFF,
-                       locked=[self._boss_locked(b[0]) for b in CLASSIC_BOSSES],
-                       step=2, crumb=self._crumb()[:1])
-        elif s == MENU_TEST:
-            self._menu([b[1] for b in TEST_BOSSES], "SEÇÃO DE TESTE",
-                       colors=[b[2] for b in TEST_BOSSES],
-                       descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
-                             for b in TEST_BOSSES],
-                       on_confirm=self._test_boss_confirm, back_to=MENU_MAIN)
-        elif s == MENU_SKILL:
-            items = [n + (" +" if self.sel["skill_plus"] and k == self.cursor
-                          and self._has_plus(SKILLS[k][0], self._data.skills)
-                          else "") for k, (sk, n, _, _) in enumerate(SKILLS)]
-            skill_locked = [self._skill_locked(sk) for (sk, _, _, _) in SKILLS]
-            self._menu(items, "BULLET HELL",
-                       colors=[s_[3] for s_ in SKILLS],
-                       descs=[d for (_, _, d, _) in SKILLS],
-                       on_confirm=self._skill_confirm,
-                       back_to=MENU_BOSS if self.sel["mode"] == "classic"
-                       else MENU_DIFF,
-                       hint_extra="ESPAÇO alterna a variante +",
-                       locked=skill_locked, step=3,
-                       crumb=self._crumb()[:2])
-            if self._input.is_action_pressed("fire") and \
-                    not skill_locked[self.cursor] and \
-                    self._has_plus(SKILLS[self.cursor][0], self._data.skills) \
-                    and self._plus_unlocked("skill", SKILLS[self.cursor][0]):
-                self.sel["skill_plus"] = not self.sel["skill_plus"]
-        elif s == MENU_WEAPON:
-            items = [n + (" +" if self.sel["weapon_plus"] and k == self.cursor
-                          and self._has_plus(WEAPONS[k][0], self._data.weapons)
-                          else "") for k, (w, n, _, _) in enumerate(WEAPONS)]
-            self._menu(items, "BULLET HELL",
-                       colors=[w_[3] for w_ in WEAPONS],
-                       descs=[d for (_, _, d, _) in WEAPONS],
-                       on_confirm=self._weapon_confirm, back_to=MENU_SKILL,
-                       hint_extra="ESPAÇO alterna a variante +",
-                       step=4, crumb=self._crumb()[:3])
-            if self._input.is_action_pressed("fire") and \
-                    self._has_plus(WEAPONS[self.cursor][0], self._data.weapons) \
-                    and self._plus_unlocked("weapon", WEAPONS[self.cursor][0]):
-                self.sel["weapon_plus"] = not self.sel["weapon_plus"]
-        elif s == MENU_MUT:
-            items = [(("[x] " if m in self.sel["muts"] else "[ ] ") + n)
-                     for (m, n, _, _) in MUTATORS] + ["► COMEÇAR"]
-            self._menu(items, "BULLET HELL",
-                       colors=[m_[3] for m_ in MUTATORS] + [GOLD[:3]],
-                       descs=[d for (_, _, d, _) in MUTATORS] + [
-                           ("Cada mutador ativo aumenta o desafio",)],
-                       on_confirm=self._mut_confirm, back_to=MENU_WEAPON,
-                       locked=[self._mutator_locked(m)
-                              for (m, _, _, _) in MUTATORS] + [False],
-                       step=5, crumb=self._crumb()[:4])
-        elif s in (WIN, GAMEOVER):
-            self._end_screen(s)
-        self._render_dev_overlay()               # por cima de tudo (legado)
+        self.game_loop.tick_once(dt)
 
     # ------------------------------------------------------------------
     # menus
@@ -657,122 +593,14 @@ class GameApp:
         weapon_label = next(w[1] for w in WEAPONS if w[0] == self.sel["weapon"])
         return (diff_label, slot2, skill_label, weapon_label)
 
-    def _header(self, title: str, step: int = 0, crumb: tuple = ()) -> None:
-        r = self._r
-        cx = SCREEN_W / 2
-        r.draw_text(cx, 8, title, 36, TXT, anchor="center")
-        if step <= 0:
-            return
-        dot_r, gap = 5, 30
-        x0 = cx - gap * 2
-        for i in range(5):
-            cxi = x0 + i * gap
-            col = STEP_COLS[i]
-            if i < step - 1:
-                c = tuple(v // 2 for v in col)
-                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
-                              (*c, 255))
-            elif i == step - 1:
-                r.draw_ui_rect(cxi - dot_r - 3, 82 - dot_r - 3,
-                              (dot_r + 3) * 2, (dot_r + 3) * 2, (255, 255, 255, 255))
-                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
-                              (*col, 255))
-            else:
-                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
-                              (30, 30, 50, 255))
-        r.draw_text(cx, 96, STEP_NAMES[step - 1], 13, MUTED, anchor="center")
-        if crumb:
-            r.draw_text(cx, 116, "  ›  ".join(crumb), 13,
-                        (90, 90, 120, 255), anchor="center")
-        r.draw_ui_rect(72, 140, SCREEN_W - 144, 1, (26, 26, 46, 255))
-
-    def _menu(self, items, title, colors=None, descs=None, on_confirm=None,
-              back_to=None, hint_extra="", locked=None, step=0,
-              crumb=()) -> None:
-        """Card colorido à esquerda + painel de descrição à direita, igual
-        ao legado (main.py `_left_item`/`_right_panel`) — carrossel
-        centralizado no cursor quando a lista não cabe na área visível."""
-        inp = self._input
-        n = len(items)
-        locked = locked or [False] * n
-        colors = colors or [ACCENT[:3]] * n
-        if locked[self.cursor]:            # entrou numa tela com o cursor
-            for _ in range(n):             # travado (default de _xxx_confirm)
-                self.cursor = (self.cursor + 1) % n
-                if not locked[self.cursor]:
-                    break
-        if inp.is_action_pressed("move_up"):
-            for _ in range(n):
-                self.cursor = (self.cursor - 1) % n
-                if not locked[self.cursor]:
-                    break
-            self._play("ui_move", 0.25)
-        if inp.is_action_pressed("move_down"):
-            for _ in range(n):
-                self.cursor = (self.cursor + 1) % n
-                if not locked[self.cursor]:
-                    break
-            self._play("ui_move", 0.25)
-        if back_to is not None and (inp.is_action_pressed("back")
-                                    or inp.is_action_pressed("move_left")):
-            self.state = back_to
-            self.cursor = 0
-            return
-        if on_confirm and not locked[self.cursor] and (
-                inp.is_action_pressed("confirm")
-                or inp.is_action_pressed("move_right")):
-            self._play("ui_ok", 0.35)
-            on_confirm(self.cursor)
-            return
-        self.cursor = min(self.cursor, n - 1)
-
-        self._header(title, step, crumb)
-        r = self._r
-        ih, gap = 58, 8
-        row_h = ih + gap
-        visible_h = MC_Y1 - MC_Y0
-        center_y = MC_Y0 + (visible_h - ih) / 2
-        for k, label in enumerate(items):
-            y = center_y + (k - self.cursor) * row_h
-            if y + ih < MC_Y0 or y > MC_Y1:
-                continue
-            col = colors[k]
-            sel = k == self.cursor
-            bg = (22, 22, 40, 255) if sel else (13, 13, 22, 255)
-            r.draw_ui_rect(MLL_X, y, MLL_W, ih, bg)
-            bar = col if sel else tuple(c * 2 // 5 for c in col)
-            r.draw_ui_rect(MLL_X, y, 4, ih, (*bar, 255))
-            disp = label + ("  [BLOQUEADO]" if locked[k] else "")
-            name_c = (70, 70, 90, 255) if locked[k] else \
-                ((255, 255, 255, 255) if sel else MUTED)
-            r.draw_text(MLL_X + 18, y + ih / 2 - 9, disp, 15, name_c)
-            if sel:
-                r.draw_text(MLL_X + MLL_W + 6, y + ih / 2 - 8, "►", 16,
-                            (*col, 255))
-            r.draw_ui_rect(MLL_X, y + ih, MLL_W, 1, (20, 20, 36, 255))
-
-        sel_col = colors[self.cursor]
-        rx, ry, rw = MRP_X, MC_Y0, MRP_W
-        rh = MC_Y1 - MC_Y0
-        r.draw_ui_rect(rx, ry, rw, rh, (11, 11, 21, 255))
-        r.draw_ui_rect(rx, ry, rw, 3, (*sel_col, 255))
-        r.draw_text(rx + 28, ry + 20, items[self.cursor], 28, (*sel_col, 255))
-        r.draw_ui_rect(rx + 28, ry + 96, rw - 56, 1,
-                      (sel_col[0] // 3, sel_col[1] // 3, sel_col[2] // 3, 255))
-        if descs:
-            lines = descs[self.cursor]
-            if isinstance(lines, str):
-                lines = [lines]
-            for i, ln in enumerate(lines):
-                r.draw_text(rx + 28, ry + 114 + i * 28, ln, 15,
-                            (168, 168, 196, 255))
-
-        r.draw_ui_rect(0, 672, SCREEN_W, 48, (8, 8, 18, 255))
-        hint = "W/S navegar  ·  D/ENTER confirmar  ·  A/ESC voltar"
-        if hint_extra:
-            hint += "  ·  " + hint_extra
-        r.draw_text(SCREEN_W / 2, 688, hint, 13, (58, 58, 80, 255),
-                    anchor="center")
+    # `_header`/`_menu` (renderizacao+navegacao+transicao fundidas do
+    # assistente de nova partida) e as telas MAIN/RECORDS/SETTINGS/ACH e
+    # seus `_xxx_confirm` foram MOVIDOS pra `WizardScene`/`MainMenuScene`/
+    # `RecordsScene`/`SettingsScene`/`AchievementsScene` (fim deste arquivo)
+    # -- todos tocavam `self.state`/`self.cursor` diretamente, que agora sao
+    # properties somente-leitura derivadas da pilha de cenas do GameLoop.
+    # `_main_items`/`_achievement_progress` ficam aqui (nao tocam state/
+    # cursor) -- reaproveitados por `MainMenuScene`/`AchievementsScene`.
 
     def _main_items(self) -> list:
         """Itens do menu principal — "SEÇÃO DE TESTE" só aparece com o
@@ -784,265 +612,11 @@ class GameApp:
             items.insert(1, ("test", "SEÇÃO DE TESTE", (255, 60, 200)))
         return items
 
-    def _main_menu_screen(self) -> None:
-        inp = self._input
-        items = self._main_items()
-        n = len(items)
-        if inp.is_action_pressed("move_up"):
-            self.cursor = (self.cursor - 1) % n
-            self._play("ui_move", 0.25)
-        if inp.is_action_pressed("move_down"):
-            self.cursor = (self.cursor + 1) % n
-            self._play("ui_move", 0.25)
-        if inp.is_action_pressed("confirm") or inp.is_action_pressed("move_right"):
-            self._play("ui_ok", 0.35)
-            self._main_confirm(self.cursor)
-            return
-
-        r = self._r
-        cx = SCREEN_W / 2
-        r.draw_text(cx, 128, "BULLET HELL", 46, TXT, anchor="center")
-        r.draw_text(cx, 168, "OuroborosEngine · port ECS", 15, MUTED,
-                    anchor="center")
-        card_w, ih, gap = 360, 62, 12
-        top = 240
-        for k, (_, label, col) in enumerate(items):
-            y = top + k * (ih + gap)
-            sel = k == self.cursor
-            bg = (22, 22, 40, 255) if sel else (12, 12, 20, 255)
-            r.draw_ui_rect(cx - card_w / 2, y, card_w, ih, bg)
-            bar = col if sel else tuple(c // 3 for c in col)
-            r.draw_ui_rect(cx - card_w / 2, y, 4, ih, (*bar, 255))
-            r.draw_text(cx - card_w / 2 + 22, y + ih / 2 - 9, label, 18,
-                        (255, 255, 255, 255) if sel else MUTED)
-            if sel:
-                r.draw_text(cx + card_w / 2 - 22, y + ih / 2 - 8, "►", 16,
-                            (*col, 255))
-        r.draw_text(cx, SCREEN_H - 44, "W/S navegar  ·  D/ENTER confirmar",
-                    14, MUTED, anchor="center")
-
-    def _main_confirm(self, k: int) -> None:
-        dest = self._main_items()[k][0]
-        if dest == "play":
-            self.state, self.cursor = MENU_MODE, 0
-        elif dest == "test":
-            self.state, self.cursor = MENU_TEST, 0
-        elif dest == "ach":
-            self.state, self.cursor = MENU_ACH, 0
-        elif dest == "records":
-            self.state, self.cursor = MENU_RECORDS, 0
-        elif dest == "settings":
-            self.state, self.cursor = MENU_SETTINGS, 0
-        else:
-            self._running = False
-
-    def _records_screen(self) -> None:
-        inp = self._input
-        if inp.is_action_pressed("back") or inp.is_action_pressed("confirm") \
-                or inp.is_action_pressed("move_left"):
-            self.state, self.cursor = MENU_MAIN, 0
-            return
-        r = self._r
-        cx = SCREEN_W / 2
-        r.draw_text(cx, 80, "REGISTROS", 40, GOLD, anchor="center")
-        r.draw_ui_rect(180, 162, SCREEN_W - 360, 1, (50, 50, 20, 255))
-        total_deaths = int(self.save.get("total_deaths", 0)) + self.totals["deaths"]
-        total_parries = int(self.save.get("total_parries", 0)) + self.totals["parries"]
-        best = float(self.save.get("best_time_dificil", 0.0))
-        bm, bs = divmod(int(best), 60)
-        hcd = int(self.save.get("highest_cleared_diff", 0))
-        diff_label = DIFFS[min(hcd, len(DIFFS) - 1)][1] if hcd > 0 else "NENHUMA"
-        unlocked_skills = [s[1] for s in SKILLS if s[0] in
-                          self.save.get("unlocked_skills", ["none", "dash"])]
-        rows = [
-            ("Mortes totais", str(total_deaths)),
-            ("Melhor tempo (Difícil+)",
-             f"{bm:02d}:{bs:02d}" if best > 0 else "—"),
-            ("Balas refletidas (Parry)", str(total_parries)),
-            ("Dificuldade desbloqueada", diff_label),
-            ("Habilidades desbloqueadas", "  ".join(unlocked_skills)),
-        ]
-        top = 210
-        for k, (label, value) in enumerate(rows):
-            y = top + k * 52
-            r.draw_text(220, y, label, 16, (120, 120, 140, 255))
-            r.draw_text(SCREEN_W - 220, y, value, 16, TXT, anchor="topright")
-            r.draw_ui_rect(180, y + 32, SCREEN_W - 360, 1, (24, 24, 36, 255))
-        r.draw_text(cx, SCREEN_H - 44, "ESC   voltar ao menu principal", 14,
-                    (35, 35, 50, 255), anchor="center")
-
-    def _settings_screen(self) -> None:
-        inp = self._input
-        defaults = {"screen_shake": True, "show_hitbox": False, "fullscreen": False}
-        settings = self.save.setdefault("settings", dict(defaults))
-        items = [("screen_shake", "Screen Shake"),
-                 ("show_hitbox", "Mostrar Hitbox"),
-                 ("fullscreen", "Tela Cheia")]
-        n = len(items)
-        if inp.is_action_pressed("move_up"):
-            self.cursor = (self.cursor - 1) % n
-            self._play("ui_move", 0.25)
-        if inp.is_action_pressed("move_down"):
-            self.cursor = (self.cursor + 1) % n
-            self._play("ui_move", 0.25)
-        if inp.is_action_pressed("confirm") or inp.is_action_pressed("fire"):
-            key = items[self.cursor][0]
-            settings[key] = not settings.get(key, defaults[key])
-            if key == "fullscreen":
-                self._r.set_fullscreen(settings[key])
-            self._play("ui_ok", 0.3)
-        if inp.is_action_pressed("back") or inp.is_action_pressed("move_left"):
-            self.state, self.cursor = MENU_MAIN, 0
-            return
-
-        r = self._r
-        cx = SCREEN_W / 2
-        r.draw_text(cx, 80, "SISTEMA", 40, (100, 160, 255, 255),
-                    anchor="center")
-        r.draw_ui_rect(180, 162, SCREEN_W - 360, 1, (30, 50, 80, 255))
-        top, ih, gap = 210, 70, 12
-        for k, (key, label) in enumerate(items):
-            y = top + k * (ih + gap)
-            sel = k == self.cursor
-            on = bool(settings.get(key, defaults[key]))
-            bg = (20, 28, 44, 255) if sel else (12, 12, 20, 255)
-            r.draw_ui_rect(180, y, SCREEN_W - 360, ih, bg)
-            r.draw_ui_rect(180, y, 4, ih,
-                          (100, 160, 255, 255) if sel else (40, 60, 100, 255))
-            r.draw_text(210, y + ih / 2 - 9, label, 16,
-                        (255, 255, 255, 255) if sel else MUTED)
-            val_txt = "[ LIGADO ]" if on else "[ DESLIGADO ]"
-            val_col = (0, 220, 0, 255) if on else (220, 20, 60, 255)
-            r.draw_text(SCREEN_W - 220, y + ih / 2 - 9, val_txt, 16, val_col,
-                        anchor="topright")
-        r.draw_text(cx, SCREEN_H - 44,
-                    "W/S navegar  ·  ENTER/D toggle  ·  ESC voltar", 14,
-                    (35, 35, 50, 255), anchor="center")
-
     def _achievement_progress(self, key: str) -> int:
         """Valor atual do contador de progresso (save persistido + total
         já acumulado nesta sessão, incluindo a run em andamento)."""
         base = int(self.save.get(f"total_{key}", 0))
         return base + int(self.totals.get(key, 0))
-
-    def _achievements_screen(self) -> None:
-        inp = self._input
-        n = len(ACHIEVEMENTS)
-        if inp.is_action_pressed("move_up"):
-            self.cursor = (self.cursor - 1) % n
-            self._play("ui_move", 0.25)
-        if inp.is_action_pressed("move_down"):
-            self.cursor = (self.cursor + 1) % n
-            self._play("ui_move", 0.25)
-        if inp.is_action_pressed("back") or inp.is_action_pressed("move_left"):
-            self.state, self.cursor = MENU_MAIN, 0
-            return
-        self.cursor = min(self.cursor, n - 1)
-
-        r = self._r
-        r.draw_text(SCREEN_W / 2, 56, "CONQUISTAS", 40, GOLD, anchor="center")
-        done = sum(1 for a in ACHIEVEMENTS if a[0] in self.achieved)
-        r.draw_text(SCREEN_W / 2, 100, f"{done} / {n} desbloqueadas",
-                    16, MUTED, anchor="center")
-
-        top, bottom, ih, gap = 140, 560, 26, 2
-        row_h = ih + gap
-        center_y = top + ((bottom - top) - ih) / 2
-        for k, (aid, name, desc, reward, secret, progress) in enumerate(ACHIEVEMENTS):
-            y = center_y + (k - self.cursor) * row_h
-            if y + ih < top or y > bottom:
-                continue
-            got = aid in self.achieved
-            hidden = secret and not got
-            sel = k == self.cursor
-            if sel:
-                r.draw_ui_rect(SCREEN_W / 2 - 340, y - 2, 680, ih,
-                              (124, 80, 255, 40))
-            mark = "[x]" if got else ("[?]" if hidden else "[ ]")
-            r.draw_text(SCREEN_W / 2 - 330, y, mark, 16,
-                        GOLD if got else MUTED)
-            disp_name = "???" if hidden else name
-            r.draw_text(SCREEN_W / 2 - 280, y, disp_name, 16,
-                        GOLD if got else (TXT if sel else MUTED))
-            disp_desc = "Conquista secreta." if hidden else desc
-            r.draw_text(SCREEN_W / 2 + 10, y + 1, disp_desc, 13, MUTED)
-
-        aid, name, desc, reward, secret, progress = ACHIEVEMENTS[self.cursor]
-        got = aid in self.achieved
-        hidden = secret and not got
-        y0 = 590
-        r.draw_ui_rect(SCREEN_W / 2 - 340, y0, 680, 100, (11, 11, 21, 255))
-        r.draw_text(SCREEN_W / 2 - 320, y0 + 10,
-                    "???" if hidden else name, 18, GOLD if got else TXT)
-        r.draw_text(SCREEN_W / 2 - 320, y0 + 34,
-                    "Descubra as condições jogando." if hidden else desc,
-                    13, (168, 168, 196, 255))
-        if got:
-            status = "[ DESBLOQUEADO ]"
-        elif progress and not hidden:
-            cur = min(progress[1], self._achievement_progress(progress[0]))
-            status = f"Progresso: {cur}/{progress[1]}"
-        else:
-            status = "[ BLOQUEADO ]" if not hidden else ""
-        r.draw_text(SCREEN_W / 2 - 320, y0 + 56, status, 13,
-                    (0, 220, 0, 255) if got else MUTED)
-        if not hidden and reward != "—":
-            r.draw_text(SCREEN_W / 2 - 320, y0 + 76, f"Recompensa: {reward}",
-                        13, (168, 168, 196, 255))
-
-        r.draw_text(SCREEN_W / 2, SCREEN_H - 20, "W/S navegar  ·  A/ESC voltar",
-                    14, MUTED, anchor="center")
-
-    def _mode_confirm(self, k: int) -> None:
-        if self._mode_locked(k):
-            return
-        self.sel["mode"] = MODES[k][0]
-        self.state, self.cursor = MENU_DIFF, 1
-
-    def _diff_confirm(self, k: int) -> None:
-        if self._diff_locked(k):
-            return
-        self.sel["diff"] = DIFFS[k][0]
-        self.state = MENU_BOSS if self.sel["mode"] == "classic" else MENU_SKILL
-        self.cursor = 0
-
-    def _boss_confirm(self, k: int) -> None:
-        if self._boss_locked(CLASSIC_BOSSES[k][0]):
-            return
-        self.sel["boss"] = CLASSIC_BOSSES[k][0]
-        self.state, self.cursor = MENU_SKILL, 0
-
-    def _test_boss_confirm(self, k: int) -> None:
-        """Seção de teste (dev_mode): joga o boss escolhido como uma
-        partida CLÁSSICA avulsa — nenhum boss aqui fica travado, é
-        acesso direto pra testar sem replicar a condição especial."""
-        self.sel["mode"] = "classic"
-        self.sel["boss"] = TEST_BOSSES[k][0]
-        self.state, self.cursor = MENU_SKILL, 0
-
-    def _skill_confirm(self, k: int) -> None:
-        if self._skill_locked(SKILLS[k][0]):
-            return
-        self.sel["skill"] = SKILLS[k][0]
-        self.sel["skill_plus"] = False    # nova skill: reseta o toggle +
-        self.state, self.cursor = MENU_WEAPON, 0
-
-    def _weapon_confirm(self, k: int) -> None:
-        self.sel["weapon"] = WEAPONS[k][0]
-        self.sel["weapon_plus"] = False    # nova arma: reseta o toggle +
-        self.state, self.cursor = MENU_MUT, 0
-
-    def _mut_confirm(self, k: int) -> None:
-        if k < len(MUTATORS):
-            m = MUTATORS[k][0]
-            if self._mutator_locked(m):
-                return
-            if m in self.sel["muts"]:
-                self.sel["muts"].discard(m)
-            else:
-                self.sel["muts"].add(m)
-        else:
-            self.start_game()
 
     # ------------------------------------------------------------------
     # gameplay
@@ -1065,7 +639,7 @@ class GameApp:
                 and self._plus_unlocked("weapon", weapon):
             weapon += "+"
         muts = frozenset(self.sel["muts"])
-        self.world = build_world(
+        new_world = build_world(
             self._data, self._input, boss_name=self.sel["boss"],
             weapon_name=weapon, skill_name=skill,
             mutators=muts, mode=self.sel["mode"],
@@ -1087,41 +661,14 @@ class GameApp:
         self._last_cfg = {"boss": self.sel["boss"], "weapon": weapon,
                           "skill": skill, "muts": muts, "mode": mode,
                           "diff": self.sel["diff"]}
-        self.state = PLAYING
-
-    def _tick_playing(self, dt: float) -> None:
-        w = self.world
-        self.replay_frames.append((encode_frame(self._input), dt))
-        self.run_t += dt
-        if self.godmode:                          # F6 (dev mode)
-            pl = w.get_pool("player")
-            pi = pl.active_entity_indices()
-            if pi.size:
-                pl.active_view()["invuln_t"][pl.dense_row_of(int(pi[0]))] = 999.0
-        w.step(dt)
-        self._pump_sfx()
-        self._apply_shake(dt)
-        self._drain_particle_requests(dt)
-        self._render_world()
-        self._render_particles()
-        self._render_hud()
-        if self.intro_t > 0.0:
-            self.intro_t -= dt
-            self._render_intro()
-
-        if self._input.is_action_pressed("back"):   # ESC abandona a run
-            self._finish_run("abandon")
-            self.state, self.cursor = MENU_MAIN, 0
-            return
-        pl = w.get_pool("player")
-        if pl.count and int(pl.active_view()["lives"][0]) < 0:
-            self._finish_run("lose")
-            self.state = GAMEOVER
-            return
-        kills = int(w.get_pool("stats").active_view()["kills"][0])
-        if kills >= WIN_GOALS[self.sel["mode"]]:
-            self._finish_run("win")
-            self.state = WIN
+        # reset_scenes (nao push_scene): comeca uma partida e um modo novo
+        # inteiro, nao um overlay temporario sobre o que tava rodando --
+        # troca o World, e substitui a pilha inteira por so a cena de
+        # gameplay (nunca deixa a WizardScene/EndScreenScene/MainMenuScene
+        # anteriores empilhadas por baixo, o que cresceria sem limite ao
+        # longo de uma sessao com varios retries).
+        self.game_loop.replace_world(new_world)
+        self.game_loop.reset_scenes(BulletHellGameplayScene(self))
 
     # ------------------------------------------------------------------
     # replay (legado: ReplayRecorder — ver bullethell/replay.py)
@@ -1131,43 +678,26 @@ class GameApp:
             return
         cfg = self._last_cfg
         self._replay_input = ReplayInputProvider(list(self.replay_frames))
-        self.world = build_world(
+        new_world = build_world(
             self._data, self._replay_input, boss_name=cfg["boss"],
             weapon_name=cfg["weapon"], skill_name=cfg["skill"],
             mutators=cfg["muts"], mode=cfg["mode"],
             difficulty=cfg["diff"], arcade=True)
         self.run_t = 0.0
         self.intro_t = 0.0                # legado: replay não mostra intro
-        self.state = REPLAYING
+        self.game_loop.replace_world(new_world)
+        self.game_loop.reset_scenes(ReplayScene(self))
 
-    def _tick_replaying(self) -> None:
-        ri = self._replay_input
-        ri.poll()
-        if not ri.has_more():
-            self._replay_end()
-            return
-        dt = ri.current_dt()
-        w = self.world
-        self.run_t += dt
-        w.step(dt)
-        self._pump_sfx()
-        self._apply_shake(dt)
-        self._drain_particle_requests(dt)
-        self._render_world()
-        self._render_particles()
-        self._render_hud()
-        self._render_replay_tag()
-
-        if self._input.is_action_pressed("back"):   # ESC sai do replay
-            self._replay_end()
-
-    def _replay_end(self) -> None:
+    def _replay_end(self, scene: "ReplayScene") -> None:
         """Fim dos frames gravados (ou ESC): WIN se o boss morreu nesse
-        ponto, senão GAMEOVER — igual ao legado (main.py:2612-2614)."""
+        ponto, senão GAMEOVER — igual ao legado (main.py:2612-2614). `scene`
+        (a `ReplayScene` que acabou de concluir) e quem `EndScreenScene`
+        redesenha por baixo do seu overlay."""
         bp = self.world.get_pool("boss")
         dead = (not bp.count) or \
             float(np.sum(bp.active_view()["hp"][: bp.count])) <= 0.0
-        self.state = WIN if dead else GAMEOVER
+        which = WIN if dead else GAMEOVER
+        self.game_loop.push_scene(EndScreenScene(self, scene, which))
 
     def _render_replay_tag(self) -> None:
         self._r.draw_text(SCREEN_W - 14, 14, "REPLAY", 14, RED,
@@ -1582,36 +1112,716 @@ class GameApp:
         r.draw_text(SCREEN_W / 2, SCREEN_H / 2 + 26, flavor, 18,
                     (TXT[0], TXT[1], TXT[2], int(255 * a)), anchor="center")
 
-    # ------------------------------------------------------------------
-    def _end_screen(self, which: int) -> None:
-        r = self._r
-        self._render_world()                          # cena congelada atrás
-        r.draw_ui_rect(0, 0, SCREEN_W, SCREEN_H, (8, 8, 14, 190))
-        kills, deaths, graze = self.end_stats
-        if which == WIN:
-            r.draw_text(SCREEN_W / 2, 220, "VITÓRIA", 56, GOLD, anchor="center")
-        else:
-            r.draw_text(SCREEN_W / 2, 220, "GAME OVER", 56, RED, anchor="center")
-        r.draw_text(SCREEN_W / 2, 320,
-                    f"bosses: {kills}   ·   grazes: {graze}   ·   "
-                    f"tempo: {self.run_t:.0f}s", 20, TXT, anchor="center")
-        for k, name in enumerate(self.new_achievements[:4]):
-            r.draw_text(SCREEN_W / 2, 370 + k * 28,
-                        f"* NOVA CONQUISTA: {name}", 17, GOLD, anchor="center")
-        has_replay = bool(self.replay_frames)
-        hint = "T  jogar de novo      R  menu"
-        if has_replay:
-            hint = "T  jogar de novo      W  ver replay      R  menu"
-        r.draw_text(SCREEN_W / 2, 500, hint, 18, MUTED, anchor="center")
-        if self._input.is_action_pressed("retry"):
-            self.start_game()
-        elif has_replay and self._input.is_action_pressed("move_up"):
-            self._start_replay()
-        elif self._input.is_action_pressed("to_menu") \
-                or self._input.is_action_pressed("back"):
-            self.state, self.cursor = MENU_MAIN, 0
+    # `_end_screen` foi movido pra `EndScreenScene` (fim deste arquivo) --
+    # tocava `self.state`/`self.cursor` diretamente.
 
 
 MODES_SHORT = [("classic", "CLÁSSICO"), ("rush", "BOSS RUSH"),
                ("sins", "SINS RUSH"), ("waves", "WAVES"),
                ("decalogo", "DECÁLOGO RUSH")]
+
+
+# ---------------------------------------------------------------------------
+# IScenes (ROADMAP M8c) -- substituem o dispatch de 15 estados via if/elif
+# que `GameApp.tick()` fazia sozinho. `GameApp` continua existindo como
+# objeto de SESSAO (save/sel/achieved/totals/replay_frames/etc.) + os
+# helpers que nenhuma cena tem motivo pra duplicar (_render_world,
+# _apply_shake, _finish_run, ...) -- so quem POSSUI o loop principal e a
+# transicao de estado mudou, de `self.state = X` direto pra
+# push_scene/pop_scene/reset_scenes do GameLoop real.
+# ---------------------------------------------------------------------------
+
+class MainMenuScene(IScene):
+    """Tela inicial (JOGAR/CONQUISTAS/REGISTROS/SISTEMA/SAIR + SEÇÃO DE
+    TESTE se dev_mode). Base efetiva da pilha -- instalada via
+    `game_loop.reset_scenes(...)` no boot e sempre que se volta ao menu."""
+
+    def __init__(self, app: "GameApp") -> None:
+        self._app = app
+        self.cursor = 0
+
+    def on_enter(self, world, renderer) -> None:
+        """Reseta o cursor toda vez que esta cena assume o topo -- fresca
+        (reset_scenes no boot) OU revelada de novo por um pop_scene() (voltar
+        de CONQUISTAS/REGISTROS/SISTEMA/wizard). Mesmo comportamento de
+        antes da migração, onde TODO "back"/reatribuição de estado já
+        zerava `self.cursor` no destino (`_menu()`/`_xxx_screen()`) --
+        `pop_scene()` sozinho só revela a instância como estava, sem tocar
+        seu `cursor`; este hook é quem repõe o reset."""
+        self.cursor = 0
+
+    def _items(self) -> list:
+        return self._app._main_items()
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        inp = app._input
+        items = self._items()
+        n = len(items)
+        if inp.is_action_pressed("move_up"):
+            self.cursor = (self.cursor - 1) % n
+            app._play("ui_move", 0.25)
+        if inp.is_action_pressed("move_down"):
+            self.cursor = (self.cursor + 1) % n
+            app._play("ui_move", 0.25)
+        if inp.is_action_pressed("confirm") or inp.is_action_pressed("move_right"):
+            app._play("ui_ok", 0.35)
+            self._confirm(self.cursor)
+
+    def _confirm(self, k: int) -> None:
+        app = self._app
+        dest = self._items()[k][0]
+        if dest == "play":
+            app.game_loop.push_scene(WizardScene(app))
+        elif dest == "test":
+            app.game_loop.push_scene(WizardScene(app, start_step=MENU_TEST))
+        elif dest == "ach":
+            app.game_loop.push_scene(AchievementsScene(app))
+        elif dest == "records":
+            app.game_loop.push_scene(RecordsScene(app))
+        elif dest == "settings":
+            app.game_loop.push_scene(SettingsScene(app))
+        else:
+            app.game_loop.stop()
+
+    def render(self, world, renderer) -> None:
+        app = self._app
+        r = app._r
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 128, "BULLET HELL", 46, TXT, anchor="center")
+        r.draw_text(cx, 168, "OuroborosEngine · port ECS", 15, MUTED,
+                    anchor="center")
+        items = self._items()
+        card_w, ih, gap = 360, 62, 12
+        top = 240
+        for k, (_, label, col) in enumerate(items):
+            y = top + k * (ih + gap)
+            sel = k == self.cursor
+            bg = (22, 22, 40, 255) if sel else (12, 12, 20, 255)
+            r.draw_ui_rect(cx - card_w / 2, y, card_w, ih, bg)
+            bar = col if sel else tuple(c // 3 for c in col)
+            r.draw_ui_rect(cx - card_w / 2, y, 4, ih, (*bar, 255))
+            r.draw_text(cx - card_w / 2 + 22, y + ih / 2 - 9, label, 18,
+                        (255, 255, 255, 255) if sel else MUTED)
+            if sel:
+                r.draw_text(cx + card_w / 2 - 22, y + ih / 2 - 8, "►", 16,
+                            (*col, 255))
+        r.draw_text(cx, SCREEN_H - 44, "W/S navegar  ·  D/ENTER confirmar",
+                    14, MUTED, anchor="center")
+        app._render_dev_overlay()
+
+
+class WizardScene(IScene):
+    """Os 7 passos do assistente de nova partida (MODE->DIFF->BOSS/TEST->
+    SKILL->WEAPON->MUT) como UMA cena com um passo interno (`self.step`) --
+    decompor em 7 cenas separadas seria mais churn sem benefício real (já
+    eram uma única wizard fundida por um helper `_menu()` antes da
+    migração; `self.step`/`self.cursor` cobrem o mesmo papel agora)."""
+
+    def __init__(self, app: "GameApp", start_step: int = MENU_MODE) -> None:
+        self._app = app
+        self.step = start_step
+        self.cursor = 0
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        step = self.step
+        if step == MENU_MODE:
+            self._menu([m[1] for m in MODES], "MODO DE JOGO",
+                       colors=[m[3] for m in MODES],
+                       descs=[m[2] for m in MODES],
+                       on_confirm=self._mode_confirm, back_to="POP",
+                       locked=[app._mode_locked(k) for k in range(len(MODES))])
+        elif step == MENU_DIFF:
+            self._menu([d[1] for d in DIFFS], "BULLET HELL",
+                       colors=[d[3] for d in DIFFS],
+                       descs=[d[2] for d in DIFFS],
+                       on_confirm=self._diff_confirm, back_to=MENU_MODE,
+                       locked=[app._diff_locked(k) for k in range(len(DIFFS))],
+                       step=1)
+        elif step == MENU_BOSS:
+            self._menu([b[1] for b in CLASSIC_BOSSES], "BULLET HELL",
+                       colors=[b[2] for b in CLASSIC_BOSSES],
+                       descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
+                             for b in CLASSIC_BOSSES],
+                       on_confirm=self._boss_confirm, back_to=MENU_DIFF,
+                       locked=[app._boss_locked(b[0]) for b in CLASSIC_BOSSES],
+                       step=2, crumb=app._crumb()[:1])
+        elif step == MENU_TEST:
+            self._menu([b[1] for b in TEST_BOSSES], "SEÇÃO DE TESTE",
+                       colors=[b[2] for b in TEST_BOSSES],
+                       descs=[[BOSS_INTROS.get(b[0], ("", ""))[1]]
+                             for b in TEST_BOSSES],
+                       on_confirm=self._test_boss_confirm, back_to="POP")
+        elif step == MENU_SKILL:
+            items = [n + (" +" if app.sel["skill_plus"] and k == self.cursor
+                          and app._has_plus(SKILLS[k][0], app._data.skills)
+                          else "") for k, (sk, n, _, _) in enumerate(SKILLS)]
+            skill_locked = [app._skill_locked(sk) for (sk, _, _, _) in SKILLS]
+            self._menu(items, "BULLET HELL",
+                       colors=[s_[3] for s_ in SKILLS],
+                       descs=[d for (_, _, d, _) in SKILLS],
+                       on_confirm=self._skill_confirm,
+                       back_to=MENU_BOSS if app.sel["mode"] == "classic"
+                       else MENU_DIFF,
+                       hint_extra="ESPAÇO alterna a variante +",
+                       locked=skill_locked, step=3,
+                       crumb=app._crumb()[:2])
+            if app._input.is_action_pressed("fire") and \
+                    not skill_locked[self.cursor] and \
+                    app._has_plus(SKILLS[self.cursor][0], app._data.skills) \
+                    and app._plus_unlocked("skill", SKILLS[self.cursor][0]):
+                app.sel["skill_plus"] = not app.sel["skill_plus"]
+        elif step == MENU_WEAPON:
+            items = [n + (" +" if app.sel["weapon_plus"] and k == self.cursor
+                          and app._has_plus(WEAPONS[k][0], app._data.weapons)
+                          else "") for k, (w, n, _, _) in enumerate(WEAPONS)]
+            self._menu(items, "BULLET HELL",
+                       colors=[w_[3] for w_ in WEAPONS],
+                       descs=[d for (_, _, d, _) in WEAPONS],
+                       on_confirm=self._weapon_confirm, back_to=MENU_SKILL,
+                       hint_extra="ESPAÇO alterna a variante +",
+                       step=4, crumb=app._crumb()[:3])
+            if app._input.is_action_pressed("fire") and \
+                    app._has_plus(WEAPONS[self.cursor][0], app._data.weapons) \
+                    and app._plus_unlocked("weapon", WEAPONS[self.cursor][0]):
+                app.sel["weapon_plus"] = not app.sel["weapon_plus"]
+        elif step == MENU_MUT:
+            items = [(("[x] " if m in app.sel["muts"] else "[ ] ") + n)
+                     for (m, n, _, _) in MUTATORS] + ["► COMEÇAR"]
+            self._menu(items, "BULLET HELL",
+                       colors=[m_[3] for m_ in MUTATORS] + [GOLD[:3]],
+                       descs=[d for (_, _, d, _) in MUTATORS] + [
+                           ("Cada mutador ativo aumenta o desafio",)],
+                       on_confirm=self._mut_confirm, back_to=MENU_WEAPON,
+                       locked=[app._mutator_locked(m)
+                              for (m, _, _, _) in MUTATORS] + [False],
+                       step=5, crumb=app._crumb()[:4])
+
+    def render(self, world, renderer) -> None:
+        self._app._render_dev_overlay()
+
+    # -- transições internas (equivalentes aos antigos `_xxx_confirm`) --
+
+    def _mode_confirm(self, k: int) -> None:
+        app = self._app
+        if app._mode_locked(k):
+            return
+        app.sel["mode"] = MODES[k][0]
+        self.step, self.cursor = MENU_DIFF, 1
+
+    def _diff_confirm(self, k: int) -> None:
+        app = self._app
+        if app._diff_locked(k):
+            return
+        app.sel["diff"] = DIFFS[k][0]
+        self.step = MENU_BOSS if app.sel["mode"] == "classic" else MENU_SKILL
+        self.cursor = 0
+
+    def _boss_confirm(self, k: int) -> None:
+        app = self._app
+        if app._boss_locked(CLASSIC_BOSSES[k][0]):
+            return
+        app.sel["boss"] = CLASSIC_BOSSES[k][0]
+        self.step, self.cursor = MENU_SKILL, 0
+
+    def _test_boss_confirm(self, k: int) -> None:
+        """Seção de teste (dev_mode): joga o boss escolhido como uma
+        partida CLÁSSICA avulsa — nenhum boss aqui fica travado, é acesso
+        direto pra testar sem replicar a condição especial."""
+        app = self._app
+        app.sel["mode"] = "classic"
+        app.sel["boss"] = TEST_BOSSES[k][0]
+        self.step, self.cursor = MENU_SKILL, 0
+
+    def _skill_confirm(self, k: int) -> None:
+        app = self._app
+        if app._skill_locked(SKILLS[k][0]):
+            return
+        app.sel["skill"] = SKILLS[k][0]
+        app.sel["skill_plus"] = False    # nova skill: reseta o toggle +
+        self.step, self.cursor = MENU_WEAPON, 0
+
+    def _weapon_confirm(self, k: int) -> None:
+        app = self._app
+        app.sel["weapon"] = WEAPONS[k][0]
+        app.sel["weapon_plus"] = False    # nova arma: reseta o toggle +
+        self.step, self.cursor = MENU_MUT, 0
+
+    def _mut_confirm(self, k: int) -> None:
+        app = self._app
+        if k < len(MUTATORS):
+            m = MUTATORS[k][0]
+            if app._mutator_locked(m):
+                return
+            if m in app.sel["muts"]:
+                app.sel["muts"].discard(m)
+            else:
+                app.sel["muts"].add(m)
+        else:
+            app.start_game()   # start_game() ja faz replace_world+reset_scenes
+
+    # -- equivalentes a `GameApp._menu()`/`_header()` de antes da migração,
+    # usando `self.cursor`/`self.step` em vez de `app.cursor`/`app.state` --
+
+    def _menu(self, items, title, colors=None, descs=None, on_confirm=None,
+              back_to=None, hint_extra="", locked=None, step=0,
+              crumb=()) -> None:
+        """Card colorido à esquerda + painel de descrição à direita.
+        `back_to`: um passo interno (int) pra voltar, ou o sentinela "POP"
+        pra sair da wizard inteira (`pop_scene()` de volta ao MainMenuScene
+        que a empilhou -- MODE e TEST são os únicos passos "de entrada")."""
+        app = self._app
+        inp = app._input
+        n = len(items)
+        locked = locked or [False] * n
+        colors = colors or [ACCENT[:3]] * n
+        if locked[self.cursor]:            # entrou numa tela com o cursor
+            for _ in range(n):             # travado (default de _xxx_confirm)
+                self.cursor = (self.cursor + 1) % n
+                if not locked[self.cursor]:
+                    break
+        if inp.is_action_pressed("move_up"):
+            for _ in range(n):
+                self.cursor = (self.cursor - 1) % n
+                if not locked[self.cursor]:
+                    break
+            app._play("ui_move", 0.25)
+        if inp.is_action_pressed("move_down"):
+            for _ in range(n):
+                self.cursor = (self.cursor + 1) % n
+                if not locked[self.cursor]:
+                    break
+            app._play("ui_move", 0.25)
+        if back_to is not None and (inp.is_action_pressed("back")
+                                    or inp.is_action_pressed("move_left")):
+            if back_to == "POP":
+                app.game_loop.pop_scene()
+            else:
+                self.step, self.cursor = back_to, 0
+            return
+        if on_confirm and not locked[self.cursor] and (
+                inp.is_action_pressed("confirm")
+                or inp.is_action_pressed("move_right")):
+            app._play("ui_ok", 0.35)
+            on_confirm(self.cursor)
+            return
+        self.cursor = min(self.cursor, n - 1)
+
+        self._header(title, step, crumb)
+        r = app._r
+        ih, gap = 58, 8
+        row_h = ih + gap
+        visible_h = MC_Y1 - MC_Y0
+        center_y = MC_Y0 + (visible_h - ih) / 2
+        for k, label in enumerate(items):
+            y = center_y + (k - self.cursor) * row_h
+            if y + ih < MC_Y0 or y > MC_Y1:
+                continue
+            col = colors[k]
+            sel = k == self.cursor
+            bg = (22, 22, 40, 255) if sel else (13, 13, 22, 255)
+            r.draw_ui_rect(MLL_X, y, MLL_W, ih, bg)
+            bar = col if sel else tuple(c * 2 // 5 for c in col)
+            r.draw_ui_rect(MLL_X, y, 4, ih, (*bar, 255))
+            disp = label + ("  [BLOQUEADO]" if locked[k] else "")
+            name_c = (70, 70, 90, 255) if locked[k] else \
+                ((255, 255, 255, 255) if sel else MUTED)
+            r.draw_text(MLL_X + 18, y + ih / 2 - 9, disp, 15, name_c)
+            if sel:
+                r.draw_text(MLL_X + MLL_W + 6, y + ih / 2 - 8, "►", 16,
+                            (*col, 255))
+            r.draw_ui_rect(MLL_X, y + ih, MLL_W, 1, (20, 20, 36, 255))
+
+        sel_col = colors[self.cursor]
+        rx, ry, rw = MRP_X, MC_Y0, MRP_W
+        rh = MC_Y1 - MC_Y0
+        r.draw_ui_rect(rx, ry, rw, rh, (11, 11, 21, 255))
+        r.draw_ui_rect(rx, ry, rw, 3, (*sel_col, 255))
+        r.draw_text(rx + 28, ry + 20, items[self.cursor], 28, (*sel_col, 255))
+        r.draw_ui_rect(rx + 28, ry + 96, rw - 56, 1,
+                      (sel_col[0] // 3, sel_col[1] // 3, sel_col[2] // 3, 255))
+        if descs:
+            lines = descs[self.cursor]
+            if isinstance(lines, str):
+                lines = [lines]
+            for i, ln in enumerate(lines):
+                r.draw_text(rx + 28, ry + 114 + i * 28, ln, 15,
+                            (168, 168, 196, 255))
+
+        r.draw_ui_rect(0, 672, SCREEN_W, 48, (8, 8, 18, 255))
+        hint = "W/S navegar  ·  D/ENTER confirmar  ·  A/ESC voltar"
+        if hint_extra:
+            hint += "  ·  " + hint_extra
+        r.draw_text(SCREEN_W / 2, 688, hint, 13, (58, 58, 80, 255),
+                    anchor="center")
+
+    def _header(self, title: str, step: int = 0, crumb: tuple = ()) -> None:
+        r = self._app._r
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 8, title, 36, TXT, anchor="center")
+        if step <= 0:
+            return
+        dot_r, gap = 5, 30
+        x0 = cx - gap * 2
+        for i in range(5):
+            cxi = x0 + i * gap
+            col = STEP_COLS[i]
+            if i < step - 1:
+                c = tuple(v // 2 for v in col)
+                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
+                              (*c, 255))
+            elif i == step - 1:
+                r.draw_ui_rect(cxi - dot_r - 3, 82 - dot_r - 3,
+                              (dot_r + 3) * 2, (dot_r + 3) * 2, (255, 255, 255, 255))
+                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
+                              (*col, 255))
+            else:
+                r.draw_ui_rect(cxi - dot_r, 82 - dot_r, dot_r * 2, dot_r * 2,
+                              (30, 30, 50, 255))
+        r.draw_text(cx, 96, STEP_NAMES[step - 1], 13, MUTED, anchor="center")
+        if crumb:
+            r.draw_text(cx, 116, "  ›  ".join(crumb), 13,
+                        (90, 90, 120, 255), anchor="center")
+        r.draw_ui_rect(72, 140, SCREEN_W - 144, 1, (26, 26, 46, 255))
+
+
+class AchievementsScene(IScene):
+    def __init__(self, app: "GameApp") -> None:
+        self._app = app
+        self.cursor = 0
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        inp = app._input
+        n = len(ACHIEVEMENTS)
+        if inp.is_action_pressed("move_up"):
+            self.cursor = (self.cursor - 1) % n
+            app._play("ui_move", 0.25)
+        if inp.is_action_pressed("move_down"):
+            self.cursor = (self.cursor + 1) % n
+            app._play("ui_move", 0.25)
+        if inp.is_action_pressed("back") or inp.is_action_pressed("move_left"):
+            app.game_loop.pop_scene()
+            return
+        self.cursor = min(self.cursor, n - 1)
+
+    def render(self, world, renderer) -> None:
+        app = self._app
+        r = app._r
+        r.draw_text(SCREEN_W / 2, 56, "CONQUISTAS", 40, GOLD, anchor="center")
+        n = len(ACHIEVEMENTS)
+        done = sum(1 for a in ACHIEVEMENTS if a[0] in app.achieved)
+        r.draw_text(SCREEN_W / 2, 100, f"{done} / {n} desbloqueadas",
+                    16, MUTED, anchor="center")
+
+        top, bottom, ih, gap = 140, 560, 26, 2
+        row_h = ih + gap
+        center_y = top + ((bottom - top) - ih) / 2
+        for k, (aid, name, desc, reward, secret, progress) in enumerate(ACHIEVEMENTS):
+            y = center_y + (k - self.cursor) * row_h
+            if y + ih < top or y > bottom:
+                continue
+            got = aid in app.achieved
+            hidden = secret and not got
+            sel = k == self.cursor
+            if sel:
+                r.draw_ui_rect(SCREEN_W / 2 - 340, y - 2, 680, ih,
+                              (124, 80, 255, 40))
+            mark = "[x]" if got else ("[?]" if hidden else "[ ]")
+            r.draw_text(SCREEN_W / 2 - 330, y, mark, 16,
+                        GOLD if got else MUTED)
+            disp_name = "???" if hidden else name
+            r.draw_text(SCREEN_W / 2 - 280, y, disp_name, 16,
+                        GOLD if got else (TXT if sel else MUTED))
+            disp_desc = "Conquista secreta." if hidden else desc
+            r.draw_text(SCREEN_W / 2 + 10, y + 1, disp_desc, 13, MUTED)
+
+        aid, name, desc, reward, secret, progress = ACHIEVEMENTS[self.cursor]
+        got = aid in app.achieved
+        hidden = secret and not got
+        y0 = 590
+        r.draw_ui_rect(SCREEN_W / 2 - 340, y0, 680, 100, (11, 11, 21, 255))
+        r.draw_text(SCREEN_W / 2 - 320, y0 + 10,
+                    "???" if hidden else name, 18, GOLD if got else TXT)
+        r.draw_text(SCREEN_W / 2 - 320, y0 + 34,
+                    "Descubra as condições jogando." if hidden else desc,
+                    13, (168, 168, 196, 255))
+        if got:
+            status = "[ DESBLOQUEADO ]"
+        elif progress and not hidden:
+            cur = min(progress[1], app._achievement_progress(progress[0]))
+            status = f"Progresso: {cur}/{progress[1]}"
+        else:
+            status = "[ BLOQUEADO ]" if not hidden else ""
+        r.draw_text(SCREEN_W / 2 - 320, y0 + 56, status, 13,
+                    (0, 220, 0, 255) if got else MUTED)
+        if not hidden and reward != "—":
+            r.draw_text(SCREEN_W / 2 - 320, y0 + 76, f"Recompensa: {reward}",
+                        13, (168, 168, 196, 255))
+        r.draw_text(SCREEN_W / 2, SCREEN_H - 20, "W/S navegar  ·  A/ESC voltar",
+                    14, MUTED, anchor="center")
+        app._render_dev_overlay()
+
+
+class RecordsScene(IScene):
+    def __init__(self, app: "GameApp") -> None:
+        self._app = app
+        self.cursor = 0
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        inp = app._input
+        if inp.is_action_pressed("back") or inp.is_action_pressed("confirm") \
+                or inp.is_action_pressed("move_left"):
+            app.game_loop.pop_scene()
+
+    def render(self, world, renderer) -> None:
+        app = self._app
+        r = app._r
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 80, "REGISTROS", 40, GOLD, anchor="center")
+        r.draw_ui_rect(180, 162, SCREEN_W - 360, 1, (50, 50, 20, 255))
+        total_deaths = int(app.save.get("total_deaths", 0)) + app.totals["deaths"]
+        total_parries = int(app.save.get("total_parries", 0)) + app.totals["parries"]
+        best = float(app.save.get("best_time_dificil", 0.0))
+        bm, bs = divmod(int(best), 60)
+        hcd = int(app.save.get("highest_cleared_diff", 0))
+        diff_label = DIFFS[min(hcd, len(DIFFS) - 1)][1] if hcd > 0 else "NENHUMA"
+        unlocked_skills = [s[1] for s in SKILLS if s[0] in
+                          app.save.get("unlocked_skills", ["none", "dash"])]
+        rows = [
+            ("Mortes totais", str(total_deaths)),
+            ("Melhor tempo (Difícil+)",
+             f"{bm:02d}:{bs:02d}" if best > 0 else "—"),
+            ("Balas refletidas (Parry)", str(total_parries)),
+            ("Dificuldade desbloqueada", diff_label),
+            ("Habilidades desbloqueadas", "  ".join(unlocked_skills)),
+        ]
+        top = 210
+        for k, (label, value) in enumerate(rows):
+            y = top + k * 52
+            r.draw_text(220, y, label, 16, (120, 120, 140, 255))
+            r.draw_text(SCREEN_W - 220, y, value, 16, TXT, anchor="topright")
+            r.draw_ui_rect(180, y + 32, SCREEN_W - 360, 1, (24, 24, 36, 255))
+        r.draw_text(cx, SCREEN_H - 44, "ESC   voltar ao menu principal", 14,
+                    (35, 35, 50, 255), anchor="center")
+        app._render_dev_overlay()
+
+
+class SettingsScene(IScene):
+    _DEFAULTS = {"screen_shake": True, "show_hitbox": False, "fullscreen": False}
+    _ITEMS = [("screen_shake", "Screen Shake"), ("show_hitbox", "Mostrar Hitbox"),
+              ("fullscreen", "Tela Cheia")]
+
+    def __init__(self, app: "GameApp") -> None:
+        self._app = app
+        self.cursor = 0
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        inp = app._input
+        settings = app.save.setdefault("settings", dict(self._DEFAULTS))
+        n = len(self._ITEMS)
+        if inp.is_action_pressed("move_up"):
+            self.cursor = (self.cursor - 1) % n
+            app._play("ui_move", 0.25)
+        if inp.is_action_pressed("move_down"):
+            self.cursor = (self.cursor + 1) % n
+            app._play("ui_move", 0.25)
+        if inp.is_action_pressed("confirm") or inp.is_action_pressed("fire"):
+            key = self._ITEMS[self.cursor][0]
+            settings[key] = not settings.get(key, self._DEFAULTS[key])
+            if key == "fullscreen":
+                app._r.set_fullscreen(settings[key])
+            app._play("ui_ok", 0.3)
+        if inp.is_action_pressed("back") or inp.is_action_pressed("move_left"):
+            app.game_loop.pop_scene()
+
+    def render(self, world, renderer) -> None:
+        app = self._app
+        r = app._r
+        settings = app.save.setdefault("settings", dict(self._DEFAULTS))
+        cx = SCREEN_W / 2
+        r.draw_text(cx, 80, "SISTEMA", 40, (100, 160, 255, 255),
+                    anchor="center")
+        r.draw_ui_rect(180, 162, SCREEN_W - 360, 1, (30, 50, 80, 255))
+        top, ih, gap = 210, 70, 12
+        for k, (key, label) in enumerate(self._ITEMS):
+            y = top + k * (ih + gap)
+            sel = k == self.cursor
+            on = bool(settings.get(key, self._DEFAULTS[key]))
+            bg = (20, 28, 44, 255) if sel else (12, 12, 20, 255)
+            r.draw_ui_rect(180, y, SCREEN_W - 360, ih, bg)
+            r.draw_ui_rect(180, y, 4, ih,
+                          (100, 160, 255, 255) if sel else (40, 60, 100, 255))
+            r.draw_text(210, y + ih / 2 - 9, label, 16,
+                        (255, 255, 255, 255) if sel else MUTED)
+            val_txt = "[ LIGADO ]" if on else "[ DESLIGADO ]"
+            val_col = (0, 220, 0, 255) if on else (220, 20, 60, 255)
+            r.draw_text(SCREEN_W - 220, y + ih / 2 - 9, val_txt, 16, val_col,
+                        anchor="topright")
+        r.draw_text(cx, SCREEN_H - 44,
+                    "W/S navegar  ·  ENTER/D toggle  ·  ESC voltar", 14,
+                    (35, 35, 50, 255), anchor="center")
+        app._render_dev_overlay()
+
+
+class BulletHellGameplayScene(IScene):
+    """Substitui a `GameplayScene` genérica da engine pra este produto --
+    reaproveita os helpers já existentes de `GameApp` (`_pump_sfx`,
+    `_apply_shake`, `_drain_particle_requests`, `_render_*`, `_finish_run`)
+    em vez de duplicar seus corpos; só a TRANSIÇÃO de estado (abandono,
+    vitória/derrota) muda de `self.state = X` pra push/reset de cena."""
+
+    def __init__(self, app: "GameApp") -> None:
+        self._app = app
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        app.replay_frames.append((encode_frame(app._input), delta_time))
+        app.run_t += delta_time
+        if app.godmode:                          # F6 (dev mode)
+            pl = world.get_pool("player")
+            pi = pl.active_entity_indices()
+            if pi.size:
+                pl.active_view()["invuln_t"][pl.dense_row_of(int(pi[0]))] = 999.0
+        world.step(delta_time)
+        app._pump_sfx()
+        app._apply_shake(delta_time)
+        app._drain_particle_requests(delta_time)
+        if app.intro_t > 0.0:
+            app.intro_t -= delta_time
+
+        if app._input.is_action_pressed("back"):   # ESC abandona a run
+            app._finish_run("abandon")
+            app.game_loop.reset_scenes(MainMenuScene(app))
+            return
+        pl = world.get_pool("player")
+        if pl.count and int(pl.active_view()["lives"][0]) < 0:
+            app._finish_run("lose")
+            app.game_loop.push_scene(EndScreenScene(app, self, GAMEOVER))
+            return
+        kills = int(world.get_pool("stats").active_view()["kills"][0])
+        if kills >= WIN_GOALS[app.sel["mode"]]:
+            app._finish_run("win")
+            app.game_loop.push_scene(EndScreenScene(app, self, WIN))
+
+    def render_frozen(self, world, renderer) -> None:
+        """Conteudo visual sem o overlay de dev-mode -- usado por
+        `EndScreenScene` pra redesenhar esta cena por baixo do seu proprio
+        overlay SEM desenhar o overlay de dev duas vezes (ele mesmo chama
+        `_render_dev_overlay()` por cima de tudo, no final)."""
+        app = self._app
+        app._render_world()
+        app._render_particles()
+        app._render_hud()
+        if app.intro_t > 0.0:
+            app._render_intro()
+
+    def render(self, world, renderer) -> None:
+        self.render_frozen(world, renderer)
+        self._app._render_dev_overlay()
+
+
+class ReplayScene(IScene):
+    """Mirror de `BulletHellGameplayScene`, dirigida por `ReplayInputProvider`
+    em vez do input real -- reproduz `app.replay_frames` gravados na run
+    anterior."""
+
+    def __init__(self, app: "GameApp") -> None:
+        self._app = app
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        ri = app._replay_input
+        ri.poll()
+        if not ri.has_more():
+            app._replay_end(self)
+            return
+        dt = ri.current_dt()
+        app.run_t += dt
+        world.step(dt)
+        app._pump_sfx()
+        app._apply_shake(dt)
+        app._drain_particle_requests(dt)
+        if app._input.is_action_pressed("back"):   # ESC sai do replay
+            app._replay_end(self)
+
+    def render_frozen(self, world, renderer) -> None:
+        app = self._app
+        app._render_world()
+        app._render_particles()
+        app._render_hud()
+        app._render_replay_tag()
+
+    def render(self, world, renderer) -> None:
+        self.render_frozen(world, renderer)
+        self._app._render_dev_overlay()
+
+
+class EndScreenScene(IScene):
+    """Tela de fim de jogo (VITÓRIA/GAME OVER). Guarda a cena de gameplay
+    (`BulletHellGameplayScene` ou `ReplayScene`) de baixo e redesenha ela
+    POR INTEIRO (mundo+partículas+HUD, não só o mundo como antes da
+    migração -- mesmo padrão de `PauseScene`/`EndScene` já estabelecido na
+    engine, que sempre redesenham a cena base inteira congelada)."""
+
+    def __init__(self, app: "GameApp", beneath, which: int) -> None:
+        self._app = app
+        self._beneath = beneath
+        self.which = which
+
+    def update(self, world, delta_time: float) -> None:
+        app = self._app
+        app._update_dev_mode(delta_time)
+        inp = app._input
+        if inp.is_action_pressed("retry"):
+            app.start_game()
+        elif bool(app.replay_frames) and inp.is_action_pressed("move_up"):
+            app._start_replay()
+        elif inp.is_action_pressed("to_menu") or inp.is_action_pressed("back"):
+            app.game_loop.reset_scenes(MainMenuScene(app))
+
+    def render(self, world, renderer) -> None:
+        app = self._app
+        self._beneath.render_frozen(world, renderer)
+        r = app._r
+        r.draw_ui_rect(0, 0, SCREEN_W, SCREEN_H, (8, 8, 14, 190))
+        kills, deaths, graze = app.end_stats
+        if self.which == WIN:
+            r.draw_text(SCREEN_W / 2, 220, "VITÓRIA", 56, GOLD, anchor="center")
+        else:
+            r.draw_text(SCREEN_W / 2, 220, "GAME OVER", 56, RED, anchor="center")
+        r.draw_text(SCREEN_W / 2, 320,
+                    f"bosses: {kills}   ·   grazes: {graze}   ·   "
+                    f"tempo: {app.run_t:.0f}s", 20, TXT, anchor="center")
+        for k, name in enumerate(app.new_achievements[:4]):
+            r.draw_text(SCREEN_W / 2, 370 + k * 28,
+                        f"* NOVA CONQUISTA: {name}", 17, GOLD, anchor="center")
+        has_replay = bool(app.replay_frames)
+        hint = "T  jogar de novo      R  menu"
+        if has_replay:
+            hint = "T  jogar de novo      W  ver replay      R  menu"
+        r.draw_text(SCREEN_W / 2, 500, hint, 18, MUTED, anchor="center")
+        app._render_dev_overlay()
+
+
+# Estado antigo (int, `range(15)`) derivado do TIPO da cena atual --
+# `GameApp.state` (property) usa isto, exceto pra WizardScene/EndScreenScene
+# (cobrem mais de um estado antigo cada, ver seus `.step`/`.which`).
+_SCENE_STATE = {
+    MainMenuScene: MENU_MAIN,
+    AchievementsScene: MENU_ACH,
+    RecordsScene: MENU_RECORDS,
+    SettingsScene: MENU_SETTINGS,
+    BulletHellGameplayScene: PLAYING,
+    ReplayScene: REPLAYING,
+}

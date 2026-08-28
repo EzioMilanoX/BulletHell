@@ -7,11 +7,14 @@ sem janela real.
 Uso: python smoke_menu.py
 """
 import bullethell  # noqa: F401 — engine no sys.path
+from ouroboros.bootstrap.game_loop import GameLoop
+from ouroboros.core.memory.memory_manager import MemoryManager
+from ouroboros.core.world import World
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 from ouroboros.interfaces.null.null_renderer import NullRenderer
 from bullethell.loaders import load_all
-from bullethell.scenes import (GameApp, MENU_BOSS, MENU_DIFF, MENU_MAIN,
-                               MENU_MODE, MENU_MUT, MENU_RECORDS,
+from bullethell.scenes import (GameApp, MainMenuScene, MENU_BOSS, MENU_DIFF,
+                               MENU_MAIN, MENU_MODE, MENU_MUT, MENU_RECORDS,
                                MENU_SETTINGS, MENU_SKILL, MENU_WEAPON,
                                PLAYING)
 
@@ -33,7 +36,12 @@ def check(label: str, cond: bool) -> bool:
 if __name__ == "__main__":
     ok = True
     inp = NullInputProvider()
-    app = GameApp(NullRenderer(), inp, None, DATA, save_data={})
+    renderer = NullRenderer()
+    renderer.initialize(800, 600, "smoke")
+    app = GameApp(renderer, inp, None, DATA, save_data={})
+    game_loop = GameLoop(World(MemoryManager(entity_capacity=1)), renderer, inp, None)
+    app.game_loop = game_loop
+    game_loop.reset_scenes(MainMenuScene(app))
 
     ok &= check("boot -> MENU_MAIN", app.state == MENU_MAIN)
 
