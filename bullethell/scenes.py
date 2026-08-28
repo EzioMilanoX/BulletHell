@@ -352,15 +352,21 @@ class GameApp:
         self.totals = {"kills": 0, "deaths": 0, "graze": 0, "runs": 0,
                        "parries": 0}
         self.save = save_data or {}
-        # Tela Cheia (SISTEMA): aplica o valor salvo assim que o renderer
-        # ja existe -- `setdefault` cobre tanto um save novo (sem a chave
-        # "settings" ainda) quanto um save ANTIGO que ja tem "settings" mas
-        # foi salvo antes deste toggle existir (sem a chave "fullscreen").
+        # `setdefault` cobre tanto um save novo (sem a chave "settings"
+        # ainda) quanto um save ANTIGO que ja tem "settings" mas foi salvo
+        # antes deste toggle existir (sem a chave "fullscreen").
         settings = self.save.setdefault(
             "settings", {"screen_shake": True, "show_hitbox": False, "fullscreen": False})
         settings.setdefault("fullscreen", False)
-        if self._r is not None:
-            self._r.set_fullscreen(bool(settings["fullscreen"]))
+        # NAO reaplicamos "fullscreen" salvo aqui no boot (chegou a ser
+        # feito, e foi revertido): alternar o modo de exibicao logo na
+        # construcao -- por cima do modo janela que `renderer.initialize()`
+        # ja deixou pronto -- e uma segunda troca de modo de tela em
+        # sequencia rapida, e um usuario real relatou tela preta ao abrir o
+        # jogo com "fullscreen": true salvo (nunca testado em hardware real,
+        # so sob o driver SDL dummy, que nao pega falha de troca de modo de
+        # verdade). O toggle em SISTEMA continua funcionando -- só não é
+        # mais reaplicado automaticamente a cada boot.
         self.replay_frames: list = []   # [(bitmask, dt), ...] da run atual
         self._last_cfg: dict | None = None
         self._replay_input: ReplayInputProvider | None = None
@@ -1223,6 +1229,7 @@ class WizardScene(IScene):
         self._app = app
         self.step = start_step
         self.cursor = 0
+        self._menu_draw_args = None
 
     def update(self, world, delta_time: float) -> None:
         app = self._app
@@ -1301,6 +1308,16 @@ class WizardScene(IScene):
                        step=5, crumb=app._crumb()[:4])
 
     def render(self, world, renderer) -> None:
+        """`update()` roda ANTES de `begin_frame()` no SceneStack (ver
+        `GameLoop._render_frame`) -- desenhar de lá seria apagado antes do
+        frame ser apresentado. `_menu()` (chamada só de `update()`) por
+        isso só cuida de input/estado e guarda os argumentos de desenho em
+        `self._menu_draw_args`; aqui é onde o card/painel de fato aparece
+        na tela (bug real corrigido: a wizard inteira -- MODE/DIFF/BOSS/
+        TEST/SKILL/WEAPON/MUT -- ficava com a navegação funcionando mas
+        nada desenhado, "tela preta com botões invisíveis")."""
+        if self._menu_draw_args is not None:
+            self._menu_draw(*self._menu_draw_args)
         self._app._render_dev_overlay()
 
     # -- transições internas (equivalentes aos antigos `_xxx_confirm`) --
@@ -1369,7 +1386,11 @@ class WizardScene(IScene):
     def _menu(self, items, title, colors=None, descs=None, on_confirm=None,
               back_to=None, hint_extra="", locked=None, step=0,
               crumb=()) -> None:
-        """Card colorido à esquerda + painel de descrição à direita.
+        """Só input/estado (cursor, back, confirm) -- chamada de `update()`.
+        O desenho em si (card colorido à esquerda + painel de descrição à
+        direita) fica em `_menu_draw()`, chamada de `render()` com os
+        argumentos guardados em `self._menu_draw_args` -- ver o porquê da
+        separação no docstring de `render()`.
         `back_to`: um passo interno (int) pra voltar, ou o sentinela "POP"
         pra sair da wizard inteira (`pop_scene()` de volta ao MainMenuScene
         que a empilhou -- MODE e TEST são os únicos passos "de entrada")."""
@@ -1397,6 +1418,7 @@ class WizardScene(IScene):
             app._play("ui_move", 0.25)
         if back_to is not None and (inp.is_action_pressed("back")
                                     or inp.is_action_pressed("move_left")):
+            self._menu_draw_args = None
             if back_to == "POP":
                 app.game_loop.pop_scene()
             else:
@@ -1406,10 +1428,16 @@ class WizardScene(IScene):
                 inp.is_action_pressed("confirm")
                 or inp.is_action_pressed("move_right")):
             app._play("ui_ok", 0.35)
+            self._menu_draw_args = None
             on_confirm(self.cursor)
             return
         self.cursor = min(self.cursor, n - 1)
+        self._menu_draw_args = (items, title, colors, descs, hint_extra,
+                                 locked, step, crumb)
 
+    def _menu_draw(self, items, title, colors, descs, hint_extra, locked,
+                   step, crumb) -> None:
+        app = self._app
         self._header(title, step, crumb)
         r = app._r
         ih, gap = 58, 8

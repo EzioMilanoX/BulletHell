@@ -786,6 +786,44 @@ outros 9.
         exigindo vencer o SINS RUSH de verdade) nem o "bastion"
         (protótipo separado, fora de qualquer arco). 6/6 smoke tests +
         174 pytest OK.
+      - **14n** — bug real de tela preta ao entrar em JOGAR, relatado
+        pelo usuário (navegação continuava funcionando às cegas, mas
+        nada aparecia na tela — "como se as escolhas e botões ficassem
+        invisíveis"). Coincidiu no tempo com o SceneStack de verdade
+        (commit `56deffc`), que fez `GameLoop._render_frame()` chamar
+        `update()` da cena ANTES de `begin_frame()` (que limpa a
+        tela) — diferente do laço antigo, onde `GameApp` desenhava e
+        processava input no mesmo passo. `WizardScene` (os 7 passos
+        MODE→DIFF→BOSS/TEST→SKILL→WEAPON→MUT fundidos numa cena só)
+        carregou o helper `_menu()` de antes da migração sem adaptar:
+        ele fazia input E desenho juntos, chamado só de `update()` —
+        então o desenho acontecia, e era apagado por `begin_frame()`
+        no mesmo frame, antes de `render()` rodar (que só desenhava o
+        overlay de dev). As outras 6 cenas (MainMenu/Achievements/
+        Records/Settings/Gameplay/Replay/EndScreen) já tinham `render()`
+        próprio redesenhando do zero — só a Wizard escapou porque seu
+        `_menu()` fundido parecia "já cuidar de tudo". Uma hipótese
+        anterior (de outra sessão, investigando em paralelo) apontava
+        o toggle de Tela Cheia reaplicado no boot como causa — não era:
+        o bug reproduz independente de `fullscreen`, é 100% sobre a
+        ORDEM update/render, não sobre modo de tela.
+        Correção: `_menu()` passa a só processar input/estado (cursor,
+        back, confirm) e guardar os argumentos de desenho em
+        `self._menu_draw_args`; um `_menu_draw()` novo faz o desenho de
+        verdade, chamado do `render()` da Wizard (que antes só desenhava
+        o overlay de dev). Nenhum dos 7 passos precisou mudar sua
+        chamada a `_menu()`.
+        Verificado sem screenshot (risco de privacidade confirmado
+        nesta sessão: até uma captura de janela recortada vazou conteúdo
+        de outra sessão do Claude Code aberta ao lado) — em vez disso,
+        lendo o buffer de pixels em memória direto do `PygameRenderer`
+        real (driver SDL dummy, sem janela): confirmado que o código
+        antes do fix desenhava só o fundo na região da lista de itens
+        (controle negativo, via `git stash` temporário) e que o código
+        corrigido desenha o conteúdo de verdade. `smoke_menu.py` ganhou
+        essa checagem permanente (com o `PygameRenderer` real, não o
+        `NullRenderer` — que nunca pegaria esta classe de bug, já que
+        não desenha nada de verdade). 6/6 smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,

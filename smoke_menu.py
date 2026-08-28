@@ -6,16 +6,23 @@ sem janela real.
 
 Uso: python smoke_menu.py
 """
+import os
+
+import numpy as np
+import pygame
+
 import bullethell  # noqa: F401 — engine no sys.path
+from ouroboros.adapters.pygame_backend.pygame_renderer import PygameRenderer
 from ouroboros.bootstrap.game_loop import GameLoop
 from ouroboros.core.memory.memory_manager import MemoryManager
 from ouroboros.core.world import World
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 from ouroboros.interfaces.null.null_renderer import NullRenderer
 from bullethell.loaders import load_all
-from bullethell.scenes import (GameApp, MainMenuScene, MENU_BOSS, MENU_DIFF,
-                               MENU_MAIN, MENU_MODE, MENU_MUT, MENU_RECORDS,
-                               MENU_SETTINGS, MENU_SKILL, MENU_WEAPON,
+from bullethell.scenes import (GameApp, MainMenuScene, MC_Y0, MC_Y1,
+                               MENU_BOSS, MENU_DIFF, MENU_MAIN, MENU_MODE,
+                               MENU_MUT, MENU_RECORDS, MENU_SETTINGS,
+                               MENU_SKILL, MENU_WEAPON, MLL_W, MLL_X,
                                PLAYING)
 
 DATA = load_all()
@@ -97,5 +104,31 @@ if __name__ == "__main__":
     press(app, inp, "confirm")
     ok &= check("MUTADORES -> PLAYING", app.state == PLAYING and
                app.world is not None)
+
+    # -- renderer REAL (driver SDL dummy, sem janela) -- NullRenderer acima
+    # não desenha nada de verdade, então nunca pegaria a classe de bug onde
+    # WizardScene.update() desenhava tudo via `_menu()`, mas
+    # GameLoop._render_frame() chama update() ANTES de begin_frame() (que
+    # limpa a tela) e o render() da cena só desenhava o overlay de dev --
+    # navegação funcionava, nada aparecia na tela ("tela preta, botões
+    # invisíveis"). Só um buffer de pixels de verdade pega isso.
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+    real_inp = NullInputProvider()
+    real_renderer = PygameRenderer()
+    real_renderer.initialize(1280, 720, "smoke")
+    real_app = GameApp(real_renderer, real_inp, None, DATA, save_data={})
+    real_loop = GameLoop(World(MemoryManager(entity_capacity=1)),
+                         real_renderer, real_inp, None)
+    real_app.game_loop = real_loop
+    real_loop.reset_scenes(MainMenuScene(real_app))
+    real_app.tick(1 / 60)
+    press(real_app, real_inp, "confirm")            # JOGAR -> MENU_MODE
+
+    bg = np.array((8, 8, 14))
+    region = pygame.surfarray.array3d(real_renderer._surface)[
+        MLL_X:MLL_X + MLL_W, MC_Y0:MC_Y1, :]
+    ok &= check("WizardScene desenha os itens de menu de verdade "
+               "(não só o fundo)", not np.all(region == bg))
+    real_renderer.shutdown()
 
     raise SystemExit(0 if ok else 1)
