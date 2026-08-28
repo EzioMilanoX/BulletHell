@@ -1489,7 +1489,11 @@ class WizardScene(IScene):
     def _header(self, title: str, step: int = 0, crumb: tuple = ()) -> None:
         r = self._app._r
         cx = SCREEN_W / 2
-        r.draw_text(cx, 8, title, 36, TXT, anchor="center")
+        # y=26, nao 8: `anchor="center"` poe metade da altura do texto
+        # (fonte 36) ACIMA de y -- em y=8 isso cortava o topo das letras
+        # na borda da tela (so ficou visivel depois do fix da tela preta,
+        # nunca tinha chegado a desenhar antes).
+        r.draw_text(cx, 26, title, 36, TXT, anchor="center")
         if step <= 0:
             return
         dot_r, gap = 5, 30

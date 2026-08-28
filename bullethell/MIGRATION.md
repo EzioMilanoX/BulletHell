@@ -824,6 +824,13 @@ outros 9.
         essa checagem permanente (com o `PygameRenderer` real, não o
         `NullRenderer` — que nunca pegaria esta classe de bug, já que
         não desenha nada de verdade). 6/6 smoke tests + 174 pytest OK.
+        Follow-up (feedback visual do usuário, assim que a wizard passou
+        a desenhar de verdade): o título de `_header()` (ex.: "MODO DE
+        JOGO") ficava cortado no topo da tela — `anchor="center"` em
+        `y=8` com fonte 36 põe boa parte da altura do texto ACIMA da
+        borda. Nunca tinha aparecido antes porque a wizard não desenhava
+        nada. Corrigido pra `y=26` (folga suficiente até os step-dots em
+        `y=82`). 6/6 smoke tests + 174 pytest OK.
 
 Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
 - [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
