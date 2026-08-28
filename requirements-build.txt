@@ -14,4 +14,4 @@ pyinstaller==6.21.0
 # reproduzível mesmo sem o repo-irmão no disco. NÃO instalar via
 # `pip install -e ../OuroborosEngine` pra este fim — editable install
 # usa um finder de import que o PyInstaller não enxerga como pasta real.
-wheels/ouroboros_engine-0.1.0-py3-none-any.whl
+wheels/ouroboros_engine-0.2.1-py3-none-any.whl
