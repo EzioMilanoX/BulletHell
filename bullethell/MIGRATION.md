@@ -22,7 +22,7 @@ colunas NumPy, não objetos. O port usa ECS pleno, sem carve-out.
 
 ```
 main_ecs.py                  # entrada: python main_ecs.py [--boss ...] [--weapon ...]
-smoke_ecs.py                 # teste headless (null backends): 6 cenários
+tests/                       # suíte pytest headless (null backends + SDL dummy)
 bullethell/
   __init__.py                # coloca ../OuroborosEngine no sys.path
   ids.py                     # sid() = zlib.crc32(nome)
@@ -36,7 +36,6 @@ bullethell/
     weapons.json             # 10 armas (5 portadas + 5 "special")
     bosses.json              # bosses: hp, rota, partes, fases→emitters
     input_bindings.json      # WASD + SPACE + 1..5 + P
-  design/                    # rascunhos da fase de design (API hipotética)
 ```
 
 ## 3. Pools e arquétipos
@@ -73,9 +72,11 @@ de colisão podem destruir à vontade sem invalidar linhas densas do frame.
 
 ## 5. Verificação
 
-- `python smoke_ecs.py` — 6 cenários headless (900 frames cada): padrão,
-  spread, agulha+, plasma (com approach — alcance 120px), teleguiado,
-  timemage. Verifica spawn de padrões, dano no boss, graze, cull. 6/6 OK.
+- `pytest` — suíte headless em `tests/` (null backends da engine + driver
+  SDL "dummy"). Nasceu como 6 cenários em `smoke_ecs.py` (900 frames cada:
+  padrão, spread, agulha+, plasma, teleguiado, timemage); os `smoke_*.py`
+  cresceram fase a fase (ver o histórico abaixo) e na v2.0.0 viraram
+  testes pytest de verdade — ver "Fase 16".
 - `python main_ecs.py` — janela real; render placeholder da engine
   (retângulos coloridos; pipeline de texturas é roadmap da engine).
 
@@ -832,11 +833,33 @@ outros 9.
         nada. Corrigido pra `y=26` (folga suficiente até os step-dots em
         `y=82`). 6/6 smoke tests + 174 pytest OK.
 
-Fase 15 (futuro — fora do escopo deste port, ver PARITY_PLAN.md):
-- [ ] **Tela Cheia** — exigiria método novo no `IRenderer` da engine,
-      fora de escopo deste port.
+Fase 15:
+- [x] **Tela Cheia** — terceiro toggle em SISTEMA desde `44372fa`
+      (`IRenderer.set_fullscreen` da engine, `scenes.py`
+      `SettingsScene`). Faltava reaplicar o valor salvo ao abrir o jogo
+      (removido sob a suspeita da tela preta que no fim era a 14n):
+      `main_ecs._apply_boot_settings()` reaplica uma vez, logo após
+      `renderer.initialize()`, só quando o save pede, e volta pra janela
+      (desligando o toggle) se a troca de modo falhar.
 - [ ] Música procedural ou faixas (play_track já existe na engine)
 - [ ] Texturas/sprites (ROADMAP M3 da engine)
 
-O jogo legado (`main.py`) permanece intacto e jogável — o port evolui em
-paralelo até a paridade.
+Fase 16 — **v2.0.0: o legado sai do repositório.** Com a paridade
+fechada (P0/P1/P2 do PARITY_PLAN.md) e o Decálogo só existindo no port,
+manter dois jogos virou custo puro. Antes de remover, a tag anotada
+`legacy-final` marca o último commit com o legado inteiro (`main.py`,
+`entities.py`, os JSONs da raiz, `src/` C++, `packaging/legado.spec`,
+`build.bat`) — as referências `main.py:NNN`/`entities.py:NNN` espalhadas
+nos comentários do port continuam resolvíveis por ela.
+      - Os 174 testes pytest do legado (só importavam `entities.py`) e os
+        6 `smoke_*.py` do port (scripts fora do pytest) dão lugar a uma
+        suíte pytest só do ECS em `tests/`: os smoke viram testes com um
+        assert por comportamento, e a INTENÇÃO dos testes do legado (FSM
+        de bosses e gimmicks dos pecados, pools/armazenamento de balas,
+        colisão/dano, padrões, progressão/registros, replay
+        determinístico) é reescrita contra os sistemas ECS.
+      - Save atômico: `main_ecs.py` usa `SaveFile` da engine 0.3.0
+        (`.tmp` + `os.replace`); o `.bak` de 1 geração só copia um
+        principal que ainda lê como válido.
+      - Um `.exe` só (`BulletHell.exe`); `release.yml` roda o pytest antes
+        de buildar.

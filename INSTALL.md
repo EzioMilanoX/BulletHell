@@ -1,39 +1,35 @@
 # Instalar e jogar
 
-Duas versões, dois `.exe` — nenhuma exige Python instalado.
+Um `.exe` só — `BulletHell.exe` — que não exige Python instalado. Ele
+vem num `.zip` na [página de Releases](https://github.com/EzioMilanoX/BulletHell/releases)
+— baixe o da versão mais recente.
 
-| | **Legado** | **ECS** |
-|---|---|---|
-| Arquivo | `BulletHellLegado.exe` | `BulletHellECS.exe` |
-| Motor | Python/pygame-ce puro (`main.py`) | Port sobre a [OuroborosEngine](https://github.com/EzioMilanoX/OuroborosEngine) (ECS/DOD) |
-| Conteúdo | Jogo original | Mesmo jogo + dev overlay, replay, masteries, DDA (ver `bullethell/PARITY_PLAN.md`) |
-| Save | `save.json` | `save_ecs.json` |
-
-Ambos vêm na [página de Releases](https://github.com/EzioMilanoX/BulletHell/releases) —
-baixe o `.zip` da versão mais recente.
+> Vindo da v1.x? Ela trazia dois `.exe` (`BulletHellLegado.exe` e
+> `BulletHellECS.exe`). A partir da v2.0.0 só existe o jogo ECS, agora
+> chamado só `BulletHell.exe`. Pra manter o progresso, extraia o novo
+> `.exe` **na mesma pasta** do `BulletHellECS.exe` antigo — o save
+> (`save_ecs.json`) é o mesmo arquivo. O `save.json` do Legado não é
+> lido pela v2.
 
 ## Como rodar
 
 1. Baixe e extraia o `.zip` numa pasta qualquer (não precisa ser
    `Arquivos de Programas` — o jogo não escreve nada fora da própria
    pasta).
-2. **`BulletHellLegado.exe` precisa dos arquivos `balance.json` e
-   `waves.json` na mesma pasta** — eles já vêm juntos no `.zip`, só
-   não separe o `.exe` deles. `BulletHellECS.exe` não tem essa
-   exigência — é 100% autocontido, um arquivo só.
-3. Dê duplo clique. Se o Windows Defender/SmartScreen avisar
-   "Windows protegeu o seu PC" (comum pra `.exe` sem assinatura
-   digital — assinar custa uma licença de certificado que este
-   projeto não tem), clique em **Mais informações → Executar assim
-   mesmo**.
-4. O progresso (conquistas, dificuldades destravadas, masteries) fica
-   em `save.json`/`save_ecs.json`, criado na mesma pasta do `.exe` na
-   primeira execução. Apagar esse arquivo reseta o progresso.
-5. A cada vez que o jogo grava o save, ele guarda uma cópia do save
-   anterior em `save.json.bak`/`save_ecs.json.bak` — se o processo for
-   morto no meio de uma escrita (queda de energia, fechar pelo Gerenciador
-   de Tarefas) e o arquivo principal corromper, o jogo recupera do `.bak`
-   sozinho na próxima abertura em vez de resetar o progresso.
+2. Dê duplo clique em `BulletHell.exe`. Ele é 100% autocontido, um
+   arquivo só. Se o Windows Defender/SmartScreen avisar "Windows
+   protegeu o seu PC" (comum pra `.exe` sem assinatura digital —
+   assinar custa uma licença de certificado que este projeto não tem),
+   clique em **Mais informações → Executar assim mesmo**.
+3. O progresso (conquistas, dificuldades destravadas, masteries,
+   registros, opções de SISTEMA) fica em `save_ecs.json`, criado na
+   mesma pasta do `.exe` na primeira execução. Apagar esse arquivo
+   reseta o progresso.
+4. O save é gravado de forma atômica (arquivo temporário + troca), e a
+   cada gravação o jogo guarda a geração anterior em
+   `save_ecs.json.bak`. Se o arquivo principal estiver ilegível na
+   próxima abertura, o jogo recupera do `.bak` sozinho em vez de
+   resetar o progresso.
 
 ## Requisitos
 
@@ -43,27 +39,31 @@ baixe o `.zip` da versão mais recente.
 
 ## Se algo não abrir
 
-Ambos os `.exe` são "windowed" (sem console) — se o jogo não abrir e
-nenhum erro aparecer, o motivo mais provável é o SmartScreen do
-Windows bloqueando silenciosamente. Confira o aviso do Explorer
-(clique direito no `.exe` → Propriedades → se tiver um botão
-"Desbloquear" no rodapé, clique nele) antes de reportar bug.
+O `.exe` é "windowed" (sem console) — se o jogo não abrir e nenhum erro
+aparecer, o motivo mais provável é o SmartScreen do Windows bloqueando
+silenciosamente. Confira o aviso do Explorer (clique direito no `.exe` →
+Propriedades → se tiver um botão "Desbloquear" no rodapé, clique nele)
+antes de reportar bug.
 
 Se o jogo abrir e fechar sozinho com um erro, confira `crash.log` na
 mesma pasta do `.exe` — todo erro não tratado é registrado ali (com
 data/hora e o traceback completo) antes do jogo fechar. Anexe esse
 arquivo ao reportar um bug.
 
+Se a **Tela Cheia** (menu SISTEMA) deixar a tela preta no seu monitor,
+apague a linha `"fullscreen": true` de `save_ecs.json` (ou troque por
+`false`) — o jogo volta a abrir em janela.
+
 ---
 
 ## Para quem for buildar a partir do código-fonte
 
-Isto é só pra quem quer gerar os `.exe` de novo (ex.: depois de mudar
-o código) — quem só quer jogar usa a seção acima.
+Isto é só pra quem quer gerar o `.exe` de novo (ex.: depois de mudar o
+código) — quem só quer jogar usa a seção acima.
 
-### Por que não é só `pyinstaller main.py`
+### Por que não é só `pyinstaller main_ecs.py`
 
-O port ECS (`main_ecs.py`) depende da
+O jogo depende da
 [OuroborosEngine](https://github.com/EzioMilanoX/OuroborosEngine), que
 não está no PyPI. Em desenvolvimento isso é resolvido de duas formas
 soltas — um `sys.path.insert` direto pro repo-irmão
@@ -75,7 +75,7 @@ manual — e nenhuma das duas funciona bem com o PyInstaller:
   está vivo, não durante o build.
 - O editable install moderno do `setuptools` (PEP 660) registra um
   **finder de import** (não uma pasta normal com arquivos reais) —
-  o `modulegraph` as vezes não consegue seguir esse finder e o pacote
+  o `modulegraph` às vezes não consegue seguir esse finder e o pacote
   fica de fora do bundle, silenciosamente.
 
 A solução usada aqui: buildar um **wheel de verdade** da engine a
@@ -93,35 +93,33 @@ fica versionado em `wheels/`).
 #    no disco, pule este passo: o wheel já versionado em wheels/ basta.
 .\tools\build_engine_wheel.ps1
 
-# 2. buildar os dois .exe (cria um venv limpo em .build_venv, instala
-#    requirements-build.txt, roda o PyInstaller pros dois specs em
-#    packaging/, copia balance.json/waves.json pra dist/)
+# 2. buildar o .exe (cria um venv limpo em .build_venv, instala
+#    requirements-build.txt e roda o PyInstaller com packaging/ecs.spec)
 .\tools\build_exes.ps1
 ```
 
-Resultado em `dist/`: `BulletHellLegado.exe`, `BulletHellECS.exe`,
-`balance.json`, `waves.json`.
+Resultado em `dist/`: `BulletHell.exe`.
 
 ### Ou deixa o CI buildar
 
-`git push` numa tag `vX.Y.Z` roda `.github/workflows/release.yml`, que
-faz exatamente os dois passos acima (sem precisar do repo-irmão — usa
-o wheel já versionado) e publica os dois `.zip` como assets da Release
-automaticamente. `.github/workflows/ci.yml` roda os 6 smoke tests
-headless em todo push/PR pra `main` (não builda `.exe`, só valida que
-nada quebrou).
+`git push` numa tag `vX.Y.Z` roda `.github/workflows/release.yml`: roda
+a suíte pytest, faz exatamente o passo 2 acima (sem precisar do
+repo-irmão — usa o wheel já versionado) e publica
+`BulletHell-vX.Y.Z-win64.zip` como asset da Release, com as notas da
+seção correspondente do [CHANGELOG.md](CHANGELOG.md).
+`.github/workflows/ci.yml` roda `ruff check .` + `pytest` em todo
+push/PR pra `main` (não builda `.exe`, só valida que nada quebrou).
 
 ### Arquivos relevantes
 
 ```
-packaging/legado.spec         # spec do PyInstaller — main.py, sem engine
-packaging/ecs.spec            # spec do PyInstaller — main_ecs.py, com a engine
+packaging/ecs.spec            # spec do PyInstaller — main_ecs.py + bullethell/data, com a engine
 requirements-build.txt        # deps pinadas do venv de build (não confundir com requirements.txt, que é pra dev)
 wheels/ouroboros_engine-*.whl # wheel versionado da engine (ver ENGINE_COMMIT.txt ao lado)
 tools/build_engine_wheel.ps1  # gera o wheel a partir do repo-irmão
-tools/build_exes.ps1          # orquestra venv + PyInstaller + cópia dos JSONs
-.github/workflows/ci.yml      # smoke tests em todo push/PR
-.github/workflows/release.yml # build + publish automático em tag vX.Y.Z
+tools/build_exes.ps1          # orquestra venv + PyInstaller
+.github/workflows/ci.yml      # lint + pytest em todo push/PR
+.github/workflows/release.yml # pytest + build + publish automático em tag vX.Y.Z
 ```
 
 ### Pegadinhas que já mordemos (documentadas pra não repetir)
@@ -141,9 +139,7 @@ tools/build_exes.ps1          # orquestra venv + PyInstaller + cópia dos JSONs
   caminho de save calculado assim perde o progresso entre sessões.
   `main_ecs.py` usa `Path(sys.executable).parent` quando
   `sys.frozen` está setado.
-- **`balance.json`/`waves.json` do legado**: `main.py` os abre por
-  string relativa (`"balance.json"`), resolvida contra o **cwd** do
-  processo — não contra `__file__` nem `sys._MEIPASS`. Embutir esses
-  JSONs no bundle onefile não ajudaria (ficariam na pasta temp de
-  extração, não no cwd); por isso eles vão soltos ao lado do `.exe`
-  em vez de embutidos.
+- **`pip wheel` do repo-irmão suja a pasta dele**: o build in-tree do
+  setuptools deixa `build/` e `*.egg-info` no repo da engine. Pra um
+  wheel limpo sem tocar no repo-irmão, builde a partir de um
+  `git archive` do commit desejado numa pasta temporária.

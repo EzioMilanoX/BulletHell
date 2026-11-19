@@ -1,11 +1,15 @@
 name: Release
 
-# Builda os dois .exe standalone (ver tools/build_exes.ps1, INSTALL.md)
-# e publica como Release toda vez que uma tag "v*.*.*" for empurrada.
-# O repo-irmao OuroborosEngine nao existe neste runner — o script usa o
-# wheel ja versionado em wheels/ automaticamente (Test-Path falha, pula
-# o rebuild). Isso e o motivo de termos comitado o wheel em vez de só
-# depender do checkout do repo-irmao.
+# Publica uma Release toda vez que uma tag "v*.*.*" for empurrada:
+# 1. roda a suite pytest (headless) — tag em commit quebrado nao vira .exe;
+# 2. builda o BulletHell.exe standalone (tools/build_exes.ps1, ver
+#    INSTALL.md) e empacota num .zip;
+# 3. cria a Release da tag com o .zip como asset e notas geradas.
+#
+# O repo-irmao OuroborosEngine nao existe neste runner — tanto o pytest
+# quanto o build_exes.ps1 usam o wheel ja versionado em wheels/ (o script
+# testa ..\OuroborosEngine, nao acha e pula o rebuild). Isso e o motivo
+# de termos comitado o wheel em vez de so depender do repo-irmao.
 
 on:
   push:
@@ -18,6 +22,9 @@ permissions:
 jobs:
   build-and-release:
     runs-on: windows-latest
+    env:
+      SDL_VIDEODRIVER: dummy
+      SDL_AUDIODRIVER: dummy
     steps:
       - uses: actions/checkout@v4
 
@@ -25,19 +32,24 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Builda os dois .exe (venv limpo + PyInstaller)
+      - name: Testes (pytest, headless)
+        shell: pwsh
+        run: |
+          python -m pip install -r requirements.txt pytest
+          python -m pip install (Get-Item wheels\ouroboros_engine-*.whl).FullName
+          python -m pytest -q
+
+      - name: Builda o .exe (venv limpo + PyInstaller)
         shell: pwsh
         run: .\tools\build_exes.ps1
 
-      - name: Empacota os .zip de release
+      - name: Empacota o .zip de release
         shell: pwsh
         run: |
           $tag = "${{ github.ref_name }}"
-          New-Item -ItemType Directory -Force -Path staging\Legado, staging\ECS | Out-Null
-          Copy-Item dist\BulletHellLegado.exe, balance.json, waves.json staging\Legado\
-          Copy-Item dist\BulletHellECS.exe staging\ECS\
-          Compress-Archive -Path staging\Legado\* -DestinationPath "BulletHellLegado-$tag-win64.zip"
-          Compress-Archive -Path staging\ECS\* -DestinationPath "BulletHellECS-$tag-win64.zip"
+          New-Item -ItemType Directory -Force -Path staging | Out-Null
+          Copy-Item dist\BulletHell.exe staging\
+          Compress-Archive -Path staging\* -DestinationPath "BulletHell-$tag-win64.zip"
 
       - name: Publica a Release
         shell: pwsh
@@ -46,7 +58,6 @@ jobs:
         run: |
           $tag = "${{ github.ref_name }}"
           gh release create $tag `
-            "BulletHellLegado-$tag-win64.zip" `
-            "BulletHellECS-$tag-win64.zip" `
+            "BulletHell-$tag-win64.zip" `
             --title "$tag" `
             --generate-notes

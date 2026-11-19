@@ -1,5 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
-"""PyInstaller spec do port ECS (main_ecs.py, sobre a OuroborosEngine).
+"""PyInstaller spec do jogo (main_ecs.py, sobre a OuroborosEngine) -> BulletHell.exe.
 
 Uso (de dentro de .build_venv, ver tools/build_exes.ps1):
     pyinstaller packaging/ecs.spec --noconfirm
@@ -49,7 +49,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="BulletHellECS",
+    name="BulletHell",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,

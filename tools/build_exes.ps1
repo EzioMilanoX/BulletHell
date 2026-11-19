@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builda BulletHellLegado.exe e BulletHellECS.exe standalone (Windows).
+    Builda o BulletHell.exe standalone (Windows).
 
 .DESCRIPTION
     Cria um venv LIMPO em .build_venv (nunca reusa o venv de dev -- e
@@ -8,7 +8,7 @@
     install/sys.path hack que confunde o PyInstaller, ver
     requirements-build.txt e packaging/ecs.spec), instala as
     dependencias pinadas + o wheel local da engine, e roda o
-    PyInstaller pros dois specs em packaging/.
+    PyInstaller com packaging/ecs.spec.
 
 .PARAMETER SkipWheelRebuild
     Nao regera wheels/ouroboros_engine-*.whl -- usa o que ja esta
@@ -51,24 +51,11 @@ $venvPy = Join-Path $venvDir "Scripts\python.exe"
 & $venvPy -m pip install --quiet -r (Join-Path $repoRoot "requirements-build.txt")
 if ($LASTEXITCODE -ne 0) { throw "pip install falhou (exit $LASTEXITCODE)" }
 
-Write-Host "== PyInstaller: legado =="
-& $venvPy -m PyInstaller (Join-Path $repoRoot "packaging\legado.spec") `
-    --noconfirm --distpath (Join-Path $repoRoot "dist") `
-    --workpath (Join-Path $repoRoot "build_pyinstaller")
-if ($LASTEXITCODE -ne 0) { throw "PyInstaller (legado) falhou" }
-
-Write-Host "== PyInstaller: ECS =="
+Write-Host "== PyInstaller =="
 & $venvPy -m PyInstaller (Join-Path $repoRoot "packaging\ecs.spec") `
     --noconfirm --distpath (Join-Path $repoRoot "dist") `
     --workpath (Join-Path $repoRoot "build_pyinstaller")
-if ($LASTEXITCODE -ne 0) { throw "PyInstaller (ECS) falhou" }
-
-# balance.json/waves.json: main.py os abre por caminho relativo ao cwd,
-# nao da pra embutir no bundle onefile (ver packaging/legado.spec) --
-# tem que ficar soltos ao lado do .exe.
-Copy-Item (Join-Path $repoRoot "balance.json") (Join-Path $repoRoot "dist") -Force
-Copy-Item (Join-Path $repoRoot "waves.json") (Join-Path $repoRoot "dist") -Force
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller falhou" }
 
 Write-Host ""
-Write-Host "OK -- dist\BulletHellLegado.exe + dist\BulletHellECS.exe"
-Write-Host "(dist\balance.json e dist\waves.json precisam continuar ao lado do Legado.exe)"
+Write-Host "OK -- dist\BulletHell.exe (autocontido: bullethell/data/*.json vao dentro do bundle)"
