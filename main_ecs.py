@@ -15,11 +15,11 @@ Menus:     W/S navegar · D/ENTER confirmar · A/ESC voltar
 Fim de run: T joga de novo · R volta ao menu
 """
 import argparse
-import json
 import sys
 from pathlib import Path
 
 import bullethell  # noqa: F401  — garante a engine no sys.path
+from ouroboros.bootstrap.save_file import SaveFile
 
 # Path(__file__).parent aponta pra uma pasta temp nova a cada execução sob
 # PyInstaller --onefile (sys._MEIPASS muda por processo) — usar a pasta do
@@ -45,17 +45,30 @@ def _load_save() -> dict:
             "best_time_dificil": 0.0,
             "settings": {"screen_shake": True, "show_hitbox": False, "fullscreen": False}}
     # save principal, senão o .bak (gravado pelo _persist() anterior) antes
-    # de aceitar os defaults — protege contra escrita interrompida no meio
-    # (queda de energia, disco cheio) corromper o JSON
+    # de aceitar os defaults. SaveFile.read() da engine nunca levanta:
+    # ausente, JSON corrompido ou raiz que não é objeto viram {} — e {}
+    # aqui significa "tenta o próximo".
     for path in (SAVE_PATH, BACKUP_PATH):
-        if not path.exists():
-            continue
-        try:
-            save.update(json.loads(path.read_text(encoding="utf-8")))
+        loaded = SaveFile(path).read()
+        if loaded:
+            save.update(loaded)
             break
-        except Exception:
-            continue
     return save
+
+
+def _apply_boot_settings(renderer, save: dict) -> None:
+    """Reaplica no boot o que SISTEMA guardou e precisa do renderer já
+    inicializado — hoje só a Tela Cheia. Só troca o modo de tela se o save
+    pedir (modo janela é o que `initialize()` já deixou pronto, nenhuma
+    troca extra à toa). Se a troca falhar no hardware de quem joga, volta
+    pra janela e desliga o toggle no save em vez de derrubar o boot."""
+    settings = save.setdefault("settings", {})
+    if not settings.get("fullscreen", False):
+        return
+    try:
+        renderer.set_fullscreen(True)
+    except Exception:
+        settings["fullscreen"] = False
 
 
 def _persist(save: dict, totals: dict, achieved: set) -> None:
@@ -66,16 +79,17 @@ def _persist(save: dict, totals: dict, achieved: set) -> None:
     save["total_graze"] += totals["graze"]
     save["total_parries"] += totals.get("parries", 0)
     save["achievements"] = sorted(achieved)
-    # backup de 1 geração antes de sobrescrever — mesmo raciocínio do load
-    if SAVE_PATH.exists():
-        try:
-            BACKUP_PATH.write_bytes(SAVE_PATH.read_bytes())
-        except Exception:
-            pass
-    try:
-        SAVE_PATH.write_text(json.dumps(save, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    # backup de 1 geração antes de sobrescrever — só de um save que ainda
+    # lê como válido: copiar um principal corrompido por cima do .bak
+    # destruiria justamente a cópia boa que o _load_save() procuraria.
+    previous = SaveFile(SAVE_PATH).read()
+    if previous:
+        SaveFile(BACKUP_PATH).write(previous)
+    # escrita atômica (SaveFile: .tmp ao lado + os.replace) — um
+    # desligamento no meio deixa o save anterior intacto, nunca meio JSON.
+    # Falha de I/O (pasta sem permissão, disco cheio) devolve False e
+    # segue: custa o progresso da sessão, não derruba o jogo ao sair.
+    SaveFile(SAVE_PATH).write(save)
     if totals["runs"]:
         print(f"sessão: {totals['kills']} kills em {totals['runs']} runs — "
               f"totais: {save['total_kills']} kills / "
@@ -119,6 +133,7 @@ def main() -> None:
     save = _load_save()
     renderer = PygameRenderer()
     renderer.initialize(SCREEN_W, SCREEN_H, "BULLET HELL — OuroborosEngine")
+    _apply_boot_settings(renderer, save)
     input_provider = PygameInputProvider()
     input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
     audio = PygameAudioEngine()

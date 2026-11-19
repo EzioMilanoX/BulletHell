@@ -358,15 +358,13 @@ class GameApp:
         settings = self.save.setdefault(
             "settings", {"screen_shake": True, "show_hitbox": False, "fullscreen": False})
         settings.setdefault("fullscreen", False)
-        # NAO reaplicamos "fullscreen" salvo aqui no boot (chegou a ser
-        # feito, e foi revertido): alternar o modo de exibicao logo na
-        # construcao -- por cima do modo janela que `renderer.initialize()`
-        # ja deixou pronto -- e uma segunda troca de modo de tela em
-        # sequencia rapida, e um usuario real relatou tela preta ao abrir o
-        # jogo com "fullscreen": true salvo (nunca testado em hardware real,
-        # so sob o driver SDL dummy, que nao pega falha de troca de modo de
-        # verdade). O toggle em SISTEMA continua funcionando -- só não é
-        # mais reaplicado automaticamente a cada boot.
+        # "fullscreen" salvo NAO e reaplicado aqui: GameApp e construido
+        # tambem pelos testes (NullRenderer) e por cada troca de sessao, e
+        # trocar modo de tela e coisa de boot -- main_ecs.py faz isso uma
+        # vez, logo apos `renderer.initialize()` (`_apply_boot_settings`),
+        # e so quando o save pede. (A tela preta que chegou a ser atribuida
+        # a esse reaplicar era a WizardScene desenhando no lugar errado --
+        # ver MIGRATION.md 14n.)
         self.replay_frames: list = []   # [(bitmask, dt), ...] da run atual
         self._last_cfg: dict | None = None
         self._replay_input: ReplayInputProvider | None = None

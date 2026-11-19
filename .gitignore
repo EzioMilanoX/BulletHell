@@ -6,8 +6,10 @@ __pycache__/
 # Dados locais do jogador (progresso pessoal, não versionar)
 save.json
 save_ecs.json
-save.json.bak
-save_ecs.json.bak
+# backups do save (save_ecs.json.bak automático + cópias manuais tipo
+# save_ecs.json.beforefix.bak) e o .tmp da escrita atômica (SaveFile)
+*.bak
+*.tmp
 
 # Logs de debug
 err.txt
