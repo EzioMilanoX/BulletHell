@@ -863,3 +863,7 @@ nos comentários do port continuam resolvíveis por ela.
         principal que ainda lê como válido.
       - Um `.exe` só (`BulletHell.exe`); `release.yml` roda o pytest antes
         de buildar.
+      - `bullethell/design/*_draft.py` (rascunhos da API hipotética da
+        fase de design, nunca importados por nada) saem também; o
+        `ruff.toml` perde as exceções F403/F405 que só existiam por causa
+        de `import *` no legado e nos rascunhos.
