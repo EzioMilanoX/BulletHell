@@ -18,7 +18,7 @@ import argparse
 import sys
 from pathlib import Path
 
-import bullethell  # noqa: F401  — garante a engine no sys.path
+import bullethell  # garante a engine no sys.path; __version__ no título
 from ouroboros.bootstrap.save_file import SaveFile
 
 # Path(__file__).parent aponta pra uma pasta temp nova a cada execução sob
@@ -132,7 +132,8 @@ def main() -> None:
     data = load_all()
     save = _load_save()
     renderer = PygameRenderer()
-    renderer.initialize(SCREEN_W, SCREEN_H, "BULLET HELL — OuroborosEngine")
+    renderer.initialize(SCREEN_W, SCREEN_H,
+                        f"BULLET HELL v{bullethell.__version__} — OuroborosEngine")
     _apply_boot_settings(renderer, save)
     input_provider = PygameInputProvider()
     input_provider.load_bindings(str(DATA_DIR / "input_bindings.json"))
