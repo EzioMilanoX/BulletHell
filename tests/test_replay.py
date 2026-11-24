@@ -2,17 +2,21 @@
 ReplayRecorder do legado). O port não usa RNG global — toda
 "aleatoriedade" é hash determinístico por contador — então a mesma
 sequência de inputs reproduz EXATAMENTE a mesma trajetória.
+
+Gravação/reprodução são da engine (`ouroboros.bootstrap.replay`, testada
+lá: bordas, fim, arquivo, dessincronização); aqui fica o que é do jogo — as
+ações gravadas, a cena de replay e o determinismo dos sistemas.
 """
 import numpy as np
 import pytest
 
 from helpers import make_app, step
 
+from ouroboros.bootstrap.replay import ActionMask
 from ouroboros.interfaces.null.null_input_provider import NullInputProvider
 
 from bullethell.composition import build_headless
-from bullethell.replay import REPLAY_ACTIONS, ReplayInputProvider, encode_frame
-from bullethell.scenes import PLAYING, REPLAYING
+from bullethell.scenes import PLAYING, REPLAY_ACTIONS, REPLAY_HASH_EVERY, REPLAYING
 
 FRAMES = 400
 
@@ -32,37 +36,21 @@ def _boss_hp(world) -> float:
 
 
 # ---------------------------------------------------------------------------
-# ReplayInputProvider (unidade)
+# as ações gravadas
 # ---------------------------------------------------------------------------
 
-def test_encode_frame_um_bit_por_acao():
+def test_acoes_do_replay_um_bit_cada_na_ordem_de_sempre():
+    """A ordem é o formato: mudar quebra replays (só acrescentar no fim)."""
+    assert REPLAY_ACTIONS[:8] == ("move_up", "move_down", "move_left", "move_right",
+                                  "fire", "skill", "toggle_plus", "toggle_skill_plus")
+    mask = ActionMask(REPLAY_ACTIONS)
     inp = NullInputProvider()
-    assert encode_frame(inp) == 0
+    assert mask.encode(inp) == 0
     inp.set_action_held("fire", True)
     inp.set_action_held("move_left", True)
     inp.poll()
-    bits = encode_frame(inp)
-    assert bits == (1 << REPLAY_ACTIONS.index("fire")) | \
+    assert mask.encode(inp) == (1 << REPLAY_ACTIONS.index("fire")) | \
         (1 << REPLAY_ACTIONS.index("move_left"))
-
-
-def test_replay_input_provider_bordas_e_fim():
-    fire = 1 << REPLAY_ACTIONS.index("fire")
-    rp = ReplayInputProvider([(0, 0.01), (fire, 0.02), (fire, 0.03), (0, 0.04)])
-    rp.poll()
-    assert not rp.is_action_held("fire")
-    rp.poll()
-    assert rp.is_action_pressed("fire") and rp.is_action_held("fire")
-    assert rp.current_dt() == pytest.approx(0.02)
-    rp.poll()
-    assert rp.is_action_held("fire") and not rp.is_action_pressed("fire")
-    rp.poll()
-    assert rp.is_action_released("fire")
-    assert not rp.is_action_held("acao_inexistente")
-    rp.poll()
-    assert not rp.has_more()
-    assert rp.current_dt() == pytest.approx(1 / 60)
-    assert rp.wants_quit() is False
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +79,7 @@ def test_grava_e_reproduz_bit_a_bit(data):
                    skill="none", weapon="padrao")
     app.start_game()
     assert app.state == PLAYING
-    assert app.replay_frames == []
+    assert len(app.replay) == 0
 
     original = []
     for f in range(FRAMES):
@@ -101,7 +89,10 @@ def test_grava_e_reproduz_bit_a_bit(data):
         if app.state != PLAYING:
             break
         original.append(_boss_hp(app.world))
-    assert len(app.replay_frames) == len(original)
+    assert len(app.replay) == len(original)
+    gravado = app.replay.replay()
+    assert len(gravado.hash_frames) == -(-len(original) // REPLAY_HASH_EVERY)
+    assert gravado.game_version and gravado.seed == 0
 
     app._finish_run("abandon")              # fecha a run (como ESC faria)
     app._start_replay()
@@ -115,3 +106,25 @@ def test_grava_e_reproduz_bit_a_bit(data):
         if app.state == REPLAYING:
             reproduzido.append(_boss_hp(app.world))
     assert reproduzido == original
+    assert not app._replay_input.desynced     # os hashes de estado bateram
+
+
+def test_cheat_na_gravacao_aparece_como_dessincronizacao(data):
+    """Godmode (dev mode) mexe no jogador fora do input gravado: o replay não
+    é mais a run que aconteceu, e o hash pega isso no primeiro segundo."""
+    app, inp = make_app(data)
+    app.sel.update(mode="classic", diff="facil", boss="classic",
+                   skill="none", weapon="padrao")
+    app.start_game()
+    app.godmode = True
+    for f in range(2 * REPLAY_HASH_EVERY + 5):
+        _drive_input(inp, f)
+        inp.poll()
+        app.tick(1 / 60)
+    app.godmode = False
+    app._finish_run("abandon")
+    app._start_replay()
+    while app.state == REPLAYING:
+        app.tick(1 / 60)
+    assert app._replay_input.desynced
+    assert app._replay_input.desync_frame == 0

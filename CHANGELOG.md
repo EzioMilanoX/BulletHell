@@ -3,6 +3,22 @@
 O que mudou em cada versão, do ponto de vista de quem joga. Detalhes
 técnicos de cada fase ficam em `bullethell/MIGRATION.md`.
 
+## Ainda sem versão
+
+- **Replay mais confiável:** o "W — ver replay" do fim da run agora usa o
+  replay da OuroborosEngine e confere, uma vez por segundo, se a partida
+  reproduzida é mesmo a que você jogou. Se não for (por exemplo, com uma
+  trapaça do dev mode ligada durante a run), o canto da tela mostra
+  **REPLAY (DESSINCRONIZOU)** em vez de fingir que está tudo certo.
+- A documentação (`docs.html`) não aponta mais para o jogo antigo: as gemas
+  do SATÉLITE e os mísseis em espera do TELEGUIADO+ são posicionados pelo
+  `OrbitSystem`, e o cabeçalho mostra a v2.0 (o jogo abre por `main_ecs.py`).
+- Para quem compila: o replay depende de um módulo novo da engine
+  (`ouroboros.bootstrap.replay`). O wheel em `wheels/` (engine 0.3.0, commit
+  05ad40a) ainda não o tem — depois de commitar a engine, rode
+  `tools/build_engine_wheel.ps1` e commite o wheel novo, senão o CI e o
+  build do `.exe` quebram no import.
+
 ## v2.0.0
 
 **Um jogo só, e onze bosses novos.**

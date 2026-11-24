@@ -12,6 +12,7 @@ from __future__ import annotations
 import numpy as np
 
 from ouroboros.bootstrap.audio_bank_loader import load_audio_bank
+from ouroboros.bootstrap.replay import ReplayInputProvider, ReplayRecorder, world_state_hash
 from ouroboros.bootstrap.scene import IScene
 from ouroboros.bootstrap.screen_shake import ScreenShake
 from ouroboros.core.memory.component_pool import intersect_entity_indices
@@ -20,9 +21,30 @@ from ouroboros.core.particle_storage import ParticleStorage
 from bullethell.composition import build_world
 from bullethell.game_systems import PLAYER_HIT_R, RUSH_ORDERS
 from bullethell.ids import sid
+from bullethell import __version__
 from bullethell.loaders import DATA_DIR, GameData, load_all
-from bullethell.replay import ReplayInputProvider, encode_frame
 from bullethell.schemas import SCREEN_H, SCREEN_W
+
+# ---------------------------------------------------------------------------
+# Replay (legado: `ReplayRecorder`, entities.py:4988-5029 — "W — Ver replay" na
+# tela de fim). Gravação/reprodução genéricas vêm da engine
+# (`ouroboros.bootstrap.replay`); aqui fica só o que é do jogo. O port não usa
+# RNG global em nenhum sistema (toda "aleatoriedade" é hash determinístico por
+# contador de emissor), então a semente gravada é sempre 0 — a simulação é
+# função só dos inputs e dos dt de cada frame.
+# ---------------------------------------------------------------------------
+# Ações lidas pelos sistemas de gameplay durante PLAYING (game_systems.py:
+# SkillSystem/PlayerControlSystem/WeaponFireSystem/FuseSystem/ChakramSystem).
+# A ORDEM é a dos bits gravados: só acrescente no fim.
+REPLAY_ACTIONS = ("move_up", "move_down", "move_left", "move_right",
+                  "fire", "skill", "toggle_plus", "toggle_skill_plus")
+# Pools conferidas pelo hash de dessincronização (1x por segundo): o estado
+# de gameplay. Ficam de fora as que a apresentação drena (particle_request,
+# a máscara de sfx do clock).
+REPLAY_HASH_POOLS = ("transform", "velocity", "player", "boss", "stats",
+                     "enemy_bullet", "pb_core")
+REPLAY_HASH_EVERY = 60
+REPLAY_CAPACITY = 60 * 60 * 15        # 15 min a 60 FPS pré-alocados
 
 # ---------------------------------------------------------------------------
 # Estados / catálogos dos menus
@@ -365,7 +387,11 @@ class GameApp:
         # e so quando o save pede. (A tela preta que chegou a ser atribuida
         # a esse reaplicar era a WizardScene desenhando no lugar errado --
         # ver MIGRATION.md 14n.)
-        self.replay_frames: list = []   # [(bitmask, dt), ...] da run atual
+        # gravação da run atual (bits das REPLAY_ACTIONS + dt por frame, em
+        # arrays pré-alocados da engine; hash do estado a cada segundo)
+        self.replay = ReplayRecorder(REPLAY_ACTIONS, capacity=REPLAY_CAPACITY,
+                                     hash_every=REPLAY_HASH_EVERY,
+                                     game_version=__version__)
         self._last_cfg: dict | None = None
         self._replay_input: ReplayInputProvider | None = None
         self.achieved: set = set(self.save.get("achievements", []))
@@ -661,7 +687,7 @@ class GameApp:
                            self.sel["boss"])
         self.intro_t = 0.0 if mode == "waves" else 2.4
         self.run_t = 0.0
-        self.replay_frames = []           # nova gravação (legado: W — replay)
+        self.replay.start(seed=0)         # nova gravação (legado: W — replay)
         self._last_cfg = {"boss": self.sel["boss"], "weapon": weapon,
                           "skill": skill, "muts": muts, "mode": mode,
                           "diff": self.sel["diff"]}
@@ -675,13 +701,13 @@ class GameApp:
         self.game_loop.reset_scenes(BulletHellGameplayScene(self))
 
     # ------------------------------------------------------------------
-    # replay (legado: ReplayRecorder — ver bullethell/replay.py)
+    # replay (legado: ReplayRecorder — hoje ouroboros.bootstrap.replay)
     # ------------------------------------------------------------------
     def _start_replay(self) -> None:
-        if not self.replay_frames or self._last_cfg is None:
+        if not self.replay or self._last_cfg is None:
             return
         cfg = self._last_cfg
-        self._replay_input = ReplayInputProvider(list(self.replay_frames))
+        self._replay_input = ReplayInputProvider(self.replay.replay())
         new_world = build_world(
             self._data, self._replay_input, boss_name=cfg["boss"],
             weapon_name=cfg["weapon"], skill_name=cfg["skill"],
@@ -704,8 +730,12 @@ class GameApp:
         self.game_loop.push_scene(EndScreenScene(self, scene, which))
 
     def _render_replay_tag(self) -> None:
-        self._r.draw_text(SCREEN_W - 14, 14, "REPLAY", 14, RED,
-                          anchor="topright")
+        ri = self._replay_input
+        # dessincronizou = o replay deixou de ser a run gravada (ex.: cheat do
+        # dev mode na gravação, ou bug de determinismo) — avisa em vez de
+        # mostrar uma partida que não aconteceu como se fosse ela
+        tag = "REPLAY (DESSINCRONIZOU)" if ri is not None and ri.desynced else "REPLAY"
+        self._r.draw_text(SCREEN_W - 14, 14, tag, 14, RED, anchor="topright")
 
     def _pump_sfx(self) -> None:
         """Toca os eventos sonoros marcados pelos sistemas e limpa a máscara."""
@@ -1128,7 +1158,7 @@ MODES_SHORT = [("classic", "CLÁSSICO"), ("rush", "BOSS RUSH"),
 # ---------------------------------------------------------------------------
 # IScenes (ROADMAP M8c) -- substituem o dispatch de 15 estados via if/elif
 # que `GameApp.tick()` fazia sozinho. `GameApp` continua existindo como
-# objeto de SESSAO (save/sel/achieved/totals/replay_frames/etc.) + os
+# objeto de SESSAO (save/sel/achieved/totals/replay/etc.) + os
 # helpers que nenhuma cena tem motivo pra duplicar (_render_world,
 # _apply_shake, _finish_run, ...) -- so quem POSSUI o loop principal e a
 # transicao de estado mudou, de `self.state = X` direto pra
@@ -1715,7 +1745,7 @@ class BulletHellGameplayScene(IScene):
     def update(self, world, delta_time: float) -> None:
         app = self._app
         app._update_dev_mode(delta_time)
-        app.replay_frames.append((encode_frame(app._input), delta_time))
+        app.replay.record(app._input, delta_time)
         app.run_t += delta_time
         if app.godmode:                          # F6 (dev mode)
             pl = world.get_pool("player")
@@ -1723,6 +1753,8 @@ class BulletHellGameplayScene(IScene):
             if pi.size:
                 pl.active_view()["invuln_t"][pl.dense_row_of(int(pi[0]))] = 999.0
         world.step(delta_time)
+        if app.replay.wants_hash():
+            app.replay.record_hash(world_state_hash(world, REPLAY_HASH_POOLS))
         app._pump_sfx()
         app._apply_shake(delta_time)
         app._drain_particle_requests(delta_time)
@@ -1762,8 +1794,8 @@ class BulletHellGameplayScene(IScene):
 
 class ReplayScene(IScene):
     """Mirror de `BulletHellGameplayScene`, dirigida por `ReplayInputProvider`
-    em vez do input real -- reproduz `app.replay_frames` gravados na run
-    anterior."""
+    (da engine) em vez do input real -- reproduz `app.replay`, gravado na run
+    anterior, e confere o hash do estado onde a gravação guardou um."""
 
     def __init__(self, app: "GameApp") -> None:
         self._app = app
@@ -1779,6 +1811,8 @@ class ReplayScene(IScene):
         dt = ri.current_dt()
         app.run_t += dt
         world.step(dt)
+        if ri.wants_hash():
+            ri.verify(world_state_hash(world, REPLAY_HASH_POOLS))
         app._pump_sfx()
         app._apply_shake(dt)
         app._drain_particle_requests(dt)
@@ -1815,7 +1849,7 @@ class EndScreenScene(IScene):
         inp = app._input
         if inp.is_action_pressed("retry"):
             app.start_game()
-        elif bool(app.replay_frames) and inp.is_action_pressed("move_up"):
+        elif bool(app.replay) and inp.is_action_pressed("move_up"):
             app._start_replay()
         elif inp.is_action_pressed("to_menu") or inp.is_action_pressed("back"):
             app.game_loop.reset_scenes(MainMenuScene(app))
@@ -1836,7 +1870,7 @@ class EndScreenScene(IScene):
         for k, name in enumerate(app.new_achievements[:4]):
             r.draw_text(SCREEN_W / 2, 370 + k * 28,
                         f"* NOVA CONQUISTA: {name}", 17, GOLD, anchor="center")
-        has_replay = bool(app.replay_frames)
+        has_replay = bool(app.replay)
         hint = "T  jogar de novo      R  menu"
         if has_replay:
             hint = "T  jogar de novo      W  ver replay      R  menu"
