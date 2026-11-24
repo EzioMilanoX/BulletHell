@@ -458,7 +458,7 @@ tr:hover td { background: rgba(255,255,255,0.02); }
   <div id="sidebar-logo">
     <div class="game-title">Documentação</div>
     <div class="game-name">BULLET<br>HELL</div>
-    <div class="game-ver">v1.9 · Python/pygame-ce</div>
+    <div class="game-ver">v2.0 · OuroborosEngine · <code>main_ecs.py</code></div>
   </div>
   <nav>
     <div class="nav-group">
@@ -789,8 +789,8 @@ tr:hover td { background: rgba(255,255,255,0.02); }
         <tr><td class="td-name">PB_FLAK</td><td class="td-mono">1</td><td>Projétil FLAK. damage=0, detona em estilhaços PB_NORMAL ao expirar o timer.</td><td>update() — move normalmente</td></tr>
         <tr><td class="td-name">PB_CHAKRAM</td><td class="td-mono">2</td><td>Disco CHAKRAM. Estado: 0=indo, 1=retornando, 2=frozen (CHAKRAM+).</td><td>update() — move com drag</td></tr>
         <tr><td class="td-name">PB_PLASMA</td><td class="td-mono">3</td><td>Bolt de plasma. Não é consumido por colisão — DPS via check_plasma_boss_collision(). pb_state=1 → spawna PB_PLASMA_PUDDLE ao expirar.</td><td>update() — move normalmente</td></tr>
-        <tr><td class="td-name">PB_ORBIT</td><td class="td-mono">4</td><td>Gema de satélite. Posição calculada externamente no game loop.</td><td>main.py — reposicionado por ângulo orbital</td></tr>
-        <tr><td class="td-name">PB_HOMING_HELD</td><td class="td-mono">5</td><td>Míssil TELEGUIADO+ aguardando lançamento. Orbita o jogador. Convertido para PB_NORMAL+homing ao soltar fire.</td><td>main.py — reposicionado por ângulo orbital</td></tr>
+        <tr><td class="td-name">PB_ORBIT</td><td class="td-mono">4</td><td>Gema de satélite. Posição derivada do jogador a cada frame (roda depois da física e sobrescreve).</td><td><code>OrbitSystem</code> (bullethell/game_systems.py) — reposicionado por ângulo orbital</td></tr>
+        <tr><td class="td-name">PB_HOMING_HELD</td><td class="td-mono">5</td><td>Míssil TELEGUIADO+ aguardando lançamento. Orbita o jogador. Convertido para PB_NORMAL+homing ao soltar fire.</td><td><code>OrbitSystem</code> (bullethell/game_systems.py) — reposicionado por ângulo orbital</td></tr>
         <tr><td class="td-name">PB_PLASMA_PUDDLE</td><td class="td-mono">6</td><td>Poça estacionária do PLASMA+. vx=vy=0. DPS reduzido (3.0). Nunca expira por OOB.</td><td>Estacionária — não se move</td></tr>
       </tbody>
     </table></div>
