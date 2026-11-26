@@ -3,7 +3,7 @@
 O que mudou em cada versão, do ponto de vista de quem joga. Detalhes
 técnicos de cada fase ficam em `bullethell/MIGRATION.md`.
 
-## Ainda sem versão
+## v2.1.0 (2026-11-26)
 
 - **Replay mais confiável:** o "W — ver replay" do fim da run agora usa o
   replay da OuroborosEngine e confere, uma vez por segundo, se a partida
